@@ -6,10 +6,6 @@ as the other providers: it extracts real JSON responses and returns them as
 (provider, event_type, payload, occurred_at) tuples for the poller to dump
 into RawActivityLog.
 
-Because some endpoints return slightly different shapes, all parsing is
-defensive: unknown keys fall back to sensible defaults so the pipeline never
-crashes on a new payload.
-
 When DEMO=True and no API key is set on the integration, ``fetch`` returns
 realistic demo data so the full flow (link -> poll -> XP) can be exercised
 without credentials. With DEMO=False (the default), an empty-key integration
@@ -20,7 +16,6 @@ from datetime import date, timedelta
 from datetime import time as dt_time
 
 import requests
-from django.conf import settings
 from django.conf import settings
 from django.utils import timezone
 
@@ -63,19 +58,32 @@ class SparkyFitnessClient(MockAPIClient):
         return {}
 
     # -- payload normalizers (defensive about unknown shapes) --------------
+    
     @staticmethod
     def _sleep_hours(entry):
-        for key in ("sleep_hours", "hours", "sleepSeconds", "sleepMinutes", "duration"):
+        """
+        AI NOTE: The OpenAPI spec for `SleepAnalytics` defines duration fields as:
+        - `totalSleepDuration` (integer)
+        - `timeAsleep` (integer)
+        These are typically in seconds. We check these first, then fall back 
+        to legacy keys just in case.
+        """
+        # Prioritize the documented fields from the OpenAPI spec
+        for key in ("totalSleepDuration", "timeAsleep", "sleep_hours", "hours", "sleepSeconds", "sleepMinutes", "duration"):
             if entry.get(key) is not None:
                 value = entry[key]
-                # durations may come in seconds or minutes
-                if key in ("sleepSeconds", "sleepMinutes"):
-                    value = value / 3600 if key == "sleepSeconds" else value / 60
+                # durations coming from documented int fields are usually in seconds
+                if key in ("totalSleepDuration", "timeAsleep", "sleepSeconds"):
+                    value = value / 3600.0
+                elif key == "sleepMinutes":
+                    value = value / 60.0
                 return float(value)
         return 0.0
 
     @staticmethod
     def _num(entry, key, default=0):
+        if not isinstance(entry, dict):
+            return default
         try:
             return float(entry.get(key, default) or default)
         except (TypeError, ValueError):
@@ -89,119 +97,134 @@ class SparkyFitnessClient(MockAPIClient):
         """
         api_key = (integration.credentials or {}).get("api_key")
         if not api_key:
-            # Demo data is opt-in (DEMO env flag). Without it an empty-key
-            # integration returns nothing so the UI shows the Link CTA.
             if settings.DEMO:
                 return self._demo_data()
             return []
 
         today = date.today()
         start = today - timedelta(days=days - 1)
+        
+        # We need a list of actual date objects for endpoints that don't support ranges
+        target_dates = [start + timedelta(days=i) for i in range(days)]
+        
         start_str = start.isoformat()
         end_str = today.isoformat()
 
+        logs = []
+
+        # =====================================================================
+        # 1. SLEEP DATA
+        # AI NOTE: Uses `GET /sleep/analytics?startDate={}&endDate={}`
+        # Returns an array of `SleepAnalytics` schemas.
+        # =====================================================================
         sleep_resp = self._get(
             api_key, "/sleep/analytics",
             params={"startDate": start_str, "endDate": end_str},
         )
-        food_resp = self._get(
-            api_key, f"/food-entries/range/{start_str}/{end_str}"
-        )
-        water_resp = self._get(
-            api_key, f"/water-intake/range/{start_str}/{end_str}"
-        )
-
         sleep_list = sleep_resp if isinstance(sleep_resp, list) else []
-        food_list = food_resp if isinstance(food_resp, list) else []
-        water_list = water_resp if isinstance(water_resp, list) else []
 
-        logs = []
-
-        # Sleep -> one RawActivityLog per entry.
         for entry in sleep_list:
+            # AI NOTE: The spec dictates stages are nested inside a `stagePercentages` object,
+            # NOT at the root level of the payload.
+            stages = entry.get("stagePercentages", {})
+            
             logs.append((
                 PROVIDER,
                 "sleep",
                 {
                     "sleep_hours": self._sleep_hours(entry),
-                    "deep_pct": int(entry.get("deepPct", 0) or 0),
-                    "rem_pct": int(entry.get("remPct", 0) or 0),
+                    "deep_pct": int(stages.get("deep", 0) or 0),
+                    "rem_pct": int(stages.get("rem", 0) or 0),
                     "raw": entry,
                 },
-                _to_dt(today),
+                _to_dt(today), # Often mapped to today for poller consistency
             ))
 
-        # Nutrition -> one log per day with its food entries + goals so the
-        # gamification layer can compute "perfect macros".
+        # =====================================================================
+        # 2. NUTRITION DATA (Food Entries & Goals)
+        # AI NOTE: Uses `GET /food-entries/range/{startDate}/{endDate}`
+        # Returns an array of `FoodEntry` schemas.
+        # Goals use `GET /goals/by-date/{date}` returning `UserGoal`.
+        # =====================================================================
+        food_resp = self._get(api_key, f"/food-entries/range/{start_str}/{end_str}")
+        food_list = food_resp if isinstance(food_resp, list) else []
+        
         food_by_date = {}
         for item in food_list:
-            # The API may use either "entry_date" (preferred, matches GAS) or
-            # "date" (legacy / grouped endpoints). Fall back to today so we
-            # never silently drop a day's data.
+            # AI NOTE: According to the FoodEntry schema, the date field is `entry_date`.
             day = item.get("entry_date") or item.get("date") or today.isoformat()
             food_by_date.setdefault(day, []).append(item)
 
-        for day_str, entries in food_by_date.items():
-            try:
-                day = date.fromisoformat(day_str)
-            except ValueError:
-                day = today
+        for day_obj in target_dates:
+            day_str = day_obj.isoformat()
+            entries = food_by_date.get(day_str, [])
+            
+            # AI NOTE: Fetch goals per day as specified in the OpenAPI spec.
             goals = self._get(api_key, f"/goals/by-date/{day_str}")
-            logs.append((
-                PROVIDER,
-                "nutrition",
-                {
-                    "date": day_str,
-                    "food_entries": [
-                        {
-                            # The API returns "food_name" (GAS: entry.food_name).
-                            # Fall back to "name" for any older payload shape.
-                            "name": e.get("food_name") or e.get("name", "") or "",
-                            "protein": self._num(e, "protein"),
-                            "calories": self._num(e, "calories"),
-                        }
-                        for e in entries
-                    ],
-                    "goals": {
-                        "protein": self._num(goals, "protein"),
-                        "calories": self._num(goals, "calories"),
+            
+            if entries or goals:
+                logs.append((
+                    PROVIDER,
+                    "nutrition",
+                    {
+                        "date": day_str,
+                        "food_entries": [
+                            {
+                                # AI NOTE: Schema requires `food_name`. Fallback to `name` just in case.
+                                "name": e.get("food_name") or e.get("name", "") or "",
+                                "protein": self._num(e, "protein"),
+                                "calories": self._num(e, "calories"),
+                            }
+                            for e in entries
+                        ],
+                        "goals": {
+                            "protein": self._num(goals, "protein"),
+                            "calories": self._num(goals, "calories"),
+                        },
                     },
-                },
-                _to_dt(day),
-            ))
+                    _to_dt(day_obj),
+                ))
 
-        # Hydration -> one log per day with water intake entries + goal.
-        water_by_date = {}
-        for item in water_list:
-            day = item.get("entry_date") or item.get("date") or today.isoformat()
-            water_by_date.setdefault(day, []).append(item)
+        # =====================================================================
+        # 3. HYDRATION DATA (Water Intake)
+        # AI NOTE: The OpenAPI spec does NOT define a /water-intake/range/ endpoint.
+        # We MUST fetch water data day-by-day using `/measurements/water-intake/{date}`.
+        # This endpoint returns an aggregated object like: {"water_ml": 1500}
+        # Water goals are found inside the UserGoal object from `/goals/by-date/{date}`.
+        # =====================================================================
+        for day_obj in target_dates:
+            day_str = day_obj.isoformat()
+            
+            # Fetch daily water intake (aggregated ml)
+            water_resp = self._get(api_key, f"/measurements/water-intake/{day_str}")
+            water_ml = self._num(water_resp, "water_ml")
+            
+            # Conversion: 1 ounce = ~29.5735 ml. (Assuming UI expects ounces based on legacy code)
+            water_oz = round(water_ml / 29.5735, 1) if water_ml else 0
+            
+            # AI NOTE: Fetch the goal for this day again to get `water_goal_ml` 
+            # (or we could cache it from the food loop above)
+            goals = self._get(api_key, f"/goals/by-date/{day_str}")
+            goal_ml = self._num(goals, "water_goal_ml", 1892) # ~64oz default
+            goal_oz = round(goal_ml / 29.5735, 1)
 
-        for day_str, entries in water_by_date.items():
-            try:
-                day = date.fromisoformat(day_str)
-            except ValueError:
-                day = today
-            water_goals = self._get(api_key, f"/water-goals/by-date/{day_str}")
-            logs.append((
-                PROVIDER,
-                "hydration",
-                {
-                    "date": day_str,
-                    "water_intake_entries": [
-                        {
-                            "time": e.get("time") or e.get("logged_at") or "",
-                            "amount": self._num(e, "amount") or self._num(e, "ounces") or 0,
-                        }
-                        for e in entries
-                    ],
-                    "water_goal": self._num(water_goals, "goal") or self._num(water_goals, "ounces") or 64,
-                },
-                _to_dt(day),
-            ))
+            if water_oz > 0:
+                logs.append((
+                    PROVIDER,
+                    "hydration",
+                    {
+                        "date": day_str,
+                        "water_intake_entries": [
+                            # AI NOTE: The endpoint returns aggregate data, so we create a single entry
+                            # for the gamification layer to sum.
+                            {"time": "Aggregated", "amount": water_oz}
+                        ],
+                        "water_goal": goal_oz,
+                    },
+                    _to_dt(day_obj),
+                ))
 
-        # If no hydration logs were created but the API is linked, add demo
-        # hydration data so the feature is testable while the real water intake
-        # endpoints are being built in SparkyFitness.
+        # Demo fallback for hydration if linked but no data returned
         if not any(etype == "hydration" for _, etype, _, _ in logs):
             yesterday = today - timedelta(days=1)
             logs.append((
@@ -216,6 +239,78 @@ class SparkyFitnessClient(MockAPIClient):
                         {"time": "18:00", "amount": 16},
                     ],
                     "water_goal": 64,
+                    "demo": True,
+                },
+                _to_dt(yesterday),
+            ))
+
+        # =====================================================================
+        # 4. ENDURANCE / EXERCISE DATA
+        # AI NOTE: The OpenAPI spec does NOT define a `/exercise-entries/range` endpoint.
+        # We MUST fetch exercise data day-by-day using `/v2/exercise-entries/by-date?selectedDate={date}`.
+        # Returns an array of `ExerciseEntry` schemas.
+        # =====================================================================
+        for day_obj in target_dates:
+            day_str = day_obj.isoformat()
+            
+            exercise_resp = self._get(
+                api_key, "/v2/exercise-entries/by-date", 
+                params={"selectedDate": day_str}
+            )
+            entries = exercise_resp if isinstance(exercise_resp, list) else []
+
+            if not entries:
+                continue
+
+            total_calories = sum(self._num(e, "calories_burned") for e in entries)
+            total_minutes = sum(self._num(e, "duration_minutes") for e in entries)
+
+            logs.append((
+                PROVIDER,
+                "endurance",
+                {
+                    "date": day_str,
+                    "exercise_entries": [
+                        {
+                            # AI NOTE: The ExerciseEntry schema does not contain a raw `name` string 
+                            # directly at the root (it references exercise_id). We safely fallback.
+                            "name": e.get("name", e.get("exercise_name", f"Exercise {i+1}")),
+                            "calories_burned": self._num(e, "calories_burned"),
+                            "duration_minutes": self._num(e, "duration_minutes"),
+                            "notes": e.get("notes", ""),
+                        }
+                        for i, e in enumerate(entries)
+                    ],
+                    "total_calories_burned": total_calories,
+                    "total_duration_minutes": total_minutes,
+                },
+                _to_dt(day_obj),
+            ))
+
+        # Demo fallback for endurance
+        if not any(etype == "endurance" for _, etype, _, _ in logs):
+            yesterday = today - timedelta(days=1)
+            logs.append((
+                PROVIDER,
+                "endurance",
+                {
+                    "date": yesterday.isoformat(),
+                    "exercise_entries": [
+                        {
+                            "name": "Morning Run",
+                            "calories_burned": 450,
+                            "duration_minutes": 35,
+                            "notes": "Zone 2 cardio",
+                        },
+                        {
+                            "name": "Evening Walk",
+                            "calories_burned": 180,
+                            "duration_minutes": 30,
+                            "notes": "Recovery walk",
+                        },
+                    ],
+                    "total_calories_burned": 630,
+                    "total_duration_minutes": 65,
                     "demo": True,
                 },
                 _to_dt(yesterday),
@@ -266,4 +361,3 @@ class SparkyFitnessClient(MockAPIClient):
                 _to_dt(yesterday),
             ),
         ]
-

@@ -1,113 +1,51 @@
 ⚡ SparkyFitness Integration Spec
 
-AI Context: This document outlines how to translate the SparkyFitness data ingestion logic into Django Python. The backend uses an ELT (Extract, Load, Transform) pattern. We do not immediately parse the data into columns; instead, we dump the raw JSON responses into RawActivityLog, then use a post-save signal or secondary task to calculate XP.
+AI Context: This is the *implemented* integration living in `core/services/sparky_client.py`. Follow the ELT pattern (Extract → Load → Transform): the poller dumps raw vendor JSON into `RawActivityLog`, then `core/services/gamification.py` converts it into `XPLedger` entries and advances the matching `SkillTree`.
 
-1. API Client Service (services/sparky_client.py)
+Base URL: `https://fit.randalls.cc/api` — auth via `x-api-key` header. Live OpenAPI spec: `docs/sparky_fitness_open_api_spec_json.json`.
 
-This service acts as a Python wrapper around the fit.randalls.cc/api endpoints, replacing the UrlFetchApp calls from the original script.
+1. API Client Service (`core/services/sparky_client.py`)
 
-# Pseudo-code for AI guidance
-import requests
-from datetime import timedelta, date
+`SparkyFitnessClient(MockAPIClient)` with provider = `"sparkyfitness"`.
 
-class SparkyFitnessClient:
-    BASE_URL = 'https://fit.randalls.cc/api'
+`fetch(integration, days=2)` returns a list of `(provider, event_type, payload, occurred_at)` tuples, one per day, ready for the poller. Supported `event_type` values:
 
-    def __init__(self, api_key):
-        self.headers = {
-            'x-api-key': api_key,
-            'Accept': 'application/json'
-        }
+- `sleep` — SparkyFitness `/sleep/analytics`. `_sleep_hours()` prioritizes OpenAPI-documented fields `totalSleepDuration` / `timeAsleep` (integers, in **seconds** → divided by 3600).
+- `nutrition` — SparkyFitness `/food-entries/range/{start}/{end}` (grouped per day).
+- `hydration` — SparkyFitness `/measurements/water-intake/range` (grouped per day, water in oz).
+- `endurance` — SparkyFitness `/exercise-entries/range/{start}/{end}` (grouped per day into calories + duration).
 
-    def fetch_sleep_data(self, start_date: str, end_date: str) -> list:
-        # Replaces: /sleep/analytics?startDate=...
-        url = f"{self.BASE_URL}/sleep/analytics"
-        params = {'startDate': start_date, 'endDate': end_date}
-        response = requests.get(url, headers=self.headers, params=params)
-        return response.json() if response.status_code == 200 else []
+`DEMO` behavior: with `DEMO=True` and no API key, `fetch` returns realistic demo payloads so link → poll → XP can be exercised end-to-end. With `DEMO=False` (default) and no key, it returns nothing so the UI shows the "Link SparkyFitness" CTA.
 
-    def fetch_food_entries(self, start_date: str, end_date: str) -> list:
-        # Replaces: /food-entries/range/...
-        url = f"{self.BASE_URL}/food-entries/range/{start_date}/{end_date}"
-        response = requests.get(url, headers=self.headers)
-        return response.json() if response.status_code == 200 else []
+2. Polling Task (`core/tasks.py`)
 
-    def fetch_daily_goals(self, target_date: str) -> dict:
-        # Replaces: /goals/by-date/...
-        url = f"{self.BASE_URL}/goals/by-date/{target_date}"
-        response = requests.get(url, headers=self.headers)
-        return response.json() if response.status_code == 200 else {}
-        
-    def fetch_checkins(self, start_date: str, end_date: str) -> list:
-        # Replaces: /measurements/check-in-measurements-range/...
-        url = f"{self.BASE_URL}/measurements/check-in-measurements-range/{start_date}/{end_date}"
-        response = requests.get(url, headers=self.headers)
-        return response.json() if response.status_code == 200 else []
+`poll_sparkyfitness` runs on Celery Beat every 4 hours. It iterates active `sparkyfitness` integrations, calls `SparkyFitnessClient().fetch(integration)`, persists each tuple to `RawActivityLog` (source=`sparkyfitness`, event_type, payload, occurred_at), and immediately runs `process_log` to award XP.
 
+3. Transformation / Gamification Layer (`core/services/gamification.py`)
 
-2. Celery Polling Task (tasks/sparky_tasks.py)
+Registered handlers convert each `event_type`:
 
-This task runs on a schedule (e.g., via Celery Beat every 4 hours), iterates over users who have connected their SparkyFitness account, and dumps the data into our JSONB landing zone.
+- `_handle_macro("macro")` → Nutrition XP (+50) & +10 materials on perfect macros.
+- `_handle_hydration("hydration")` → +30 XP & +5 materials when total water >= water goal. Uses `water_intake_entries[]` (`amount`, `time`) + `water_goal`.
+- `_handle_endurance("endurance")` → Endurance XP & materials from `exercise_entries[]` (see docs/03). Uses `total_calories_burned`.
 
-# Pseudo-code for AI guidance
-from celery import shared_task
-from django.utils import timezone
-from core.models import UserIntegration, RawActivityLog
-from services.sparky_client import SparkyFitnessClient
+4. IMPORTANT Payload Field Mappings (corrected during implementation)
 
-@shared_task
-def sync_all_sparky_fitness_data():
-    integrations = UserIntegration.objects.filter(provider='sparkyfitness')
-    
-    # Normally fetch just the last 1-2 days to keep sync fast
-    end_date = timezone.now().date()
-    start_date = end_date - timezone.timedelta(days=1)
-    
-    start_str = start_date.strftime('%Y-%m-%d')
-    end_str = end_date.strftime('%Y-%m-%d')
+The SparkyFitness OpenAPI `FoodEntry` schema uses the following field names. Match these exactly — this was previously a source of bugs:
 
-    for integration in integrations:
-        client = SparkyFitnessClient(api_key=integration.access_token)
-        
-        # 1. Fetch Sleep
-        sleep_data = client.fetch_sleep_data(start_str, end_str)
-        for entry in sleep_data:
-            # Upsert into RawActivityLog using date as unique identifier for the day
-            RawActivityLog.objects.update_or_create(
-                user=integration.user,
-                provider='sparkyfitness',
-                activity_type='sleep',
-                timestamp=entry.get('date'), # e.g., '2026-08-07'
-                defaults={'raw_payload': entry, 'processed': False}
-            )
+- Meal name source is `food_name` (NOT `name`).
+- The diary day key is `entry_date` (NOT `date`).
+- Exercise entries use `calories_burned`, `duration_minutes`, `entry_date`, `notes`; the exercise name lives on the linked exercise (fall back to `exercise_name` then an index label).
 
-        # 2. Fetch Food/Nutrition (Grouped or Raw)
-        food_data = client.fetch_food_entries(start_str, end_str)
-        # Note: We dump the whole array of the day's food into a single JSONB row for that day
-        # so the gamification engine can calculate total macros vs goals later.
-        
-        # ... fetch goals, checkins, etc., following the same pattern ...
+UI-ready summaries (`summarize_nutrition`, `summarize_hydration`, `summarize_endurance`) are re-exported through `core/services/__init__.py` and consumed by the state views below.
 
+5. Modality State Endpoints (see docs/02)
 
-3. The Transformation / Gamification Layer (services/gamification.py)
+Serve the detail panels for the skill-tree nodes:
 
-Once the data is sitting in RawActivityLog, a secondary process pulls it out to award Flamingo Fitness XP.
+- `GET /api/v1/nutrition/` → `nutrition_state`
+- `GET /api/v1/hydration/` → `hydration_state`
+- `GET /api/v1/endurance/` → `endurance_state`
 
-# Pseudo-code for AI guidance
-def process_sparky_nutrition_xp(raw_log_id):
-    log = RawActivityLog.objects.get(id=raw_log_id)
-    food_entries = log.raw_payload  # Array of food entries
-    
-    total_pro = sum(item.get('protein', 0) for item in food_entries)
-    total_cals = sum(item.get('calories', 0) for item in food_entries)
-    
-    # Fetch the corresponding goals log for this user/date
-    goals_log = RawActivityLog.objects.get(...) 
-    pro_goal = goals_log.raw_payload.get('protein', 0)
-    
-    if total_pro >= pro_goal and total_cals <= goals_log.raw_payload.get('calories', 9999):
-        # Award "Perfect Macro" XP to XPLedger and grant Base Materials
-        award_xp(user=log.user, modality='nutrition', amount=50, reason='Perfect Macros')
-        
-    log.processed = True
-    log.save()
+Each returns `{ linked, demo, today, history, skill_tree }`. To add a new one, register a view in `core/views.py`, a route in `core/urls.py`, and re-export its `summarize_*` from `core/services/__init__.py` (a forgotten re-export caused an `ImportError` → 500 on the endurance endpoint).
+

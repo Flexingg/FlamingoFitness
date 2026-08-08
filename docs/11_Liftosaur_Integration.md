@@ -1,6 +1,8 @@
 🦖 Liftosaur Integration Spec
 
-AI Context: This document translates the Liftosaur Google Apps Script data ingestion logic into Django Python. Following our ELT pattern, we extract raw workout history from the Liftosaur API, load it into the RawActivityLog JSONB field, and then transform/parse the custom text blocks to calculate Strength XP based on volume.
+Status: SPEC / PLANNED. A mock `LiftosaurClient` exists in `core/services/api_clients.py` and a `poll_liftosaur` Celery task is wired, but the real Liftosaur API wrapper and the regex volume parser below have NOT been implemented yet. The Strength XP math (`strength_xp`) is already in `core/services/gamification.py`.
+
+AI Context: This document specifies how to translate the Liftosaur Google Apps Script data ingestion logic into Django Python. Following our ELT pattern, we extract raw workout history from the Liftosaur API, load it into the RawActivityLog JSONB field, and then transform/parse the custom text blocks to calculate Strength XP based on volume.
 
 1. API Client Service (services/liftosaur_client.py)
 

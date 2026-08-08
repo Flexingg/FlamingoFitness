@@ -1,12 +1,12 @@
 🔌 API Contracts
 
-AI Context: This is a Django REST Framework (or lightweight Django JSONResponse) API spec. The Vanilla JS frontend will consume these. All endpoints require authentication (Session/Cookie based since frontend is served by Django).
+AI Context: Lightweight Django `JsonResponse` APIs (no DRF). The vanilla JS frontend consumes these via `fetch()`. All endpoints require authentication (Django session/cookie, served by the same project). All routes are prefixed `/api/v1/` and defined in `core/urls.py`.
 
 Frontend Consumption APIs
 
 GET /api/v1/dashboard/state
 
-Returns the complete user state to render the UI.
+Returns the complete user state to render the dashboard shell.
 Response:
 
 {
@@ -19,10 +19,73 @@ Response:
   },
   "skill_trees": {
     "strength": { "level": 4, "progress_pct": 85 },
-    "endurance": { "level": 2, "progress_pct": 10 }
+    "endurance": { "level": 2, "progress_pct": 10 },
+    "nutrition": { "level": 1, "progress_pct": 63 },
+    "hydration": { "level": 1, "progress_pct": 40 }
   }
 }
 
+Each skill_tree entry carries: level, xp (within-level), total_xp, progress_pct.
+
+GET /api/v1/nutrition/  (views.nutrition_state)
+
+Returns today's nutrition summary, history, and the Nutrition skill-tree state.
+Response:
+
+{
+  "linked": true,
+  "demo": false,
+  "today": {
+    "date": "2026-08-07",
+    "calories": 1980, "protein": 165, "carbs": 210, "fat": 60,
+    "calories_goal": 2500, "protein_goal": 180,
+    "perfect": false, "xp": 0, "materials": 0,
+    "meals": [ { "name": "Breakfast", "calories": 520, "protein": 40 } ]
+  },
+  "history": [ ... same shape by day ... ],
+  "skill_tree": { "level": 1, "xp": 63, "total_xp": 63, "progress_pct": 63 }
+}
+
+Meal `name` comes from SparkyFitness `food_name`; day keys come from `entry_date`.
+
+GET /api/v1/hydration/  (views.hydration_state)
+
+Returns today's water intake, history, and the Hydration skill-tree state.
+Response:
+
+{
+  "linked": true,
+  "demo": false,
+  "today": {
+    "date": "2026-08-07",
+    "water": 84, "water_goal": 96, "water_pct": 88,
+    "perfect": false, "xp": 0, "materials": 0,
+    "water_intake_entries": [ { "time": "08:00", "amount": 24 } ]
+  },
+  "history": [ ... same shape by day ... ],
+  "skill_tree": { "level": 1, "xp": 30, "total_xp": 30, "progress_pct": 30 }
+}
+
+GET /api/v1/endurance/  (views.endurance_state)
+
+Returns SparkyFitness exercise entries and the Endurance skill-tree state.
+Response:
+
+{
+  "linked": true,
+  "demo": false,
+  "today": {
+    "date": "2026-08-07",
+    "total_calories_burned": 630, "total_duration_minutes": 65,
+    "exercise_count": 2, "xp": 63, "materials": 5,
+    "exercise_entries": [
+      { "name": "Morning Run", "calories_burned": 450, "duration_minutes": 35, "notes": "Zone 2 cardio" },
+      { "name": "Evening Walk", "calories_burned": 180, "duration_minutes": 30, "notes": "Recovery walk" }
+    ]
+  },
+  "history": [ ... same shape by day ... ],
+  "skill_tree": { "level": 1, "xp": 63, "total_xp": 63, "progress_pct": 63 }
+}
 
 GET /api/v1/leaderboard/weekly
 
@@ -36,12 +99,11 @@ Response:
   ]
 }
 
-
 Integration APIs (Webhooks)
 
 POST /api/v1/webhooks/home-assistant
 
-Endpoint for HA to send local events (e.g., smart scale reading, fridge opened).
+Endpoint for Home Assistant to send local events (e.g., smart scale reading, fridge opened).
 Payload:
 
 {
@@ -49,3 +111,4 @@ Payload:
   "state": "85.2",
   "attributes": {"unit": "kg"}
 }
+

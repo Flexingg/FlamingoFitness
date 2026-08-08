@@ -1,47 +1,96 @@
-🦩 Vibe Coding Overview: Project "Flamingo Fitness"
+🗄️ Flamingo Fitness Database Schema (PostgreSQL)
 
-📖 The Main Idea
+AI Context: Django ORM models live in `core/models.py`. PostgreSQL (via `psycopg2`). Migrations live in `core/migrations/`. Run `python manage.py makemigrations core && python manage.py migrate` after model changes.
 
-This project is a Duolingo-style fitness web app designed to incentivize healthy behavior through gamification. It aggregates disparate health data (sleep, nutrition, weightlifting, Peloton, Garmin) into a centralized PostgreSQL database.
+Custom User
 
-Instead of just showing charts, the app uses this data to drive behavioral mechanics:
+`core.User(AbstractUser)`
 
-Readiness-Adjusted Streaks: Rest days are mandated or granted based on recovery metrics.
+- username, email, password (inherited)
+- streak: PositiveIntegerField (consecutive-day streak, protected by readiness)
+- avatar: URLField (dicebear default)
 
-Modality Skill Trees: Separate progression tracks for Strength, Endurance, Nutrition, and Recovery.
+`@property total_xp` = SUM(XPLedger.amount) for the user.
 
-Base-Building Meta-Game: XP and macros translate into resources to build a virtual idle base (e.g., building out a Miami beach club).
+`Modality` TextChoices (skill-tree tracks)
 
-Asymmetric Leaderboards: A unified "Effort XP" allows users doing different activities to compete fairly.
+- strength
+- endurance
+- nutrition
+- hydration  (NEW)
+- recovery
 
-Boss Fights & Perfect Lessons: Gamifying hard workout days and precision macro tracking.
+`Provider` TextChoices (external data sources)
 
-🛠️ The Tech Stack (The Framework)
+- garmin
+- peloton
+- liftosaur
+- sparkyfitness
+- home_assistant
 
-To keep the project lightweight, deployable, and easy to maintain, we are strictly using the following stack. AI Constraints: Do not introduce unnecessary frameworks (e.g., React, Vue, Node.js) unless explicitly requested.
+UserIntegration
 
-Infrastructure: Docker Compose, designed to be deployed and managed via Portainer. Redis + Celery for async background polling.
+Per-user API credential storage (one row per user/provider).
 
-Database: PostgreSQL (using JSONB for flexible ELT webhook ingestion).
+- user FK -> User (related_name="integrations")
+- provider CharField(choices=Provider)
+- credentials JSONField (OAuth tokens / API keys)
+- is_active Bool default True
+- last_polled DateTime null
+- UniqueConstraint("user", "provider") = unique_user_provider
 
-Backend: Python / Django. Handles data transformation, XP math, auth, and serves the API/Views.
+RawActivityLog (JSONB ELT inbox)
 
-Frontend: Vanilla HTML5, CSS3 (CSS Variables/Flexbox/Grid), and vanilla JavaScript. No heavy frontend frameworks.
+Webhooks and pollers drop unprocessed JSON here.
 
-Mobile Delivery: Progressive Web App (PWA). Mobile-first design, strictly utilizing a manifest.json and Service Workers.
+- user FK -> User (related_name="raw_logs")
+- source CharField(choices=Provider)
+- event_type CharField (e.g. "cardio", "strength", "sleep", "macro", "hydration", "endurance")
+- payload JSONField (raw vendor JSON; see docs/10 & docs/11 for shapes)
+- occurred_at DateTime (when the activity actually happened)
+- processor_version CharField (for idempotent re-processing)
+- processed Bool default False
 
-Future Integration: Home Assistant (Webhooks/REST/MQTT) for smart home environmental triggers.
+XPLedger
 
-🗂️ AI Guidance Documentation Suite
+- user FK -> User (related_name="xp_entries")
+- modality CharField(choices=Modality)
+- amount Int (positive = award, negative = correction)
+- description CharField (reason string)
+- created_at DateTime (auto)
+- Indexes on (user, created_at) and (modality)
 
-docs/01_database_schema.md: The PostgreSQL/Django schema.
+SkillTree
 
-docs/02_api_contracts.md: The REST API endpoints.
+Per-user, per-modality progression.
 
-docs/03_gamification_math.md: The "Effort XP" rulebook.
+- user FK -> User (related_name="skill_trees")
+- modality CharField(choices=Modality)
+- level PositiveInteger default 1
+- xp PositiveInteger (XP *within* the current level, 0..XP_PER_LEVEL)
+- total_xp PositiveInteger (lifetime XP in this modality)
+- UniqueConstraint("user","modality") = unique_user_modality
+- @property progress_pct = int(xp / XP_PER_LEVEL * 100)
 
-docs/04_frontend_architecture.md: [UPDATED] Guidelines for the Vanilla JS component structure, Miami/Flamingo design tokens, and PWA setup.
+DailyReadiness
 
-docs/05_docker_infrastructure.md: [UPDATED] The docker-compose.yml specs and network configurations.
+Readiness engine output (sleep + body battery).
 
-docs/06_home_assistant_spec.md: The blueprint for Home Assistant.
+- `StreakRequirement` TextChoices: REST_DAY ("rest_day"), TRAIN ("train")
+- user FK -> User (related_name="readiness_records")
+- date DateField
+- score PositiveInteger (0-100)
+- streak_requirement CharField(default=TRAIN)
+- message TextField
+- body_battery PositiveInteger null
+- sleep_hours Float null
+- UniqueConstraint("user", "date")
+
+BaseResource
+
+Base-building meta-game resources.
+
+- user OneToOne -> User (related_name="base_resources")
+- materials PositiveInteger default 0
+- energy PositiveInteger default 0
+- time_speedups PositiveInteger default 0

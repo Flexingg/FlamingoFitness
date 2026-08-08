@@ -14,6 +14,7 @@ from .gamification import (  # noqa: F401
     XP_PER_LEVEL,
     process_log,
     process_payload,
+    summarize_endurance,
     summarize_hydration,
     summarize_nutrition,
 )

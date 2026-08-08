@@ -62,21 +62,21 @@
                 <div class="path-line"></div>
 
                 <div class="node-row right">
-                    <button class="node-btn node-nutrition" id="node-nutrition">
+                    <button class="node-btn node-nutrition" id="node-nutrition" onclick="loadNutrition()">
                         <i class="fa-solid fa-apple-whole"></i>
                         <span class="node-label">Nutrition</span>
                     </button>
                 </div>
 
                 <div class="node-row center">
-                    <button class="node-btn node-hydration node-locked" id="node-hydration">
+                    <button class="node-btn node-hydration node-locked" id="node-hydration" onclick="loadHydration()">
                         <i class="fa-solid fa-glass-water"></i>
                         <span class="node-label">Hydration</span>
                     </button>
                 </div>
 
                 <div class="node-row left">
-                    <button class="node-btn node-endurance" id="node-endurance">
+                    <button class="node-btn node-endurance" id="node-endurance" onclick="loadEndurance()">
                         <i class="fa-solid fa-bicycle"></i>
                         <span class="node-label">Endurance</span>
                     </button>
@@ -144,6 +144,26 @@
                     <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
                 </div>
             </section>
+
+            <!-- Endurance Detail Panel (opened from the Endurance node) -->
+            <section class="endurance-view hidden" id="endurance-view">
+                <div class="nutrition-view-header">
+                    <button class="btn-back" id="endurance-back" onclick="backToEndurancePlan()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2 class="nutrition-view-title"><i class="fa-solid fa-bicycle"></i> Endurance</h2>
+                </div>
+
+                <div id="endurance-content"></div>
+
+                <!-- Empty state / Link-Sparky CTA -->
+                <div id="endurance-empty" class="nutrition-empty hidden">
+                    <div class="empty-icon"><i class="fa-solid fa-bicycle"></i></div>
+                    <p class="empty-title">No endurance data yet.</p>
+                    <p class="empty-desc">Link SparkyFitness to start tracking your workouts.</p>
+                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                </div>
+            </section>
         </main>
 
         <!-- Bottom Tab Nav -->
@@ -168,6 +188,7 @@
     <script src="{% static 'core/js/dashboard.js' %}"></script>
     <script src="{% static 'core/js/nutrition.js' %}"></script>
     <script src="{% static 'core/js/hydration.js' %}"></script>
+    <script src="{% static 'core/js/endurance.js' %}"></script>
     <script>
         // Register the service worker for offline/instant loading (Step 20).
         if ('serviceWorker' in navigator) {

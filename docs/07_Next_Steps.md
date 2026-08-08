@@ -1,67 +1,51 @@
 📋 Next Steps: AI Agent Build Sequence
 
-AI Context: This document outlines the 20-step build sequence for the "Flamingo Fitness" application. When completing a step, refer to the corresponding documentation in the docs/ folder for exact specifications.
+AI Context: This is the build sequence for Flamingo Fitness. Each completed area is marked `[x]` so a future AI knows exactly what already exists and can pick up where things left off. When starting NEW work, re-read the corresponding doc in `docs/`.
 
 Phase 1: Infrastructure & Scaffolding
 
-Goal: Get the basic skeleton of the app running in Docker.
-
-[ ] Step 1: Project Initialization: Create the base Django project (django-admin startproject flamingo_fitness) and set up the folder structure.
-
-[ ] Step 2: Docker Compose Setup: Generate the docker-compose.yml file as specified in 05_docker_infrastructure.md (include Postgres, Redis, Django Web, Celery Worker, Celery Beat).
-
-[ ] Step 3: Dependency Management: Create the requirements.txt file (Django, psycopg2-binary, redis, celery, requests, gunicorn).
-
-[ ] Step 4: Database Configuration: Update settings.py to use PostgreSQL (via environment variables) and configure Redis as the caching/Celery broker backend.
+[x] Step 1: Project Initialization — Base Django project (`flamingo_fitness`) + `core` app created.
+[x] Step 2: Docker Compose Setup — `docker-compose.yml` (Postgres, Redis, Web, Celery Worker, Celery Beat). See `05_Docker_Infrastructure.md`.
+[x] Step 3: Dependency Management — `requirements.txt` (Django, psycopg2-binary, redis, celery, requests, gunicorn, python-dotenv).
+[x] Step 4: Database Configuration — `settings.py` uses PostgreSQL via env vars, falls back to SQLite locally; Redis configured for Celery.
 
 Phase 2: Core Data Models
 
-Goal: Build the Postgres database schema. (Reference: 01_database_schema.md)
-
-[ ] Step 5: User Models: Implement the custom User model (extending AbstractUser) and the UserIntegration model for storing API credentials.
-
-[ ] Step 6: ELT & Ledger Models: Implement the RawActivityLog (using JSONField) and the XPLedger models.
-
-[ ] Step 7: Gamification Models: Implement the SkillTree and DailyReadiness models.
-
-[ ] Step 8: Django Admin: Create admin.py configurations for all models so we can easily view and manipulate data via the Django admin panel during development. Create the initial database migrations.
+[x] Step 5: User Models — Custom `User` (AbstractUser) + `UserIntegration`. See `01_Database_Schema.md`.
+[x] Step 6: ELT & Ledger Models — `RawActivityLog` (JSONField) + `XPLedger`.
+[x] Step 7: Gamification Models — `SkillTree` + `DailyReadiness` (+ `BaseResource`).
+[x] Step 8: Django Admin — `admin.py` for all models; initial migrations created.
+[ ] Step 8b: Add a `season`/`weekly leaderboard reset` model when weekly competitions are formalized.
 
 Phase 3: Data Ingestion & Async Workers
 
-Goal: Set up the Celery pipelines to pull data from external APIs without blocking the main web thread.
-
-[ ] Step 9: Celery Configuration: Initialize Celery in the Django project (celery.py and __init__.py) routing tasks to the Redis broker.
-
-[ ] Step 10: Mock API Clients: Create a services/api_clients.py file with mock classes for Garmin, Peloton, and Liftosaur that return dummy JSON data representing real payloads.
-
-[ ] Step 11: Polling Tasks: Write the Celery tasks (tasks.py) that iterate through UserIntegration records, call the mock API clients, and save the results into RawActivityLog.
-
-[ ] Step 12: Celery Beat Schedule: Configure the Celery Beat schedule in settings.py to run the polling tasks at regular intervals (e.g., Garmin every 2 hours, Peloton every 4 hours).
+[x] Step 9: Celery Configuration — `celery.py` + task registration; Redis broker.
+[x] Step 10: Mock API Clients — `core/services/api_clients.py` (mock Garmin, Peloton, Liftosaur) + `core/services/sparky_client.py` (real SparkyFitness wrapper).
+[x] Step 11: Polling Tasks — `core/tasks.py` (`poll_garmin`, `poll_peloton`, `poll_liftosaur`, `poll_sparkyfitness`, `compute_readiness_for_all`).
+[x] Step 12: Celery Beat Schedule — configured in `settings.py`.
 
 Phase 4: Gamification Service Layer
 
-Goal: Convert raw JSON payloads into XP and update user state. (Reference: 03_gamification_math.md)
-
-[ ] Step 13: XP Calculator Service: Create services/gamification.py. Write functions to parse RawActivityLog JSON payloads and generate XPLedger entries based on the Endurance, Strength, and Recovery math.
-
-[ ] Step 14: Skill Tree Progression Logic: Write the function that listens for new XPLedger entries and updates the user's SkillTree levels and XP balances.
-
-[ ] Step 15: Readiness Engine: Write the logic that parses morning Garmin Body Battery/Sleep payloads to generate the DailyReadiness record (mandating rest days or heavy training).
+[x] Step 13: XP Calculator Service — `core/services/gamification.py` (endurance, strength, recovery, nutrition, hydration handlers). See `03_Gamification_Math.md`.
+[x] Step 14: Skill Tree Progression — `apply_to_skill_tree` advances `SkillTree` on each XPLedger entry.
+[x] Step 15: Readiness Engine — `core/services/readiness.py` → `DailyReadiness` (rest day / train).
 
 Phase 5: API Endpoints
 
-Goal: Expose the backend data to the frontend. (Reference: 02_api_contracts.md)
-
-[ ] Step 16: Dashboard API: Create the GET /api/v1/dashboard/state endpoint using Django's JsonResponse to serve the user's stats, readiness, and skill tree data.
-
-[ ] Step 17: Leaderboard API: Create the GET /api/v1/leaderboard/weekly endpoint that aggregates the XPLedger to return the asymmetric competitive rankings.
-
-[ ] Step 18: Home Assistant Webhook: Create the POST /api/v1/webhooks/home-assistant endpoint to accept inbound data from the smart home. (Reference: 06_home_assistant_spec.md)
+[x] Step 16: Dashboard API — `GET /api/v1/dashboard/state`.
+[x] Step 17: Leaderboard API — `GET /api/v1/leaderboard/weekly`.
+[x] Step 18: Home Assistant Webhook — `POST /api/v1/webhooks/home-assistant`.
+[x] Step 16b: Modality state APIs — `GET /api/v1/nutrition/`, `GET /api/v1/hydration/`, `GET /api/v1/endurance/` (see `02_API_Contracts.md`).
 
 Phase 6: Frontend Integration & PWA
 
-Goal: Bring the Miami/Duolingo UI to life with real data. (Reference: 04_frontend_architecture.md)
+[x] Step 19: Django Templates — dashboard served from `core/templates/core/dashboard.html`; login/signup/profile templates added.
+[x] Step 20: Vanilla JS Data Fetching & PWA — `dashboard.js` fetches `/dashboard/state`; `manifest.json` + `service-worker.js` registered (see `04_Frontend_Architecture.md`).
+[x] Step 20b: Modality detail views — Nutrition, Hydration, Endurance panels with XP progress bars, today cards, and clickable day-detail modals.
 
-[ ] Step 19: Django Templates Setup: Move the existing standalone index.html prototype into Django's template directory and configure the root URL to serve it.
+Current Focus / Likely Next Work
 
-[ ] Step 20: Vanilla JS Data Fetching & PWA: Replace the static HTML data with a vanilla JavaScript fetch() call to /api/v1/dashboard/state on page load. Finally, add the manifest.json and basic service-worker.js to make the app installable on iOS/Android.
+- Recovery (sleep) skill-tree detail panel — the Recovery node exists in the skill tree but has no dedicated state endpoint or detail view yet.
+- Strength detail panel — same gap (Strength node exists, no `GET /api/v1/strength/` or controller).
+- Formalize the Base-Building meta-game UI (materials/energy already tracked in `BaseResource`).
+- Add `GET /api/v1/strength/` + `GET /api/v1/recovery/` endpoints to mirror the Nutrition/Hydration/Endurance pattern.

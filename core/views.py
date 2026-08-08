@@ -199,6 +199,55 @@ def hydration_state(request):
     )
 
 
+
+@login_required
+def endurance_state(request):
+    """GET /api/v1/endurance/
+
+    Returns today's endurance summary, the full exercise history, the
+    endurance skill-tree state, and whether SparkyFitness is linked.
+    """
+    from .services import summarize_endurance
+    from .models import SkillTree
+
+    logs = (
+        RawActivityLog.objects.filter(user=request.user, event_type="endurance")
+        .order_by("-occurred_at")
+    )
+    history = [summarize_endurance(log) for log in logs]
+
+    today_str = timezone.localdate().isoformat()
+    today = next((h for h in history if h["date"] == today_str), None)
+    if today is None and history:
+        today = history[0]
+
+    st, _ = SkillTree.objects.get_or_create(
+        user=request.user,
+        modality=Modality.ENDURANCE,
+        defaults={"level": 1, "xp": 0, "total_xp": 0},
+    )
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+
+    return JsonResponse(
+        {
+            "linked": sparky is not None,
+            "demo": sparky is not None and not has_key,
+            "today": today,
+            "history": history,
+            "skill_tree": {
+                "level": st.level,
+                "xp": st.xp,
+                "total_xp": st.total_xp,
+                "progress_pct": st.progress_pct,
+            },
+        }
+    )
+
+
 @login_required
 def dashboard_state(request):
     """GET /api/v1/dashboard/state (Step 16)."""

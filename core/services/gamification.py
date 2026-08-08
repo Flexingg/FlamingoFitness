@@ -134,6 +134,38 @@ def _handle_cardio(raw_log):
     ]
 
 
+
+@_register("endurance")
+def _handle_endurance(raw_log):
+    """SparkyFitness exercise entries (calories burned)."""
+
+    payload = raw_log.payload
+    total_calories = float(payload.get("total_calories_burned", 0) or 0)
+
+    if total_calories <= 0:
+        return []
+
+    # 1 XP per 10 calories burned, minimum 10 XP
+    xp = max(10, int(total_calories / 10))
+
+    # Bonus materials for high calorie burns (500+ cal = +5 materials)
+    materials = 5 if total_calories >= 500 else 0
+    if materials:
+        award_resources(raw_log.user, materials=materials)
+
+    entry_count = len(payload.get("exercise_entries", []))
+    total_min = payload.get("total_duration_minutes", 0)
+    return [
+        XPLedger(
+            user=raw_log.user,
+            modality=Modality.ENDURANCE,
+            amount=xp,
+            description=(f"{total_calories:.0f} cal burned ({total_min:.0f} min, "
+                         f"{entry_count} exercise{'s' if entry_count != 1 else ''})"),
+        )
+    ]
+
+
 @_register("strength")
 def _handle_strength(raw_log):
     payload = raw_log.payload
@@ -287,6 +319,39 @@ def summarize_hydration(raw_log):
         ],
     }
 
+
+
+
+def summarize_endurance(raw_log):
+    """Build a UI-ready endurance summary for one RawActivityLog (SparkyFitness)."""
+    payload = raw_log.payload or {}
+    entries = payload.get("exercise_entries") or []
+    total_calories = float(payload.get("total_calories_burned", 0) or 0)
+    total_minutes = float(payload.get("total_duration_minutes", 0) or 0)
+    date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
+
+    # XP from the rulebook: 1 XP per 10 cal, min 10 XP
+    xp = max(10, int(total_calories / 10)) if total_calories > 0 else 0
+    # Materials for 500+ cal burns
+    materials = 5 if total_calories >= 500 else 0
+
+    return {
+        "date": date_str,
+        "total_calories_burned": round(total_calories, 1),
+        "total_duration_minutes": round(total_minutes, 1),
+        "exercise_count": len(entries),
+        "xp": xp,
+        "materials": materials,
+        "exercise_entries": [
+            {
+                "name": e.get("name", "Exercise"),
+                "calories_burned": round(float(e.get("calories_burned", 0) or 0), 1),
+                "duration_minutes": round(float(e.get("duration_minutes", 0) or 0), 1),
+                "notes": e.get("notes", ""),
+            }
+            for e in entries
+        ],
+    }
 
 
 @_register("nutrition")
