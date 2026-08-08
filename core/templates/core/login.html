@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log in · Flamingo Fitness</title>
+    <meta name="theme-color" content="#FF5E9A">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <div style="margin: auto; width: 100%; padding: 24px;">
+            <div style="text-align:center; font-size: 3rem; margin-bottom: 4px;">🦩</div>
+            <h1 class="auth-title">Welcome back!</h1>
+            <p class="auth-subtitle">Log in to keep your streak alive.</p>
+
+            {% if form.non_field_errors %}
+                <ul class="errorlist">
+                    {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+
+            <div class="auth-card">
+                <form method="post" action="{% url 'login' %}">
+                    {% csrf_token %}
+                    <p>
+                        <label for="id_username">Username</label>
+                        <input type="text" name="username" id="id_username" autocomplete="username" required>
+                    </p>
+                    <p>
+                        <label for="id_password">Password</label>
+                        <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+                    </p>
+                    <button class="btn-flamingo" type="submit" style="margin-top: 6px;">Log In</button>
+                    <input type="hidden" name="next" value="{{ next }}">
+                </form>
+            </div>
+
+            <p class="auth-link">New here? <a href="{% url 'signup' %}">Create an account</a></p>
+        </div>
+    </div>
+</body>
+</html>

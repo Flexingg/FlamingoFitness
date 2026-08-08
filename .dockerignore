@@ -1,0 +1,19 @@
+# Keep build context small and secrets out of images
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+.env
+.env.example
+docs/
+example_html/
+staticfiles/
+media/
+db.sqlite3
+celerybeat-schedule*
+_smoketest.py
+smoke_out.txt
+Dockerfile
+docker-compose.yml

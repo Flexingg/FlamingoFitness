@@ -1,0 +1,180 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flamingo Fitness</title>
+    <meta name="theme-color" content="#FF5E9A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- PWA manifest (Step 20) -->
+    <link rel="manifest" href="{% static 'core/manifest.json' %}">
+    <!-- Miami/Duolingo bubbly look -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Nav (Stats) -->
+        <header class="top-nav">
+            <div class="stat-badge stat-streak" id="stat-streak">
+                <i class="fa-solid fa-fire"></i> <span>-</span>
+            </div>
+            <div class="stat-badge stat-resources" id="stat-materials">
+                <i class="fa-solid fa-gem"></i> <span>-</span>
+            </div>
+            <div class="stat-badge stat-energy" id="stat-energy">
+                <i class="fa-solid fa-bolt"></i> <span>-</span>
+            </div>
+                        <div class="avatar-wrap">
+                <img class="avatar-img" id="avatar-img" alt="Avatar">
+            </div>
+            <form method="post" action="{% url 'logout' %}" class="logout-form">
+                {% csrf_token %}
+                <button type="submit" class="stat-badge" title="Log out"
+                        style="color: var(--primary-red); background: rgba(216,58,115,0.08);">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </form>
+        </header>
+
+        <!-- Main Scrolling Content -->
+        <main class="main-scroll">
+            <div class="loading-hint" id="loading-hint">
+                <i class="fa-solid fa-spinner fa-spin"></i> Syncing your flock...
+            </div>
+            <div class="error-hint hidden" id="error-hint"></div>
+
+            <!-- Dynamic Readiness Card -->
+            <section class="readiness-card hidden" id="readiness-card">
+                <div class="readiness-header">
+                    <h2 class="readiness-title">Garmin<br>Readiness</h2>
+                    <div class="readiness-score"><i class="fa-solid fa-battery-three-quarters"></i> <span id="readiness-score">-</span></div>
+                </div>
+                <p class="readiness-desc" id="readiness-desc">-</p>
+                <button class="btn-flamingo" id="readiness-action">Start 5/3/1 Workout</button>
+            </section>
+
+            <!-- Skill Tree -->
+            <section class="skill-tree hidden" id="skill-tree">
+                <div class="path-line"></div>
+
+                <div class="node-row right">
+                    <button class="node-btn node-nutrition" id="node-nutrition">
+                        <i class="fa-solid fa-apple-whole"></i>
+                        <span class="node-label">Nutrition</span>
+                    </button>
+                </div>
+
+                <div class="node-row center">
+                    <button class="node-btn node-hydration node-locked" id="node-hydration">
+                        <i class="fa-solid fa-glass-water"></i>
+                        <span class="node-label">Hydration</span>
+                    </button>
+                </div>
+
+                <div class="node-row left">
+                    <button class="node-btn node-endurance" id="node-endurance">
+                        <i class="fa-solid fa-bicycle"></i>
+                        <span class="node-label">Endurance</span>
+                    </button>
+                </div>
+
+                <div class="node-row center">
+                    <button class="node-btn node-strength node-active" id="node-strength">
+                        <i class="fa-solid fa-dumbbell"></i>
+                        <span class="node-label">Strength</span>
+                    </button>
+                </div>
+
+                <div class="node-row right">
+                    <button class="node-btn node-locked" id="node-boss">
+                        <i class="fa-solid fa-crown boss-crown"></i>
+                        <i class="fa-solid fa-skull"></i>
+                        <span class="node-label">PR Boss</span>
+                    </button>
+                </div>
+
+                <div class="node-row center">
+                    <button class="node-btn node-locked" id="node-recovery">
+                        <i class="fa-solid fa-bed"></i>
+                        <span class="node-label">Recovery</span>
+                    </button>
+                </div>
+                        </section>
+
+            <!-- Nutrition Detail Panel (opened from the Nutrition node) -->
+            <section class="nutrition-view hidden" id="nutrition-view">
+                <div class="nutrition-view-header">
+                    <button class="btn-back" id="nutrition-back" onclick="backToNutritionPlan()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2 class="nutrition-view-title"><i class="fa-solid fa-apple-whole"></i> Nutrition</h2>
+                </div>
+
+                <div id="nutrition-content"></div>
+
+                <!-- Empty state / Link-Sparky CTA -->
+                <div id="nutrition-empty" class="nutrition-empty hidden">
+                    <div class="empty-icon"><i class="fa-solid fa-apple-whole"></i></div>
+                    <p class="empty-title">No nutrition data yet.</p>
+                    <p class="empty-desc">Link SparkyFitness to start tracking your macros.</p>
+                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                </div>
+            </section>
+
+            <!-- Hydration Detail Panel (opened from the Hydration node) -->
+            <section class="hydration-view hidden" id="hydration-view">
+                <div class="nutrition-view-header">
+                    <button class="btn-back" id="hydration-back" onclick="backToHydrationPlan()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2 class="nutrition-view-title"><i class="fa-solid fa-glass-water"></i> Hydration</h2>
+                </div>
+
+                <div id="hydration-content"></div>
+
+                <!-- Empty state / Link-Sparky CTA -->
+                <div id="hydration-empty" class="nutrition-empty hidden">
+                    <div class="empty-icon"><i class="fa-solid fa-glass-water"></i></div>
+                    <p class="empty-title">No hydration data yet.</p>
+                    <p class="empty-desc">Link SparkyFitness to start tracking your water intake.</p>
+                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Tab Nav -->
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active"><i class="fa-solid fa-map-location-dot"></i><span>Path</span></a>
+            <a href="#leaderboard" class="nav-item" id="nav-leagues"><i class="fa-solid fa-shield-halved"></i><span>Leagues</span></a>
+            <a href="#" class="nav-item"><i class="fa-solid fa-umbrella-beach"></i><span>Base</span></a>
+            <a href="{% url 'profile' %}" class="nav-item"><i class="fa-solid fa-user"></i><span>Profile</span></a>
+        </nav>
+    </div>
+
+    <!-- Interactive Modal -->
+    <div class="modal-overlay" id="actionModal">
+        <div class="modal-content">
+            <div class="modal-icon"><i class="fa-solid fa-dumbbell"></i></div>
+            <h2 class="modal-title" id="modal-title">Heavy Squat Day</h2>
+            <p class="modal-desc" id="modal-desc">Your Garmin body battery is high. Time to tackle your programming.</p>
+            <button class="btn-flamingo btn-purple" id="modal-action">Log via Liftosaur</button>
+        </div>
+    </div>
+
+    <script src="{% static 'core/js/dashboard.js' %}"></script>
+    <script src="{% static 'core/js/nutrition.js' %}"></script>
+    <script src="{% static 'core/js/hydration.js' %}"></script>
+    <script>
+        // Register the service worker for offline/instant loading (Step 20).
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register("{% static 'core/service-worker.js' %}")
+                .then(function (reg) { console.log('SW registered:', reg.scope); })
+                .catch(function (err) { console.warn('SW registration failed:', err); });
+        }
+    </script>
+</body>
+</html>

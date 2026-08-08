@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create account · Flamingo Fitness</title>
+    <meta name="theme-color" content="#FF5E9A">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <div style="margin: auto; width: 100%; padding: 24px;">
+            <div style="text-align:center; font-size: 3rem; margin-bottom: 4px;">🦩</div>
+            <h1 class="auth-title">Join the flock</h1>
+            <p class="auth-subtitle">Create your fitness gamification account.</p>
+
+            <div class="auth-card">
+                <form method="post" action="{% url 'signup' %}">
+                    {% csrf_token %}
+                    {% if form.non_field_errors %}
+                        <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                    {% endif %}
+                    <p>
+                        <label for="id_username">Username</label>
+                        <input type="text" name="username" id="id_username" value="{{ form.username.value|default_if_none:'' }}" autocomplete="username" required>
+                        {% if form.username.errors %}<ul class="errorlist">{% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    </p>
+                    <p>
+                        <label for="id_email">Email (optional)</label>
+                        <input type="email" name="email" id="id_email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email">
+                        {% if form.email.errors %}<ul class="errorlist">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    </p>
+                    <p>
+                        <label for="id_password1">Password</label>
+                        <input type="password" name="password1" id="id_password1" autocomplete="new-password" required>
+                        {% if form.password1.errors %}<ul class="errorlist">{% for e in form.password1.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                        {% if form.password1.help_text %}<div class="help-text">{{ form.password1.help_text|safe }}</div>{% endif %}
+                    </p>
+                    <p>
+                        <label for="id_password2">Confirm password</label>
+                        <input type="password" name="password2" id="id_password2" autocomplete="new-password" required>
+                        {% if form.password2.errors %}<ul class="errorlist">{% for e in form.password2.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    </p>
+                    <button class="btn-flamingo" type="submit" style="margin-top: 6px;">Create Account</button>
+                </form>
+            </div>
+
+            <p class="auth-link">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+        </div>
+    </div>
+</body>
+</html>

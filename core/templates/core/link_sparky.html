@@ -1,0 +1,65 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile · Flamingo Fitness</title>
+    <meta name="theme-color" content="#FF5E9A">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+    <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <header class="top-nav">
+            <a href="{% url 'dashboard' %}" style="color:var(--text-muted); text-decoration:none;">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+                        <div class="stat-badge" style="color: var(--text-main);"><i class="fa-solid fa-user"></i> {{ request.user.username }}</div>
+            <form method="post" action="{% url 'logout' %}" class="logout-form"
+                  style="display:inline; margin-left: 6px;">
+                {% csrf_token %}
+                <button type="submit" style="color:var(--primary-red); text-decoration:none; background:none; border:0; padding:0; line-height:1; cursor:pointer;" title="Log out"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </form>
+        </header>
+
+        <main class="main-scroll">
+            {% if messages %}
+                <ul class="messages">
+                    {% for m in messages %}<li class="{{ m.tags|default:'' }}">{{ m }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+
+            <h2 class="auth-title" style="font-size:1.3rem;">Your integrations</h2>
+            <p class="auth-subtitle">Connect data sources to power your XP.</p>
+
+            <div class="provider-list">
+                {% for integration in integrations %}
+                    <div class="provider-item">
+                        <span>{{ integration.get_provider_display }}</span>
+                        {% if integration.is_active %}
+                            <span class="badge badge-linked">Linked</span>
+                        {% else %}
+                            <span class="badge badge-not">Inactive</span>
+                        {% endif %}
+                    </div>
+                {% empty %}
+                    <div class="provider-item"><span>No providers linked yet</span><span class="badge badge-not">—</span></div>
+                {% endfor %}
+            </div>
+
+            <div class="auth-card">
+                <h2 class="auth-title" style="font-size:1.2rem;">Link SparkyFitness ⚡</h2>
+                <p class="auth-subtitle">Enter your fit.randalls.cc API key. If you leave it blank we'll use demo data so you can see the flow.</p>
+                <form method="post" action="{% url 'profile' %}">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button class="btn-flamingo" type="submit"><i class="fa-solid fa-link"></i> Link &amp; Sync</button>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

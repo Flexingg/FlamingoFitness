@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <rect width="192" height="192" rx="44" fill="#FF5E9A"/>
+  <!-- Flamingo body -->
+  <circle cx="96" cy="104" r="46" fill="#FFE3EF"/>
+  <!-- Flamingo beak -->
+  <path d="M134 84 q18 -4 12 14 q-6 16 -16 8 Z" fill="#FF9933"/>
+  <!-- Flamingo eye -->
+  <circle cx="118" cy="88" r="4" fill="#2B2B2B"/>
+  <!-- Flamingo wing -->
+  <path d="M68 96 q10 -12 26 -10 q-4 14 -18 18 Z" fill="#FFB8D4"/>
+  <!-- Flame/energy accent -->
+  <path d="M84 34 q-10 16 4 30 q-8 -2 -10 -8 q-14 4 -6 18 q16 22 10 8 q-6 2 -2 -4 q6 -10 4 -44 Z" fill="#FF9933"/>
+</svg>

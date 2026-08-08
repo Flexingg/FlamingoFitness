@@ -1,0 +1,19 @@
+{
+  "name": "Flamingo Fitness",
+  "short_name": "Flamingo",
+  "description": "A Duolingo-style fitness app: streaks, skill trees, and a Miami beach-club base.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FDF4F7",
+  "theme_color": "#FF5E9A",
+  "icons": [
+    {
+      "src": "/static/core/icons/icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

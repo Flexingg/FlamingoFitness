@@ -1,0 +1,474 @@
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flamingo Fitness</title>
+    <!-- Google Fonts for that bubbly, rounded look -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome for standard icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* Miami Flamingo Theme */
+            --primary-pink: #FF5E9A;
+            --dark-pink: #D83A78;
+            --primary-orange: #FF9933;
+            --dark-orange: #D87A20;
+            --primary-blue: #00E5FF;
+            --dark-blue: #00A6B8;
+            --primary-purple: #9D4EDD;
+            --dark-purple: #7B3DB8;
+            --primary-green: #58CC02;
+            --dark-green: #46A302;
+            
+            --bg-light: #FFFFFF;
+            --bg-app: #FDF4F7; /* Warm pinkish-white */
+            --text-main: #2B2B2B;
+            --text-muted: #8E8E8E;
+            --border-color: #E5E5E5;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Nunito', sans-serif;
+            user-select: none; /* App feel */
+        }
+
+        body {
+            background-color: #EFEFEF;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Mobile Container (PWA App Shell) */
+        .app-container {
+            width: 100%;
+            max-width: 420px;
+            height: 100vh;
+            background-color: var(--bg-app);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* Top Navigation Bar */
+        .top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background-color: var(--bg-light);
+            border-bottom: 2px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .stat-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .stat-streak { color: var(--primary-orange); }
+        .stat-resources { color: var(--primary-blue); }
+        .stat-energy { color: var(--primary-purple); }
+
+        /* Scrollable Main Area */
+        .main-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            padding-bottom: 100px; /* space for bottom nav */
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Readiness / Daily Boss Card */
+        .readiness-card {
+            background: linear-gradient(135deg, var(--primary-pink), var(--primary-orange));
+            border-radius: 20px;
+            padding: 20px;
+            color: white;
+            position: relative;
+            box-shadow: 0 6px 0 var(--dark-orange);
+            margin-bottom: 6px;
+        }
+
+        .readiness-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .readiness-title {
+            font-size: 1.4rem;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .readiness-score {
+            background: rgba(255,255,255,0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 800;
+        }
+
+        .readiness-desc {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            opacity: 0.9;
+        }
+
+        /* 3D Button Style */
+        .btn-flamingo {
+            background-color: var(--bg-light);
+            color: var(--primary-pink);
+            font-weight: 800;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            padding: 12px 24px;
+            border: none;
+            border-bottom: 4px solid #E0E0E0;
+            border-radius: 16px;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s, border-bottom 0.1s;
+        }
+
+        .btn-flamingo:active {
+            transform: translateY(4px);
+            border-bottom: 0px solid #E0E0E0;
+            margin-bottom: 4px;
+        }
+
+        /* Skill Tree Path */
+        .skill-tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            padding-top: 10px;
+            position: relative;
+        }
+
+        /* SVG Line connecting nodes */
+        .path-line {
+            position: absolute;
+            top: 40px;
+            bottom: 40px;
+            width: 4px;
+            background-color: #E5E5E5;
+            z-index: 0;
+        }
+
+        .node-row {
+            display: flex;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        .node-row.center { justify-content: center; }
+        .node-row.left { justify-content: flex-start; padding-left: 20%; }
+        .node-row.right { justify-content: flex-end; padding-right: 20%; }
+
+        /* Skill Node Button */
+        .node-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        /* Modality Colors */
+        .node-strength { background-color: var(--primary-purple); box-shadow: 0 8px 0 var(--dark-purple); }
+        .node-endurance { background-color: var(--primary-blue); box-shadow: 0 8px 0 var(--dark-blue); }
+        .node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
+        .node-nutrition { background-color: var(--primary-pink); box-shadow: 0 8px 0 var(--dark-pink); }
+        
+        .node-locked { 
+            background-color: #E5E5E5; 
+            box-shadow: 0 8px 0 #CCCCCC; 
+            color: #A0A0A0;
+        }
+
+        .node-btn:active:not(.node-locked) {
+            transform: translateY(8px);
+            box-shadow: 0 0px 0 transparent;
+        }
+
+        /* Active Node Ring */
+        .node-active::before {
+            content: '';
+            position: absolute;
+            top: -12px; left: -12px; right: -12px; bottom: -12px;
+            border: 4px solid var(--primary-pink);
+            border-radius: 50%;
+            opacity: 0.5;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 0.2; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        /* Crown icon for boss */
+        .boss-crown {
+            position: absolute;
+            top: -20px;
+            font-size: 1.5rem;
+            color: #FFC107;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+        }
+
+        /* Modality Label */
+        .node-label {
+            position: absolute;
+            bottom: -25px;
+            font-size: 0.8rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            padding: 16px 10px;
+            padding-bottom: calc(16px + env(safe-area-inset-bottom));
+            background-color: var(--bg-light);
+            border-top: 2px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: color 0.2s;
+        }
+
+        .nav-item i { font-size: 1.5rem; }
+        .nav-item.active { color: var(--primary-pink); }
+
+        /* Simple Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .modal-content {
+            background: var(--bg-light);
+            width: 85%;
+            max-width: 320px;
+            border-radius: 24px;
+            padding: 24px;
+            text-align: center;
+            transform: translateY(20px);
+            transition: transform 0.2s;
+        }
+
+        .modal-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            color: var(--primary-purple);
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 900;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+
+        .modal-desc {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .show-modal { display: flex; opacity: 1; }
+        .show-modal .modal-content { transform: translateY(0); }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Top Nav (Stats) -->
+        <header class="top-nav">
+            <div class="stat-badge stat-streak" onclick="alert('Streak: 12 Days!\nProtected by Garmin Readiness.')">
+                <i class="fa-solid fa-fire"></i> 12
+            </div>
+            <div class="stat-badge stat-resources">
+                <i class="fa-solid fa-gem"></i> 450
+            </div>
+            <div class="stat-badge stat-energy">
+                <i class="fa-solid fa-bolt"></i> 15
+            </div>
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #ddd; overflow: hidden; border: 2px solid var(--border-color);">
+                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo" alt="Avatar" style="width: 100%; height: 100%;">
+            </div>
+        </header>
+
+        <!-- Main Scrolling Content -->
+        <main class="main-scroll">
+            
+            <!-- Dynamic Readiness Card -->
+            <section class="readiness-card">
+                <div class="readiness-header">
+                    <h2 class="readiness-title">Garmin<br>Readiness</h2>
+                    <div class="readiness-score"><i class="fa-solid fa-battery-three-quarters"></i> 72%</div>
+                </div>
+                <p class="readiness-desc">You're recovered! Today is a perfect day for a heavy lifting session.</p>
+                <button class="btn-flamingo" onclick="openModal('strength')">Start 5/3/1 Workout</button>
+            </section>
+
+            <!-- Skill Tree -->
+            <section class="skill-tree">
+                <div class="path-line"></div>
+                
+                <!-- Nutrition Node (Completed) -->
+                <div class="node-row right">
+                    <button class="node-btn node-nutrition" onclick="alert('Perfect Macros Achieved!\n+50 XP')">
+                        <i class="fa-solid fa-apple-whole"></i>
+                        <span class="node-label">Nutrition</span>
+                    </button>
+                </div>
+
+                <!-- Endurance Node (Completed) -->
+                <div class="node-row left">
+                    <button class="node-btn node-endurance" onclick="alert('Peloton: 45 Min Pop Ride\n+68 XP')">
+                        <i class="fa-solid fa-bicycle"></i>
+                        <span class="node-label">Endurance</span>
+                    </button>
+                </div>
+
+                <!-- Strength Node (Active / Next Lesson) -->
+                <div class="node-row center">
+                    <button class="node-btn node-strength node-active" onclick="openModal('strength')">
+                        <i class="fa-solid fa-dumbbell"></i>
+                        <span class="node-label">Strength</span>
+                    </button>
+                </div>
+
+                <!-- Boss Node (Locked) -->
+                <div class="node-row right">
+                    <button class="node-btn node-locked" onclick="alert('Complete Strength first!')">
+                        <i class="fa-solid fa-crown boss-crown"></i>
+                        <i class="fa-solid fa-skull"></i>
+                        <span class="node-label">PR Boss</span>
+                    </button>
+                </div>
+
+                <!-- Recovery Node (Locked) -->
+                <div class="node-row center">
+                    <button class="node-btn node-locked" style="margin-top: 10px;">
+                        <i class="fa-solid fa-bed"></i>
+                        <span class="node-label">Recovery</span>
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Tab Nav -->
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active">
+                <i class="fa-solid fa-map-location-dot"></i>
+                <span>Path</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fa-solid fa-shield-halved"></i>
+                <span>Leagues</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fa-solid fa-umbrella-beach"></i>
+                <span>Base</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fa-solid fa-user"></i>
+                <span>Profile</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- Interactive Modal -->
+    <div class="modal-overlay" id="actionModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-icon"><i class="fa-solid fa-dumbbell"></i></div>
+            <h2 class="modal-title">Heavy Squat Day</h2>
+            <p class="modal-desc">Your Garmin body battery is at 72%. It's time to tackle your 5/3/1 Squat programming.</p>
+            <button class="btn-flamingo" style="background-color: var(--primary-purple); color: white; border-bottom-color: var(--dark-purple);" onclick="startWorkout()">
+                Log via Liftosaur
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Simple UI logic for the prototype
+        const modal = document.getElementById('actionModal');
+
+        function openModal(type) {
+            modal.classList.add('show-modal');
+        }
+
+        function closeModal(e) {
+            modal.classList.remove('show-modal');
+        }
+
+        function startWorkout() {
+            let btn = document.querySelector('.modal-content .btn-flamingo');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Polling...';
+            setTimeout(() => {
+                alert("Workout synced from Liftosaur API!\n\n+35 Strength XP\n+10 Base Materials");
+                closeModal();
+                btn.innerHTML = 'Log via Liftosaur';
+            }, 1500);
+        }
+        
+        // Prevent default elastic scroll behavior on iOS wrapper
+        document.querySelector('.app-container').addEventListener('touchmove', function(e) {
+            // allow scrolling only inside main-scroll
+        }, { passive: false });
+    </script>
+</body>
+</html>

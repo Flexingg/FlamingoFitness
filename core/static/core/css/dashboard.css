@@ -1,0 +1,600 @@
+/* ============================================================
+   Flamingo Fitness - Miami/Duolingo theme
+   Vanilla CSS3, mobile-first app shell.
+   Reference: docs/04_Frontend_Architecture.md
+   ============================================================ */
+
+:root {
+    --primary-pink: #FF5E9A;
+    --dark-pink: #D83A78;
+    --primary-orange: #FF9933;
+    --dark-orange: #D87A20;
+    --primary-blue: #00E5FF;
+    --dark-blue: #00A6B8;
+    --primary-cyan: #4DD0E1;
+    --dark-cyan: #26B5C9;
+    --primary-purple: #9D4EDD;
+    --dark-purple: #7B3DB8;
+    --primary-green: #58CC02;
+    --dark-green: #46A302;
+    --primary-red: #FF4D4D;
+    --dark-red: #D83A3A;
+
+    --bg-light: #FFFFFF;
+    --bg-app: #FDF4F7;
+    --text-main: #2B2B2B;
+    --text-muted: #8E8E8E;
+    --border-color: #E5E5E5;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Nunito', 'Quicksand', 'Varela Round', sans-serif;
+    user-select: none;
+}
+
+body {
+    background-color: #EFEFEF;
+    display: flex;
+    justify-content: center;
+}
+
+/* Mobile app shell: max-width keeps the app feel on desktop */
+.app-container {
+    width: 100%;
+    max-width: 420px;
+    height: 100vh;
+    background-color: var(--bg-app);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Top Navigation */
+.top-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background-color: var(--bg-light);
+    border-bottom: 2px solid var(--border-color);
+    z-index: 10;
+}
+
+.stat-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+    font-size: 1.1rem;
+}
+.stat-streak { color: var(--primary-orange); }
+.stat-resources { color: var(--primary-blue); }
+.stat-energy { color: var(--primary-purple); }
+
+.avatar-img { width: 100%; height: 100%; border-radius: 50%; }
+.avatar-wrap {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+    background: #ddd;
+}
+
+/* Scrollable main area */
+.main-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px;
+    padding-bottom: 100px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Readiness card */
+.readiness-card {
+    background: linear-gradient(135deg, var(--primary-pink), var(--primary-orange));
+    border-radius: 20px;
+    padding: 20px;
+    color: white;
+    position: relative;
+    box-shadow: 0 6px 0 var(--dark-orange);
+    margin-bottom: 6px;
+}
+.readiness-card.rest-day {
+    background: linear-gradient(135deg, #8E8E8E, #5A5A5A);
+    box-shadow: 0 6px 0 #3F3F3F;
+}
+.readiness-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+.readiness-title { font-size: 1.4rem; font-weight: 900; line-height: 1.2; }
+.readiness-score {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-weight: 800;
+}
+.readiness-desc { font-size: 1rem; font-weight: 600; margin-bottom: 16px; opacity: 0.9; }
+
+/* 3D "Duolingo pop" button */
+.btn-flamingo {
+    background-color: var(--bg-light);
+    color: var(--primary-pink);
+    font-weight: 800;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px 24px;
+    border: none;
+    border-bottom: 4px solid #E0E0E0;
+    border-radius: 16px;
+    cursor: pointer;
+    width: 100%;
+    transition: transform 0.1s, border-bottom 0.1s;
+}
+.btn-flamingo:active {
+    transform: translateY(4px);
+    border-bottom: 0px solid #E0E0E0;
+    margin-bottom: 4px;
+}
+.btn-flamingo.btn-purple {
+    background-color: var(--primary-purple);
+    color: white;
+    border-bottom-color: var(--dark-purple);
+}
+
+/* Skill tree */
+.skill-tree {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+    padding-top: 10px;
+    position: relative;
+}
+.path-line {
+    position: absolute;
+    top: 40px;
+    bottom: 40px;
+    width: 4px;
+    background-color: var(--border-color);
+    z-index: 0;
+}
+.node-row {
+    display: flex;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+}
+.node-row.center { justify-content: center; }
+.node-row.left { justify-content: flex-start; padding-left: 20%; }
+.node-row.right { justify-content: flex-end; padding-right: 20%; }
+
+.node-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: white;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+.node-strength { background-color: var(--primary-purple); box-shadow: 0 8px 0 var(--dark-purple); }
+.node-endurance { background-color: var(--primary-blue); box-shadow: 0 8px 0 var(--dark-blue); }
+.node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
+.node-nutrition { background-color: var(--primary-pink); box-shadow: 0 8px 0 var(--dark-pink); }
+.node-hydration { background-color: var(--primary-cyan); box-shadow: 0 8px 0 var(--dark-cyan); }
+.node-locked {
+    background-color: #E5E5E5;
+    box-shadow: 0 8px 0 #CCCCCC;
+    color: #A0A0A0;
+}
+.node-btn:active:not(.node-locked) {
+    transform: translateY(8px);
+    box-shadow: 0 0px 0 transparent;
+}
+
+.node-active::before {
+    content: '';
+    position: absolute;
+    top: -12px; left: -12px; right: -12px; bottom: -12px;
+    border: 4px solid var(--primary-pink);
+    border-radius: 50%;
+    opacity: 0.5;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 0.2; }
+    100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.boss-crown {
+    position: absolute;
+    top: -20px;
+    font-size: 1.5rem;
+    color: #FFC107;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.2));
+}
+.node-label {
+    position: absolute;
+    bottom: -25px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    width: 100px;
+    text-align: center;
+}
+.node-level {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: var(--text-main);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+/* Skill tree XP progress bars */
+.node-xp-wrap {
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    text-align: center;
+}
+.node-xp-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-app);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+.node-xp-fill {
+    height: 100%;
+    background: var(--primary-pink);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+.node-xp-text {
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Bottom navigation */
+.bottom-nav {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    padding: 16px 10px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    background-color: var(--bg-light);
+    border-top: 2px solid var(--border-color);
+    z-index: 10;
+}
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: color 0.2s;
+}
+.nav-item i { font-size: 1.5rem; }
+.nav-item.active { color: var(--primary-pink); }
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.modal-content {
+    background: var(--bg-light);
+    width: 85%;
+    max-width: 320px;
+    border-radius: 24px;
+    padding: 24px;
+    text-align: center;
+    transform: translateY(20px);
+    transition: transform 0.2s;
+}
+.modal-icon { font-size: 3rem; margin-bottom: 16px; color: var(--primary-purple); }
+.modal-title { font-size: 1.5rem; font-weight: 900; color: var(--text-main); margin-bottom: 8px; }
+.modal-desc { font-size: 1rem; font-weight: 600; color: var(--text-muted); margin-bottom: 24px; }
+.modal-overlay.show-modal { display: flex; opacity: 1; }
+.modal-overlay.show-modal .modal-content { transform: translateY(0); }
+
+/* Loading / error states */
+.loading-hint, .error-hint {
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding: 20px;
+}
+.error-hint { color: var(--primary-red); }
+.hidden { display: none !important; }
+
+/* ===========================================================
+   Nutrition detail panel (docs/04 Miami/Duolingo tokens)
+   ================================================================================= */
+.nutrition-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-app);
+    z-index: 50;
+    overflow-y: auto;
+    padding: 20px;
+    padding-bottom: 100px;
+}
+.nutrition-view-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.btn-back {
+    background: transparent;
+    border: none;
+    font-size: 1.3rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 6px;
+}
+.nutrition-view-title {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--text-main);
+    margin: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nutrition-skill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 16px;
+}
+.skill-badge {
+    background: var(--bg-app);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 4px 10px;
+}
+.skill-xp { color: var(--primary-pink); }
+
+.nutrition-day-card {
+    background: var(--bg-light);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 6px 0 var(--border-color);
+    margin-bottom: 18px;
+}
+.day-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.day-date { font-weight: 800; color: var(--text-main); }
+.perfect-badge {
+    color: var(--primary-red);
+    font-weight: 900;
+    font-size: .85rem;
+    background: rgba(255, 77, 77, .08);
+    padding: 4px 10px;
+    border-radius: 50px;
+}
+.imperfect-badge { color: var(--text-muted); font-weight: 700; font-size: .8rem; }
+
+.reward-row {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+.reward {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 800;
+}
+.reward.xp { color: var(--primary-pink); }
+.reward.mat { color: var(--primary-blue); }
+
+.macro-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.macro-label {
+    font-size: .85rem;
+    font-weight: 800;
+    color: var(--text-main);
+    width: 90px;
+}
+.bar {
+    flex: 1;
+    background: var(--bg-app);
+    border-radius: 10px;
+    height: 22px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+.bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width .4s ease;
+}
+.macro-goal {
+    font-size: .8rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    min-width: 110px;
+    text-align: right;
+}
+
+.food-list {
+    margin-top: 14px;
+    border-top: 2px dashed var(--border-color);
+    padding-top: 10px;
+}
+.food-list-title {
+    font-size: .8rem;
+    color: var(--text-muted);
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.food-item {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: .9rem;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.food-name { flex: 1; color: var(--text-main); }
+.food-pro { color: var(--primary-purple); width: 60px; text-align: right; }
+.food-cal { color: var(--text-muted); width: 90px; text-align: right; }
+
+.history-title {
+    font-weight: 900;
+    color: var(--text-main);
+    margin: 18px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.history-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-app);
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-weight: 700;
+}
+.history-item .hist-macros { color: var(--text-muted); font-size: .85rem; }
+.history-item.perfect { background: rgba(255, 77, 77, .05); }
+.hist-date { color: var(--text-main); }
+.hist-reward { color: var(--primary-pink); }
+
+.nutrition-empty { text-align: center; padding: 18px; }
+
+/* Nutrition skill tree section */
+.nutrition-skill-section {
+    background: var(--bg-light);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 6px 0 var(--border-color);
+    margin-bottom: 18px;
+}
+.nutrition-skill-header {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--text-main);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.nutrition-skill-header i {
+    color: var(--primary-pink);
+}
+.nutrition-skill-info {
+    font-weight: 800;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    font-size: 0.95rem;
+}
+.nutrition-xp-bar-wrap {
+    width: 100%;
+    height: 10px;
+    background: var(--bg-app);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    margin-bottom: 6px;
+}
+.nutrition-xp-bar {
+    width: 100%;
+    height: 100%;
+}
+.nutrition-xp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-pink), var(--primary-orange));
+    border-radius: 5px;
+    transition: width 0.4s ease;
+}
+.nutrition-xp-to-next {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+.nutrition-guidance {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    background: rgba(255, 94, 154, 0.08);
+    padding: 10px;
+    border-radius: 12px;
+    border-left: 4px solid var(--primary-pink);
+}
+
+/* Clickable history items */
+.history-item {
+    transition: background 0.2s, transform 0.1s;
+}
+.history-item:hover {
+    background: rgba(255, 94, 154, 0.05);
+    transform: translateX(4px);
+}
+.history-item:active {
+    transform: translateX(2px);
+}
+
