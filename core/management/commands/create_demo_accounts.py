@@ -15,7 +15,7 @@ It does NOT run any mock pollers or create activity data.
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
-from core.models import BaseResource, Provider, UserIntegration
+from core.models import BaseResource, BossConfig, Provider, UserIntegration
 
 User = get_user_model()
 
@@ -62,14 +62,40 @@ class Command(BaseCommand):
             user=player, defaults={"materials": 150, "energy": 45}
         )
 
-        # Active integrations so the pollers have something to iterate
+        # Active integrations so the pollers (and SparkyFitness bodyweight for
+        # the PR Boss) have something to iterate.
         created_integrations = 0
-        for provider in (Provider.GARMIN, Provider.PELOTON, Provider.LIFTOSAUR):
+        for provider in (
+            Provider.GARMIN,
+            Provider.PELOTON,
+            Provider.LIFTOSAUR,
+            Provider.SPARKYFITNESS,
+        ):
             _, created = UserIntegration.objects.get_or_create(
                 user=player,
                 provider=provider,
                 defaults={"is_active": True},
             )
             created_integrations += int(created)
+
+        # Seed default admin-configurable PR Boss benchmarks (idempotent).
+        default_bosses = [
+            ("Bench Press", "Bench Press", 1.5),
+            ("Squat", "Squat", 2.0),
+            ("Deadlift", "Deadlift", 2.5),
+            ("Overhead Press", "Overhead Press", 1.0),
+        ]
+        created_bosses = 0
+        for name, match, mult in default_bosses:
+            _, created = BossConfig.objects.get_or_create(
+                name=name,
+                defaults={
+                    "exercise_match": match,
+                    "bodyweight_multiplier": mult,
+                },
+            )
+            created_bosses += int(created)
+
         self.stdout.write(f"Integrations ensured ({created_integrations} newly created).")
+        self.stdout.write(f"PR Boss benchmarks ensured ({created_bosses} newly created).")
         self.stdout.write(self.style.SUCCESS("Demo accounts created."))

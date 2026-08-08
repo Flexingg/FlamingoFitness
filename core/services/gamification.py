@@ -53,6 +53,14 @@ def strength_xp(volume_lbs, completed=False):
     return xp
 
 
+def session_time_xp(minutes):
+    """+1 XP per 30 minutes lifted (supports time-based rewarding)."""
+    try:
+        return int(float(minutes or 0)) // 30
+    except (TypeError, ValueError):
+        return 0
+
+
 def sleep_xp(hours):
     """8h = 50 XP; 5-8h = 20 XP; <5h = 0 XP."""
     if hours >= 8:
@@ -169,7 +177,10 @@ def _handle_endurance(raw_log):
 @_register("strength")
 def _handle_strength(raw_log):
     payload = raw_log.payload
-    xp = strength_xp(payload.get("volume_lbs", 0), payload.get("completed", False))
+    volume = payload.get("total_volume_lbs", payload.get("volume_lbs", 0)) or 0
+    xp = strength_xp(volume, payload.get("completed", False))
+    # Add a modest time-based component: +1 XP per 30 minutes lifted.
+    xp += session_time_xp(payload.get("duration_minutes", 0) or 0)
 
     entries = []
     if xp > 0:
@@ -179,7 +190,7 @@ def _handle_strength(raw_log):
                 modality=Modality.STRENGTH,
                 amount=xp,
                 description=f"{payload.get('program', 'Workout')} "
-                f"({payload.get('volume_lbs', 0):,} lbs)",
+                f"({int(volume):,} lbs)",
             )
         )
 
@@ -350,6 +361,49 @@ def summarize_endurance(raw_log):
                 "notes": e.get("notes", ""),
             }
             for e in entries
+        ],
+    }
+def summarize_strength(raw_log):
+    """Build a UI-ready strength summary for one RawActivityLog (Liftosaur).
+
+    Returns the workout's volume / duration / sets, the exercises performed
+    (with heaviest weight + Epley est. 1RM), and the XP / materials the rulebook
+    grants for it.
+    """
+    payload = raw_log.payload or {}
+    exercises = payload.get("exercises") or []
+    volume = float(payload.get("total_volume_lbs", payload.get("volume_lbs", 0)) or 0)
+    duration = float(payload.get("duration_minutes", 0) or 0)
+    date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
+
+    xp = strength_xp(volume, payload.get("completed", False))
+    xp += session_time_xp(duration)
+    pr = bool(payload.get("pr"))
+    materials = 5 if pr else 0
+
+    return {
+        "date": date_str,
+        "program": payload.get("program", "Workout"),
+        "day_name": payload.get("day_name", ""),
+        "duration_minutes": round(duration, 1),
+        "total_volume_lbs": round(volume, 1),
+        "total_sets": int(payload.get("total_sets", payload.get("sets", 0)) or 0),
+        "exercise_count": len(exercises),
+        "xp": xp,
+        "materials": materials,
+        "pr": pr,
+        "completed": bool(payload.get("completed", True)),
+        "exercises": [
+            {
+                "name": e.get("name", "Exercise"),
+                "sets": int(e.get("sets", 0) or 0),
+                "reps": int(e.get("reps", 0) or 0),
+                "weight": round(float(e.get("weight", 0) or 0), 1),
+                "unit": e.get("unit", "lb"),
+                "volume_lbs": round(float(e.get("volume_lbs", 0) or 0), 1),
+                "est_1rm": round(float(e.get("est_1rm", 0) or 0), 1),
+            }
+            for e in exercises
         ],
     }
 

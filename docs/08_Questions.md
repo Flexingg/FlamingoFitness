@@ -35,3 +35,12 @@ A: `localStorage` key `ff_last_league_modal`; it only auto-shows once per 7-day 
 Q: XP progression model?
 A: One skill-tree level = 100 XP (`XP_PER_LEVEL`). `SkillTree.xp` tracks within-level XP; `progress_pct` = xp/100.
 
+Q: How does the Strength skill tree award XP?
+A: Liftosaur workouts: +1 XP per 1,000 lbs moved, +20 XP completion bonus, +1 XP per 30 minutes lifted. Parsed from `record.text` via `core/services/liftosaur_client.parse_history_record_text` (Epley est. 1RM: weight * (1 + reps/30)).
+
+Q: How do PR Bosses work?
+A: `BossConfig` rows (admin-configurable) define benchmarks as `exercise_match` + `bodyweight_multiplier`. Threshold = SparkyFitness bodyweight x multiplier. `/api/v1/boss/` compares the user's best est. 1RM for the match against the threshold; conquering triggers boss-fight 2x XP + Time Speed-ups. Bodyweight comes from SparkyFitness `scale`/check-in RawActivityLog payloads (`weight`).
+
+Q: Why did Liftosaur raw logs appear "never generated"?
+A: The profile's Link & Sync originally delegated to the Celery `poll_liftosaur` task, which silently swallowed errors and gave no feedback. Fix: `profile()` (core/views.py) now calls `LiftosaurClient().fetch(integration, days=30)` directly and persists results through `core/tasks.py ingest_results()` synchronously, showing "Synced N day(s) of data." Note `DEMO=False` means a blank API key yields no data (by design).
+

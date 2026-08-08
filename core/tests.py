@@ -8,6 +8,7 @@ from django.test import SimpleTestCase, TestCase
 
 from core.models import (
     BaseResource,
+    BossConfig,
     DailyReadiness,
     Provider,
     RawActivityLog,
@@ -22,9 +23,12 @@ from core.services.gamification import (
     nutrition_xp,
     process_log,
     process_payload,
+    session_time_xp,
     sleep_xp,
     strength_xp,
+    summarize_strength,
 )
+from core.services.liftosaur_client import LiftosaurClient, parse_history_record_text
 from core.services.readiness import compute_readiness
 
 User = get_user_model()
@@ -383,3 +387,271 @@ class NutritionViewTests(TestCase):
         self.assertEqual(body["skill_tree"]["progress_pct"], 50)
 
 
+
+class LiftosaurTests(TestCase):
+    SAMPLE = (
+        '2026-08-07 6:00 PM/program: "5/3/1"/dayName: "Squat Day"/'
+        "week: 1/dayInWeek: 1/duration: 3300s/"
+        "exercises: {\n  Squat / 3 x 5 225lb, 1 x 3 275lb\n  Bench Press / 3 x 5 185lb\n}"
+    )
+
+    def test_session_time_xp(self):
+        self.assertEqual(session_time_xp(55), 1)   # 1 XP per 30 min
+        self.assertEqual(session_time_xp(0), 0)
+        self.assertEqual(session_time_xp(None), 0)
+
+    def test_parse_history_record_text(self):
+        parsed = parse_history_record_text(self.SAMPLE)
+        self.assertEqual(parsed["program"], "5/3/1")
+        self.assertEqual(parsed["day_name"], "Squat Day")
+        self.assertEqual(parsed["duration_minutes"], 55)
+        names = [e["name"] for e in parsed["exercises"]]
+        self.assertIn("Squat", names)
+        self.assertIn("Bench Press", names)
+        squat = next(e for e in parsed["exercises"] if e["name"] == "Squat")
+        self.assertEqual(squat["sets"], 4)        # 3 + 1
+        self.assertEqual(squat["weight"], 275.0)  # heaviest set
+        self.assertGreater(squat["est_1rm"], 275)
+
+    def test_demo_client_returns_strength_log(self):
+        from django.test import override_settings
+        with override_settings(DEMO=True):
+            logs = LiftosaurClient()._demo_data()
+        self.assertEqual(len(logs), 1)
+        _, event_type, payload, _ = logs[0]
+        self.assertEqual(event_type, "strength")
+        self.assertGreaterEqual(payload["total_volume_lbs"], 15000)
+
+    def test_summarize_strength_volume_and_time_xp(self):
+        from django.utils import timezone as tz
+        raw = RawActivityLog.objects.create(
+            user=User.objects.create_user(username="lifter"),
+            source=Provider.LIFTOSAUR,
+            event_type="strength",
+            occurred_at=tz.now(),
+            payload={
+                "date": "2026-08-07",
+                "program": "5/3/1",
+                "duration_minutes": 55,
+                "total_volume_lbs": 22000,
+                "completed": True,
+                "exercises": [
+                    {"name": "Squat", "sets": 5, "reps": 5, "weight": 315,
+                     "unit": "lb", "volume_lbs": 7875, "est_1rm": 367.5},
+                ],
+            },
+        )
+        summary = summarize_strength(raw)
+        # 22000 // 1000 = 22, +20 completion, +1 time (55//30) = 43
+        self.assertEqual(summary["xp"], 43)
+        self.assertEqual(summary["total_volume_lbs"], 22000)
+        self.assertEqual(summary["exercises"][0]["name"], "Squat")
+
+
+    def test_parse_colon_layout(self):
+        # Real-world Liftosaur layout: "Name:" header line followed by set lines.
+        sample = (
+            "2026-08-08 09:14:12 +00:00\n"
+            'program: "5/3/1"\n'
+            'dayName: "Push Day"\n'
+            "exercises: {\n"
+            "  Bench Press:\n"
+            "    5 x 5 185lb\n"
+            "    5 x 5 185lb\n"
+            "  Squat:\n"
+            "    - 3 x 3 315lb\n"
+            "}"
+        )
+        parsed = parse_history_record_text(sample)
+        names = [e["name"] for e in parsed["exercises"]]
+        self.assertIn("Bench Press", names)
+        self.assertIn("Squat", names)
+        bench = next(e for e in parsed["exercises"] if e["name"] == "Bench Press")
+        self.assertEqual(bench["sets"], 10)          # 5 + 5
+        self.assertEqual(bench["weight"], 185.0)
+        squat = next(e for e in parsed["exercises"] if e["name"] == "Squat")
+        self.assertEqual(squat["sets"], 3)           # dashed line still parsed
+        self.assertEqual(squat["weight"], 315.0)
+
+    def test_real_api_spec_record_text(self):
+        # Exact Liftoscript Workout layout from docs/liftosaur_api_spec.md:
+        # single-line exercises with warmup/target labelled sections that must be
+        # excluded from completed-set/volume totals.
+        spec = (
+            "2026-03-01T10:00:00Z / program: \"5/3/1\" / dayName: \"Push Day\" "
+            "/ week: 1 / dayInWeek: 1 / duration: 3600s / exercises: {\n"
+            "  Bench Press, Barbell / 3x5 185lb, 1x3 185lb / warmup: 1x5 95lb, 1x3 135lb / target: 3x5 185lb 120s\n"
+            "  Overhead Press / 3x10 95lb / target: 3x10 95lb 60s\n"
+            "}"
+        )
+        parsed = parse_history_record_text(spec)
+        self.assertEqual(parsed["program"], "5/3/1")
+        self.assertEqual(parsed["day_name"], "Push Day")
+        self.assertEqual(parsed["duration_minutes"], 60)
+        name_list = [e["name"] for e in parsed["exercises"]]
+        self.assertIn("Bench Press, Barbell", name_list)
+        self.assertIn("Overhead Press", name_list)
+        bench = next(e for e in parsed["exercises"] if e["name"] == "Bench Press, Barbell")
+        # Only the two completed sets (3x5 185lb, 1x3 185lb) count; warmup/target skipped.
+        self.assertEqual(bench["sets"], 4)
+        self.assertEqual(bench["weight"], 185.0)
+        # Volume = 3*5*185 + 1*3*185 = 2775 + 555 = 3330 lb.
+        self.assertAlmostEqual(bench["volume_lbs"], 3330.0, places=1)
+        ohp = next(e for e in parsed["exercises"] if e["name"] == "Overhead Press")
+        self.assertEqual(ohp["sets"], 3)
+        self.assertAlmostEqual(ohp["volume_lbs"], 3 * 10 * 95.0, places=1)
+
+    def test_fetch_unwraps_data_envelope(self):
+        # The real API wraps responses in {"data": {...}}; the client must read
+        # records/hasMore/nextCursor from inside that envelope or a live sync
+        # silently produces 0 rows.
+        client = LiftosaurClient()
+
+        def fake_get(api_key, path, params=None):
+            return {
+                "data": {
+                    "records": [
+                        {
+                            "id": 1,
+                            "text": (
+                                "2026-03-01T10:00:00Z / program: \"5/3/1\" / dayName: \"Push Day\" "
+                                "/ duration: 3600s / exercises: {\n"
+                                "  Bench Press, Barbell / 3x5 185lb |\n"
+                                "  Squat / 5x5 225lb\n"
+                                "}"
+                            ),
+                        }
+                    ],
+                    "hasMore": False,
+                }
+            }
+
+        client._get = fake_get
+        owner = User.objects.create_user(username="smallift")
+        integration = UserIntegration(
+            user=owner,
+            credentials={"api_key": "lftsk_test"},
+        )
+        logs = client.fetch(integration, days=30)
+        self.assertEqual(len(logs), 1)
+        _, event_type, payload, _ = logs[0]
+        self.assertEqual(event_type, "strength")
+        names = [e["name"] for e in payload["exercises"]]
+        self.assertIn("Bench Press, Barbell", names)
+        self.assertIn("Squat", names)
+        self.assertEqual(payload["total_sets"], 8)   # 3 + 5 elapsed working sets
+class StrengthBossViewTests(TestCase):
+    """GET /api/v1/strength/ and GET /api/v1/boss/."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="squatter")
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.LIFTOSAUR,
+            credentials={}, is_active=True,
+        )
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={}, is_active=True,
+        )
+        BossConfig.objects.create(
+            name="Bench Press", exercise_match="Bench Press",
+            bodyweight_multiplier=1.5,
+        )
+        self.client.force_login(self.user)
+
+    def _seed(self):
+        from datetime import date, timedelta
+        from django.utils import timezone as tz
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
+            occurred_at=tz.now(),
+            payload={
+                "date": yesterday, "program": "5/3/1", "day_name": "Squat Day",
+                "duration_minutes": 55, "total_volume_lbs": 22000, "volume_lbs": 22000,
+                "total_sets": 15, "completed": True, "pr": False,
+                "exercises": [
+                    {"name": "Bench Press", "sets": 5, "reps": 5, "weight": 265,
+                     "unit": "lb", "volume_lbs": 6625, "est_1rm": 309.2},
+                ],
+            },
+        )
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.SPARKYFITNESS, event_type="scale",
+            occurred_at=tz.now(),
+            payload={"date": yesterday, "weight": 180, "unit": "lb"},
+        )
+
+    def test_strength_endpoint(self):
+        self._seed()
+        resp = self.client.get("/api/v1/strength/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["linked"])
+        self.assertGreaterEqual(body["today"]["total_volume_lbs"], 22000)
+        self.assertEqual(body["best_lifts"][0]["name"], "Bench Press")
+
+    def test_boss_endpoint_conquered(self):
+        self._seed()
+        resp = self.client.get("/api/v1/boss/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["bodyweight"], 180.0)
+        bench = next(b for b in body["bosses"] if b["name"] == "Bench Press")
+        self.assertEqual(bench["goal"], 270.0)      # 180 * 1.5
+        self.assertEqual(bench["best_lift"], 309.2)
+        self.assertTrue(bench["conquered"])
+
+    def test_boss_endpoint_requires_bodyweight(self):
+        resp = self.client.get("/api/v1/boss/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.json()["bodyweight"])
+class ProfileLinkTests(TestCase):
+    """Profile page renders both link forms and persists Liftosaur keys."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="linker")
+        self.client.force_login(self.user)
+
+    def test_profile_renders_liftosaur_linking(self):
+        resp = self.client.get("/profile/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Link Liftosaur", html)
+        self.assertIn("lftsk_", html)
+
+    def test_post_liftosaur_key_creates_integration(self):
+        from django.test import override_settings
+
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {"provider": "liftosaur", "api_key": ""},
+            )
+        self.assertEqual(resp.status_code, 302)
+        integration = UserIntegration.objects.get(user=self.user, provider=Provider.LIFTOSAUR)
+        self.assertTrue(integration.is_active)
+        # The Link & Sync must have ingested strength logs immediately.
+        self.assertTrue(
+            RawActivityLog.objects.filter(
+                user=self.user, source=Provider.LIFTOSAUR, event_type="strength"
+            ).exists()
+        )
+
+    def test_post_sparky_still_works_without_provider(self):
+        from django.test import override_settings
+
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {"api_key": ""},
+            )
+        self.assertEqual(resp.status_code, 302)
+        integration = UserIntegration.objects.get(user=self.user, provider=Provider.SPARKYFITNESS)
+        self.assertTrue(integration.is_active)
+        self.assertTrue(
+            RawActivityLog.objects.filter(
+                user=self.user, source=Provider.SPARKYFITNESS
+            ).exists()
+        )

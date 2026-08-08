@@ -56,8 +56,26 @@
                 <form method="post" action="{% url 'profile' %}">
                     {% csrf_token %}
                     {{ form.as_p }}
-                    <button class="btn-flamingo" type="submit"><i class="fa-solid fa-link"></i> Link &amp; Sync</button>
+                    <button class="btn-flamingo" type="submit" name="provider" value="sparkyfitness"><i class="fa-solid fa-link"></i> Link &amp; Sync</button>
                 </form>
+            </div>
+
+            <div class="auth-card">
+                <h2 class="auth-title" style="font-size:1.2rem;">Link Liftosaur 🦖</h2>
+                <p class="auth-subtitle">Paste your liftosaur.com API key (starts with <code>lftsk_</code>) to power the Strength skill tree and PR Boss. Leave blank for demo data.</p>
+                <form method="post" action="{% url 'profile' %}">
+                    {% csrf_token %}
+                    {{ lift_form.as_p }}
+                    <button class="btn-flamingo btn-purple" type="submit" name="provider" value="liftosaur"><i class="fa-solid fa-link"></i> Link &amp; Sync</button>
+                </form>
+                <p class="auth-subtitle" style="margin-top:0.6rem;">
+                    {% if liftosaur.last_polled %}
+                        Last synced: {{ liftosaur.last_polled|date:"Y-m-d H:i" }} ·
+                        {{ lift_log_count }} strength day(s) stored
+                    {% else %}
+                        Not synced yet — click "Link &amp; Sync", then refresh in a few seconds.
+                    {% endif %}
+                </p>
             </div>
         </main>
     </div>

@@ -10,6 +10,8 @@ Each skill-tree node gets its own controller file, loaded after `dashboard.js` v
 - `js/nutrition.js` — `window.loadNutrition()`, `window.backToNutritionPlan()`, `window.renderNutrition(data)`, `window.showDayDetailModal(day)`.
 - `js/hydration.js` — `window.loadHydration()`, `window.backToHydrationPlan()`, `window.renderHydration(data)`, `window.showHydrationDayDetailModal(day)`.
 - `js/endurance.js` — `window.loadEndurance()`, `window.backToEndurancePlan()`, `window.renderEndurance(data)`, `window.showEnduranceDayDetailModal(day)`.
+- `js/strength.js` — `window.loadStrength()`, `window.backToStrengthPlan()`, `window.renderStrength(data)`, `window.showStrengthDayDetailModal(day)` (Best Lifts + workout cards).
+- `js/boss.js` — `window.loadBoss()`, `window.backToBossPlan()`, `window.renderBoss(data)` (bodyweight-based PR Boss progress bars).
 
 Pattern for a node controller (Endurance is a good reference template):
 

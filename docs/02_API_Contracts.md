@@ -87,6 +87,46 @@ Response:
   "skill_tree": { "level": 1, "xp": 63, "total_xp": 63, "progress_pct": 63 }
 }
 
+GET /api/v1/strength/  (views.strength_state)
+
+Returns Liftosaur strength summaries (volume / duration / sets / PRs), the full
+strength history, the strength skill-tree state, and whether Liftosaur is linked.
+Response:
+
+{
+  "linked": true,
+  "demo": false,
+  "today": {
+    "date": "2026-08-07",
+    "program": "5/3/1", "day_name": "Squat Day",
+    "duration_minutes": 55, "total_volume_lbs": 22000, "total_sets": 15,
+    "exercise_count": 3, "xp": 43, "materials": 0, "pr": false, "completed": true,
+    "exercises": [
+      { "name": "Squat", "sets": 5, "reps": 5, "weight": 315, "unit": "lb",
+        "volume_lbs": 7875, "est_1rm": 367.5 }
+    ]
+  },
+  "history": [ ... same shape by day ... ],
+  "best_lifts": [
+    { "name": "Bench Press", "weight": 265, "reps": 5, "unit": "lb", "est_1rm": 309.2, "date": "2026-08-07" }
+  ],
+  "skill_tree": { "level": 1, "xp": 43, "total_xp": 43, "progress_pct": 43 }
+}
+
+GET /api/v1/boss/  (views.boss_state)
+
+Compares the user's best lifts against admin-configured PR Boss bodyweight
+benchmarks (BossConfig). Response:
+
+{
+  "bodyweight": 180.0,
+  "linked_liftosaur": true,
+  "bosses": [
+    { "name": "Bench Press", "exercise_match": "Bench Press", "multiplier": 1.5,
+      "goal": 270.0, "best_lift": 309.2, "conquered": true, "progress_pct": 100 }
+  ]
+}
+
 GET /api/v1/leaderboard/weekly
 
 Returns the asymmetric XP leaderboard.

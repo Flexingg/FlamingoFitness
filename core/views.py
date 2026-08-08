@@ -21,9 +21,10 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
-from .forms import SignupForm, SparkyLinkForm
+from .forms import LiftosaurLinkForm, SignupForm, SparkyLinkForm
 from .models import (
     BaseResource,
+    BossConfig,
     Modality,
     Provider,
     RawActivityLog,
@@ -58,35 +59,82 @@ def signup(request):
 
 @login_required
 def profile(request):
-    """Account profile: shows linked providers + SparkyFitness linking."""
+    """Account profile: shows linked providers + SparkyFitness/Liftosaur linking."""
     integrations = UserIntegration.objects.filter(user=request.user)
     sparky = integrations.filter(provider=Provider.SPARKYFITNESS).first()
+    liftosaur = integrations.filter(provider=Provider.LIFTOSAUR).first()
 
     if request.method == "POST":
-        form = SparkyLinkForm(request.POST)
-        if form.is_valid():
-            integration = form.save(request.user)
-            messages.success(request, "SparkyFitness linked successfully!")
-            # Kick off an immediate sync so the user sees data right away.
-            try:
-                from .tasks import poll_sparkyfitness
+        provider_key = request.POST.get("provider", "sparkyfitness")
+        if provider_key == "liftosaur":
+            form = LiftosaurLinkForm(request.POST)
+            display = "Liftosaur"
+        else:
+            form = SparkyLinkForm(request.POST)
+            display = "SparkyFitness"
 
-                poll_sparkyfitness()
-            except Exception:  # noqa: BLE001 - never fail the link over a poll
-                messages.warning(
-                    request,
-                    "SparkyFitness linked, but the first sync failed. "
-                    "The scheduled poller will retry.",
-                )
+        if form.is_valid():
+            form.save(request.user)
+
+            if provider_key == "liftosaur":
+                # Queue a background 30-day sync so we don't block a Gunicorn
+                # worker on a slow external API call (which caused worker
+                # timeouts / OOM). The Celery worker does the fetch + ingest.
+                try:
+                    from .tasks import sync_liftosaur_for_user
+
+                    sync_liftosaur_for_user.delay(request.user.id)
+                    messages.success(
+                        request,
+                        "Liftosaur linked! Syncing your last 30 days in the background \u2014 "
+                        "your strength data will appear shortly.",
+                    )
+                except Exception:  # noqa: BLE001
+                    import logging
+
+                    logging.getLogger(__name__).exception("Could not queue Liftosaur sync")
+                    messages.success(request, "Liftosaur linked! The scheduled sync will pick it up.")
+            else:
+                # SparkyFitness: queue the background sync too.
+                try:
+                    from .tasks import poll_sparkyfitness
+
+                    poll_sparkyfitness.delay()
+                    messages.success(
+                        request,
+                        "SparkyFitness linked! Syncing your data in the background \u2014 it will appear shortly.",
+                    )
+                except Exception:  # noqa: BLE001
+                    import logging
+
+                    logging.getLogger(__name__).exception("Could not queue SparkyFitness sync")
+                    messages.success(request, "SparkyFitness linked! The scheduled sync will pick it up.")
             return redirect("profile")
     else:
-        initial = {"api_key": (sparky.credentials or {}).get("api_key", "") if sparky else ""}
-        form = SparkyLinkForm(initial=initial)
+        sparky_initial = {"api_key": (sparky.credentials or {}).get("api_key", "") if sparky else ""}
+        lift_initial = {"api_key": (liftosaur.credentials or {}).get("api_key", "") if liftosaur else ""}
+        form = SparkyLinkForm(initial=sparky_initial)
+        lift_form = LiftosaurLinkForm(initial=lift_initial)
+
+    from .models import RawActivityLog
+
+    lift_log_count = (
+        RawActivityLog.objects.filter(
+            user=request.user, source=Provider.LIFTOSAUR, event_type="strength"
+        ).count()
+    )
 
     return render(
         request,
         "core/link_sparky.html",
-        {"form": form, "integrations": integrations, "sparky": sparky},
+        {
+            "form": form,
+            "lift_form": lift_form,
+            "integrations": integrations,
+            "sparky": sparky,
+            "liftosaur": liftosaur,
+            "lift_log_count": lift_log_count,
+        },
     )
 
 
@@ -244,6 +292,150 @@ def endurance_state(request):
                 "total_xp": st.total_xp,
                 "progress_pct": st.progress_pct,
             },
+        }
+    )
+@login_required
+def strength_state(request):
+    """GET /api/v1/strength/
+
+    Returns Liftosaur strength summaries (volume / duration / PRs), the full
+    strength history, the strength skill-tree state, and whether Liftosaur is
+    linked.
+    """
+    from .services import summarize_strength
+
+    logs = (
+        RawActivityLog.objects.filter(user=request.user, event_type="strength")
+        .order_by("-occurred_at")
+    )
+    history = [summarize_strength(log) for log in logs]
+
+    today_str = timezone.localdate().isoformat()
+    today = next((h for h in history if h["date"] == today_str), None)
+    if today is None and history:
+        today = history[0]
+
+    st, _ = SkillTree.objects.get_or_create(
+        user=request.user,
+        modality=Modality.STRENGTH,
+        defaults={"level": 1, "xp": 0, "total_xp": 0},
+    )
+
+    # Derive the user's all-time best lifts (heaviest set weight + Epley est
+    # 1RM) per exercise, across every strength log.
+    best = {}
+    for h in history:
+        for ex in h["exercises"]:
+            key = ex["name"].lower()
+            prev = best.get(key)
+            if prev is None or (ex["est_1rm"] or 0) > (prev["est_1rm"] or 0):
+                best[key] = {
+                    "name": ex["name"],
+                    "weight": ex["weight"],
+                    "reps": ex["reps"],
+                    "unit": ex["unit"],
+                    "est_1rm": ex["est_1rm"],
+                    "date": h["date"],
+                }
+    best_lifts = [best[k] for k in sorted(best)]
+
+    liftosaur = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.LIFTOSAUR, is_active=True
+    ).first()
+    has_key = bool((liftosaur.credentials or {}).get("api_key")) if liftosaur else False
+
+    return JsonResponse(
+        {
+            "linked": liftosaur is not None,
+            "demo": liftosaur is not None and not has_key,
+            "today": today,
+            "history": history,
+            "best_lifts": best_lifts,
+            "skill_tree": {
+                "level": st.level,
+                "xp": st.xp,
+                "total_xp": st.total_xp,
+                "progress_pct": st.progress_pct,
+            },
+        }
+    )
+
+
+def _latest_bodyweight(user):
+    """Latest SparkyFitness bodyweight reading (from raw check-in/scale logs)."""
+    logs = RawActivityLog.objects.filter(
+        user=user, source=Provider.SPARKYFITNESS
+    ).order_by("-occurred_at")
+    seen = set()
+    for log in logs:
+        weight = (log.payload or {}).get("weight")
+        if not weight or str(log.payload.get("_id")) in seen:
+            continue
+        seen.add(str(log.payload.get("_id")))
+        try:
+            return float(weight)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+@login_required
+def boss_state(request):
+    """GET /api/v1/boss/
+
+    Compares the user's best lifts against the admin-configurable PR Boss
+    thresholds (BossConfig), which are bodyweight multipliers.
+    """
+    from .services import summarize_strength
+
+    bosses = BossConfig.objects.filter(is_active=True)
+
+    logs = (
+        RawActivityLog.objects.filter(user=request.user, event_type="strength")
+        .order_by("-occurred_at")
+    )
+    summaries = [summarize_strength(log) for log in logs]
+
+    bodyweight = _latest_bodyweight(request.user)
+
+    # Best est. 1RM per exercise across all strength logs.
+    best_by_ex = {}
+    for s in summaries:
+        for ex in s["exercises"]:
+            key = ex["name"].lower()
+            if (ex["est_1rm"] or 0) > best_by_ex.get(key, 0):
+                best_by_ex[key] = ex["est_1rm"] or 0
+
+    result = []
+    for boss in bosses:
+        name_l = boss.exercise_match.lower()
+        best = max(
+            (v for k, v in best_by_ex.items() if name_l in k), default=0.0
+        )
+        goal = round(bodyweight * boss.bodyweight_multiplier, 1) if bodyweight else None
+        conquered = bool(goal and best and best >= goal)
+        progress = (
+            round(min(100.0, (best / goal) * 100)) if goal and best else 0
+        )
+        result.append(
+            {
+                "name": boss.name,
+                "exercise_match": boss.exercise_match,
+                "multiplier": boss.bodyweight_multiplier,
+                "goal": goal,
+                "best_lift": round(best, 1) or None,
+                "conquered": conquered,
+                "progress_pct": progress,
+            }
+        )
+
+    return JsonResponse(
+        {
+            "bodyweight": bodyweight,
+            "linked_liftosaur": UserIntegration.objects.filter(
+                user=request.user, provider=Provider.LIFTOSAUR, is_active=True
+            ).exists(),
+            "bosses": result,
         }
     )
 

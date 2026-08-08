@@ -8,7 +8,7 @@ Instead of just showing charts, the app uses this data to drive behavioral mecha
 
 Readiness-Adjusted Streaks: Rest days are mandated or granted based on recovery metrics.
 
-Modality Skill Trees: Progression tracks for Strength, Endurance, Nutrition, Hydration, and Recovery with interactive day-detail views and XP progress bars.
+Modality Skill Trees: Progression tracks for Strength, Endurance, Nutrition, Hydration, and Recovery with interactive day-detail views, XP progress bars, and a bodyweight-based PR Boss benchmark panel.
 
 Base-Building Meta-Game: XP and macros translate into resources to build a virtual idle base (e.g., building out a Miami beach club).
 

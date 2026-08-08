@@ -1,140 +1,34 @@
 🦖 Liftosaur Integration Spec
 
-Status: SPEC / PLANNED. A mock `LiftosaurClient` exists in `core/services/api_clients.py` and a `poll_liftosaur` Celery task is wired, but the real Liftosaur API wrapper and the regex volume parser below have NOT been implemented yet. The Strength XP math (`strength_xp`) is already in `core/services/gamification.py`.
+Status: IMPLEMENTED. The real API wrapper and parser live in `core/services/liftosaur_client.py`, `poll_liftosaur` in `core/tasks.py` is wired to it, and the Strength skill-tree panel (`GET /api/v1/strength/`) + PR Boss panel (`GET /api/v1/boss/`) consume it. The `BossConfig` model makes PR Boss benchmarks admin-configurable. Users enter their `lftsk_...` API key on the profile page (`GET /profile/`), which persists it to the Liftosaur `UserIntegration.credentials` and queues a **background 30-day sync** via `sync_liftosaur_for_user.delay(request.user.id)` (`core/views.py profile()`). The Celery worker (or eager mode) runs that task, fetches, and writes `RawActivityLog` rows via `core/tasks.py ingest_results`. `poll_liftosaur` runs on the same beat schedule for ongoing sync.
 
-AI Context: This document specifies how to translate the Liftosaur Google Apps Script data ingestion logic into Django Python. Following our ELT pattern, we extract raw workout history from the Liftosaur API, load it into the RawActivityLog JSONB field, and then transform/parse the custom text blocks to calculate Strength XP based on volume.
+AI Context: This document specifies how Liftosaur data ingestion is implemented in Django Python. Following the ELT pattern, we extract raw workout history from the Liftosaur REST API (Bearer token), load it into the `RawActivityLog` JSONB `payload`, then transform/parse the Liftoscript-Workouts `text` blobs to calculate Strength XP based on volume + time, and surface per-lift PRs.
 
-1. API Client Service (services/liftosaur_client.py)
+**Authoritative API reference:** `docs/liftosaur_api_spec.md` (REST API, base URL `https://www.liftosaur.com/api/v1`, Bearer auth, `/history` pagination, Liftoscript Workouts format, error contract).
 
-This service acts as a Python wrapper around the liftosaur.com/api/v1 endpoints. It requires Bearer token authentication.
+1. API Client Service (core/services/liftosaur_client.py)
 
-# Pseudo-code for AI guidance
-import requests
-from urllib.parse import quote
+- `LiftosaurClient` extends `MockAPIClient`, sends `Authorization: Bearer <api_key>`.
+- `_fetch_history(api_key, start_date_iso)` pages `GET /history?limit=200&startDate=...&cursor=...`, following `hasMore`/`nextCursor`.
+- **Every Liftosaur response is wrapped in a `data` envelope** — e.g. `{"data": {"records": [...], "hasMore": false, "nextCursor": 42}}`. `_fetch_history` reads `records`/`hasMore`/`nextCursor` from inside that `data` key (falls back to the top level if there is no envelope). Without this unwrap a live sync silently produces 0 rows.
+- `fetch(integration, days=30)` reads `integration.credentials["api_key"]`; if there is no key it returns `_demo_data()` under `settings.DEMO`, else it parses each record's `text`. Non-2xx responses (`_get`) log a warning and return `{}` so 0-row syncs are diagnosable.
+- `parse_history_record_text(text)` parses each record. Real records look like:
 
-class LiftosaurClient:
-    BASE_URL = 'https://www.liftosaur.com/api/v1'
+  ```
+  Squat, Barbell / 3x5 185lb, 1x3 185lb / warmup: 1x5 95lb, 1x3 135lb / target: 3x5 185lb 120s
+  ```
 
-    def __init__(self, api_key):
-        self.headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Accept': 'application/json'
-        }
+  Completed working sets come first (comma-separated, may include `@RPE`, `+` AMRAP, `n|n` unilateral splits); named `/`-delimited sections after them (`warmup`, `target`, `sets`, `note`, …) are **excluded** from completed-set and volume totals by `_consume_sections`. Only working sets count toward `sets` / `volume_lbs` / `est_1rm`.
 
-    def fetch_history(self, start_date_iso: str) -> list:
-        # Replaces: /history?limit=200&startDate=...
-        # Handles pagination via 'cursor' and 'hasMore'
-        records = []
-        cursor = None
-        has_more = True
-        
-        while has_more:
-            url = f"{self.BASE_URL}/history?limit=200&startDate={quote(start_date_iso)}"
-            if cursor:
-                url += f"&cursor={quote(cursor)}"
-                
-            response = requests.get(url, headers=self.headers)
-            if response.status_code in [200, 201]:
-                data = response.json().get('data', {})
-                records.extend(data.get('records', []))
-                has_more = data.get('hasMore', False)
-                cursor = data.get('nextCursor')
-            else:
-                has_more = False
-                
-        return records
+2. Celery Polling Task (core/tasks.py)
 
-    def fetch_current_program(self) -> dict:
-        # Replaces: /programs/current
-        url = f"{self.BASE_URL}/programs/current"
-        response = requests.get(url, headers=self.headers)
-        return response.json().get('data', {}) if response.status_code == 200 else {}
+- `sync_liftosaur_for_user(user_id)` — one-shot, invoked on profile link. Imports `Provider` (a missing import here previously raised `NameError`, making every "Link & Sync" ingest 0 rows). It looks up the user's active Liftosaur integration, calls `LiftosaurClient().fetch(integration, days=30)`, runs `ingest_results`, and stamps `last_polled`. Returns row count or `-1` on error.
+- `poll_liftosaur()` — recurring beat task that iterates all active Liftosaur integrations via the shared `_poll("liftosaur", LiftosaurClient())`.
+- `ingest_results(integration, results)` — shared by both; creates one `RawActivityLog` per `(source, event_type, payload, occurred_at)` tuple, then best-effort `process_log` for XP.
 
+3. Transformation / Gamification Layer (core/services/gamification.py)
 
-2. Celery Polling Task (tasks/liftosaur_tasks.py)
+- `summarize_strength(raw)` converts a `RawActivityLog` strength payload into a summary dict with `total_volume_lbs`, `duration_minutes`, per-exercise rows (name/sets/weight/unit/volume/est_1rm) and `xp` = `strength_xp(...)` = volume XP (`volume // 1000`) + completion bonus + `session_time_xp` (1 XP per 30 min). Rules live in `docs/03_gamification_math.md`.
+- PR / Boss logic: `core/views.py GET /api/v1/strength/` aggregates best lifts; `GET /api/v1/boss/` compares the user's best lift against `BossConfig` benchmarks (bodyweight × `bodyweight_multiplier`).
 
-This task runs on a schedule, pulls the latest workout histories, and dumps them unparsed into our landing zone.
-
-# Pseudo-code for AI guidance
-from celery import shared_task
-from django.utils import timezone
-from core.models import UserIntegration, RawActivityLog
-from services.liftosaur_client import LiftosaurClient
-
-@shared_task
-def sync_all_liftosaur_data():
-    integrations = UserIntegration.objects.filter(provider='liftosaur')
-    
-    # Fetch last 3 days to catch any delayed syncs
-    start_date = timezone.now() - timezone.timedelta(days=3)
-    start_date_iso = start_date.isoformat()
-
-    for integration in integrations:
-        client = LiftosaurClient(api_key=integration.access_token)
-        
-        # 1. Fetch Workout History
-        history_records = client.fetch_history(start_date_iso)
-        
-        for record in history_records:
-            # Upsert into RawActivityLog using the Liftosaur record 'id' as the unique identifier
-            # We dump the raw payload here, including the messy 'text' field.
-            RawActivityLog.objects.update_or_create(
-                user=integration.user,
-                provider='liftosaur',
-                activity_type='workout',
-                timestamp=record.get('date'), # Extract proper date from payload
-                defaults={'raw_payload': record, 'processed': False}
-            )
-
-
-3. Transformation / Gamification Layer (services/gamification.py)
-
-Liftosaur returns workout data as a giant structured string in record['text']. The Gamification layer must parse this string using Regex (translating the JS parseHistoryRecordText and set-matching logic) to calculate Total Volume and award XP.
-
-# Pseudo-code for AI guidance
-import re
-
-def process_liftosaur_strength_xp(raw_log_id):
-    log = RawActivityLog.objects.get(id=raw_log_id)
-    record_text = log.raw_payload.get('text', '')
-    
-    # 1. Extract Exercises Block
-    exercises_match = re.search(r'exercises:\s*\{([\s\S]*?)\}', record_text)
-    if not exercises_match:
-        return # No exercises found
-        
-    exercises_text = exercises_match.group(1).strip()
-    
-    # 2. Parse Sets, Reps, and Weight to calculate Volume
-    total_volume_lbs = 0
-    
-    # Split by line, then match the Liftosaur set pattern: 3 x 10 135lb
-    lines = [line.strip() for line in exercises_text.split('\n') if line.strip()]
-    for line in lines:
-        parts = [p.strip() for p in line.split('/')]
-        if len(parts) < 2:
-            continue
-            
-        sets_string = parts[1]
-        set_groups = [s.strip() for s in sets_string.split(',')]
-        
-        for group in set_groups:
-            # Regex translates JS: /(\d+)\s*x\s*(\d+)\s*(\d+(?:\.\d+)?)/
-            match = re.search(r'(\d+)\s*x\s*(\d+)\s*(\d+(?:\.\d+)?)', group)
-            if match:
-                sets = int(match.group(1))
-                reps = int(match.group(2))
-                weight = float(match.group(3))
-                
-                total_volume_lbs += (sets * reps * weight)
-                
-    # 3. Calculate XP based on rules in 03_gamification_math.md
-    # 1 XP per 1,000 lbs volume + 20 XP completion bonus
-    volume_xp = int(total_volume_lbs / 1000)
-    total_xp = volume_xp + 20
-    
-    if total_xp > 0:
-        award_xp(user=log.user, modality='strength', amount=total_xp, reason='Liftosaur Workout')
-        
-    log.processed = True
-    log.save()
+Diagnostics: `_fetch_history` and `fetch` log record counts and a warning when records parse to 0 exercises (record `text` layout drift), and `_get` logs non-2xx statuses — so a blank Strength panel always explains itself in the logs.

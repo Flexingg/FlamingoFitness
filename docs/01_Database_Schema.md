@@ -94,3 +94,14 @@ Base-building meta-game resources.
 - materials PositiveInteger default 0
 - energy PositiveInteger default 0
 - time_speedups PositiveInteger default 0
+
+BossConfig (admin-configurable PR Boss benchmarks)
+
+A boss is a bodyweight-based lift benchmark, e.g. "Bench Press 1.5x bodyweight."
+
+- name CharField (boss display name)
+- exercise_match CharField (substring matched case-insensitively against Liftosaur exercise names)
+- bodyweight_multiplier Float default 1.5 (threshold = bodyweight x multiplier)
+- unit CharField default "lb"
+- is_active Bool default True
+- sort_order Int default 0

@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 
 from .models import (
     BaseResource,
+    BossConfig,
     DailyReadiness,
     RawActivityLog,
     SkillTree,
@@ -82,3 +83,17 @@ class DailyReadinessAdmin(admin.ModelAdmin):
 class BaseResourceAdmin(admin.ModelAdmin):
     list_display = ("user", "materials", "energy", "time_speedups")
     search_fields = ("user__username",)
+
+
+@admin.register(BossConfig)
+class BossConfigAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "exercise_match",
+        "bodyweight_multiplier",
+        "unit",
+        "is_active",
+        "sort_order",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("name", "exercise_match")

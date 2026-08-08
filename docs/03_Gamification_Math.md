@@ -24,13 +24,22 @@ materials = 5 when total_calories >= 500, else 0
 
 Example: 630 kcal day = +63 XP (and +5 Base Materials).
 
-Strength (Liftosaur) (`strength_xp`)
+Strength (Liftosaur) (`strength_xp`, `session_time_xp`)
 
 Base Volume: 1 XP per 1,000 lbs moved (volume).
 
 Completion Bonus: +20 XP for finishing a programmed workout.
 
-Example: 15,000 lb volume workout + completion = 35 XP.
+Time Bonus: +1 XP per 30 minutes in the gym (`session_time_xp`).
+
+Example: 22,000 lb volume + completion + 55 min = 22 + 20 + 1 = 43 XP.
+
+PR Boss (admin-configurable benchmarks)
+
+Each admin `BossConfig` defines a benchmark like "Bench Press 1.5x bodyweight."
+Threshold = latest bodyweight (SparkyFitness) x multiplier. When your best lift
+(heaviest set or Epley est. 1RM) meets it, you "Conquer" the boss, which also
+unlocks the boss-fight 2x XP reward and +5 "Time Speed-ups".
 
 Recovery (Garmin Sleep / Body Battery) (`sleep_xp`, `body_battery_xp`)
 

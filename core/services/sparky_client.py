@@ -329,6 +329,17 @@ class SparkyFitnessClient(MockAPIClient):
                 {"sleep_hours": 7.6, "deep_pct": 21, "rem_pct": 19, "demo": True},
                 _to_dt(yesterday),
             ),
+(
+                PROVIDER,
+                "scale",
+                {
+                    "date": yesterday.isoformat(),
+                    "weight": 185,
+                    "unit": "lb",
+                    "demo": True,
+                },
+                _to_dt(yesterday),
+            ),
             (
                 PROVIDER,
                 "nutrition",

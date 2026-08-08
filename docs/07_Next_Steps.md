@@ -35,7 +35,7 @@ Phase 5: API Endpoints
 [x] Step 16: Dashboard API — `GET /api/v1/dashboard/state`.
 [x] Step 17: Leaderboard API — `GET /api/v1/leaderboard/weekly`.
 [x] Step 18: Home Assistant Webhook — `POST /api/v1/webhooks/home-assistant`.
-[x] Step 16b: Modality state APIs — `GET /api/v1/nutrition/`, `GET /api/v1/hydration/`, `GET /api/v1/endurance/` (see `02_API_Contracts.md`).
+[x] Step 16b: Modality state APIs — `GET /api/v1/nutrition/`, `GET /api/v1/hydration/`, `GET /api/v1/endurance/`, `GET /api/v1/strength/`, `GET /api/v1/boss/` (see `02_API_Contracts.md`).
 
 Phase 6: Frontend Integration & PWA
 
@@ -46,6 +46,6 @@ Phase 6: Frontend Integration & PWA
 Current Focus / Likely Next Work
 
 - Recovery (sleep) skill-tree detail panel — the Recovery node exists in the skill tree but has no dedicated state endpoint or detail view yet.
-- Strength detail panel — same gap (Strength node exists, no `GET /api/v1/strength/` or controller).
 - Formalize the Base-Building meta-game UI (materials/energy already tracked in `BaseResource`).
-- Add `GET /api/v1/strength/` + `GET /api/v1/recovery/` endpoints to mirror the Nutrition/Hydration/Endurance pattern.
+- Add `GET /api/v1/recovery/` to mirror the Nutrition/Hydration/Endurance/Strength pattern.
+- Seed default `BossConfig` entries via a data migration or management command (currently configured in the admin).

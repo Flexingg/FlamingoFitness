@@ -40,3 +40,25 @@ class SparkyLinkForm(forms.Form):
         integration.save()
         return integration
 
+
+class LiftosaurLinkForm(forms.Form):
+    """Link (or update) a Liftosaur integration via its API key."""
+
+    api_key = forms.CharField(
+        label="Liftosaur API key",
+        max_length=512,
+        required=False,
+        help_text="Paste your liftosaur.com API key (lftsk_...). Leave blank to use demo data.",
+        widget=forms.PasswordInput(render_value=True),
+    )
+
+    def save(self, user):
+        """Create/update the user's Liftosaur integration."""
+        integration, _ = UserIntegration.objects.get_or_create(
+            user=user, provider=Provider.LIFTOSAUR
+        )
+        integration.credentials = {"api_key": self.cleaned_data["api_key"]}
+        integration.is_active = True
+        integration.save()
+        return integration
+

@@ -5,11 +5,11 @@ Exposes the gamification and readiness engines to views, tasks and admin.
 
 from .api_clients import (  # noqa: F401
     GarminClient,
-    LiftosaurClient,
     PelotonClient,
     get_client,
 )
 from .sparky_client import SparkyFitnessClient  # noqa: F401
+from .liftosaur_client import LiftosaurClient  # noqa: F401
 from .gamification import (  # noqa: F401
     XP_PER_LEVEL,
     process_log,
@@ -17,6 +17,7 @@ from .gamification import (  # noqa: F401
     summarize_endurance,
     summarize_hydration,
     summarize_nutrition,
+    summarize_strength,
 )
 from .readiness import (  # noqa: F401
     compute_readiness,

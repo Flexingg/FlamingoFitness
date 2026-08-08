@@ -233,3 +233,34 @@ class BaseResource(models.Model):
     def __str__(self):
         return f"{self.user.username} base: {self.materials} mat, {self.energy} en"
 
+
+class BossConfig(models.Model):
+    """Admin-configurable PR Boss thresholds.
+
+    A boss is a benchmark lift, e.g. "Bench Press 1.5x your bodyweight." The
+    threshold is computed as the user's latest bodyweight (from SparkyFitness
+    check-in measurements) multiplied by ``bodyweight_multiplier``. The user's
+    best lift (heaviest set, or Epley est. 1RM) is compared against it.
+
+    Configure entries in the Django admin (`/admin/`).
+    """
+
+    name = models.CharField(max_length=120, help_text="Boss name, e.g. 'Bench Press'.")
+    exercise_match = models.CharField(
+        max_length=120,
+        help_text="Substring matched (case-insensitive) against Liftosaur exercise "
+        "names, e.g. 'Bench Press'.",
+    )
+    bodyweight_multiplier = models.FloatField(
+        default=1.5, help_text="Lift goal = bodyweight x multiplier (e.g. 1.5x BW)."
+    )
+    unit = models.CharField(max_length=8, default="lb", help_text="lb or kg")
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.bodyweight_multiplier}x BW)"
+

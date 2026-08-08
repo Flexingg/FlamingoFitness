@@ -111,10 +111,11 @@ To run jobs manually (what Celery would do):
 - `GET /api/v1/dashboard/state`
 - `GET /api/v1/leaderboard/weekly`
 - `POST /api/v1/webhooks/home-assistant`
+- Modality panels: `GET /api/v1/nutrition/`, `/api/v1/hydration/`, `/api/v1/endurance/`, `/api/v1/strength/`, `/api/v1/boss/`
 
 **Phase 6 — Frontend / PWA** (`core/templates`, `core/static`)
 - Django template dashboard ported from `example_html/dashboard.html`
-- Vanilla JS `fetch()` rendering + service worker + `manifest.json` + icons
+- Vanilla JS `fetch()` rendering (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`) + service worker + `manifest.json` + icons
 
 ## Testing
 

@@ -200,6 +200,8 @@ body {
 .node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
 .node-nutrition { background-color: var(--primary-pink); box-shadow: 0 8px 0 var(--dark-pink); }
 .node-hydration { background-color: var(--primary-cyan); box-shadow: 0 8px 0 var(--dark-cyan); }
+.node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
+.node-boss { background-color: #f6b11b; box-shadow: 0 8px 0 #c8850a; }
 .node-locked {
     background-color: #E5E5E5;
     box-shadow: 0 8px 0 #CCCCCC;
