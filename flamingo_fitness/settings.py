@@ -46,6 +46,26 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+# When behind a reverse proxy / Cloudflare Tunnel, the proxy terminates TLS
+# and forwards the request as HTTP. This header tells Django the original
+# request was HTTPS so it can build correct absolute URLs and CSRF checks.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# CSRF trusted origins: required when the site is served from a different
+# origin than the Django host (e.g. Cloudflare Tunnel custom domain).
+# Accepts a comma-separated list of origins including the scheme.
+_CSRF_TRUSTED_ORIGINS = os.getenv(
+    "DJANGO_CSRF_TRUSTED_ORIGINS", ""
+)
+if _CSRF_TRUSTED_ORIGINS.strip():
+    CSRF_TRUSTED_ORIGINS = [
+        origin.strip()
+        for origin in _CSRF_TRUSTED_ORIGINS.split(",")
+        if origin.strip()
+    ]
+else:
+    CSRF_TRUSTED_ORIGINS = []
+
 # Demo mode (Step 10): when True, SparkyFitness returns realistic demo data for
 # integrations that have no API key (local dev / quick try). Off by default so
 # production surfaces the real-data "Link SparkyFitness" CTA instead.
