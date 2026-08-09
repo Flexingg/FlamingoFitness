@@ -53,3 +53,7 @@ docs/08_Questions.md: Living decision log and architecture choices.
 docs/10_Sparky_Fitness_Integration.md: SparkyFitness API client, polling tasks, payload field mapping, and modality state endpoints.
 
 docs/11_Liftosaur_Integration.md: Liftosaur API client and workout parser spec.
+
+docs/liftosaur_api_spec.md: The Liftosaur API spec for workout ingestion.
+
+docs/sparky_fitness_open_api_spec_json.json: The SparkyFitness OpenAPI spec for webhook ingestion.

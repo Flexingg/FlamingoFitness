@@ -47,5 +47,42 @@ Current Focus / Likely Next Work
 
 - [x] Recovery (sleep) skill-tree detail panel — DONE: the green Recovery node opens a detail view (`js/recovery.js` + `recovery-view` in `dashboard.html`) fed by `GET /api/v1/recovery/` (readiness score, sleep history, Recovery skill tree).
 - [x] `GET /api/v1/recovery/` — DONE, mirrors the Nutrition/Hydration/Endurance/Strength pattern.
-- Formalize the Base-Building meta-game UI (materials/energy already tracked in `BaseResource`).
+- DRAFT awaiting review: **Phase 7 Base-Building Meta-Game** plan lives in `docs/09_Base_Building_Meta_Game.md` (Steps 21–28 below). The bottom-nav "Base" tab, `BaseResource` wallet, and energy/time-speedup sinks are the core gaps.
 - Seed default `BossConfig` entries via a data migration or management command (currently configured in the admin).
+
+Phase 7: Base-Building Meta-Game ("The Flamingo Club")
+
+Detailed spec: `docs/09_Base_Building_Meta_Game.md` (DRAFT — reformatted, with
+a step-by-step coding plan). Checkboxes below are the build order from that doc;
+they stay unchecked until the draft is approved.
+
+[ ] Step 21: Models — `BaseBuildingDef` (catalog: costs, duration, affinity,
+    blueprint gate, branch_choices, rest-day add) + `BaseBuilding` (instance:
+    levels, construction timer, custom_color, staff) + `BaseResource`
+    (energy_updated_at, last_daily_harvest, last_rest_bonus_date, blueprints,
+    active_buffs, last_milestone_celebrated). `makemigrations core && migrate`.
+[ ] Step 22: Economy service — `core/services/base_economy.py`: overflow-safe
+    energy refill, rest-day bonus, daily XP→materials harvest, production_plan
+    (streak/staff/modality-buff multipliers), 5% crit collect, building evolve,
+    synergy evaluation, XP bonus cap; re-exports in `services/__init__.py`.
+[ ] Step 23: Gamification hooks — `base_xp_bonus_pct` scaling in
+    `process_payload`; strength/cardio workout logs set 24h modality buffs;
+    boss-PR strength logs roll a `golden_flamingo` blueprint drop.
+[ ] Step 24: Admin + seeding — register both models; seed full catalog
+    (Lawn Chairs micro-build, Cabana + branches, Juice Bar, Recovery Pool,
+    Pool Deck, VIP Lounge, Gold Statue) and demo instances in
+    `create_demo_accounts`.
+[ ] Step 25: Base API — `GET /api/v1/base/` + `POST /base/start`, `/base/speedup`,
+    `/base/collect` (crit response), `/base/customize`, `/base/staff`,
+    `/base/evolve`, `/base/milestone`; wire in `core/urls.py`, auth + CSRF.
+[ ] Step 26: Frontend logic — `js/base.js` controller (`loadBase`/render/action
+    funcs), haptics (`navigator.vibrate` in the click handler), client-time
+    day/night `body` class, Web-Audio pop/cash blips, canvas-confetti +
+    milestone ack; CSRF header on every POST.
+[ ] Step 27: Frontend UI — dashboard.css day/night vars (`--bg-sky`, neon
+    glow), wallet band + energy meter, building cards (progress, color picker,
+    staff circle), Level-3 branch modal, milestone toast; base-view section +
+    nav-base tab in `dashboard.html`.
+[ ] Step 28: Tests & Docs — pure-math + DB + API + gamification tests
+    (`manage.py test core`), `node --check base.js`, docs sweep
+    (`docs/01/02/03/07/08` + README).
