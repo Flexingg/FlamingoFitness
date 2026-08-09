@@ -3,7 +3,7 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     env_file:
-      - .env
+      - stack.env
     # Map to 5433 on the host to avoid clashing with any local Postgres on 5432.
     ports:
       - "5433:5432"
@@ -55,7 +55,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - stack.env
     depends_on:
       db:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
     command: celery -A flamingo_fitness worker -l INFO
     env_file:
-      - .env
+      - stack.env
     depends_on:
       db:
         condition: service_healthy
