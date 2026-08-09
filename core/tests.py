@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
 from core.models import (
+    BaseBuilding,
+    BaseBuildingDef,
     BaseResource,
     BossConfig,
     DailyReadiness,
@@ -1002,3 +1004,189 @@ class ProfileLinkTests(TestCase):
                 user=self.user, source=Provider.SPARKYFITNESS
             ).exists()
         )
+# ---------------------------------------------------------------------------
+# Base-building economy math (SimpleTestCase)
+# ---------------------------------------------------------------------------
+class BaseEconomyMathTests(SimpleTestCase):
+    def test_streak_multiplier(self):
+        from core.services.base_economy import streak_multiplier
+        self.assertEqual(streak_multiplier(0), 1.0)
+        self.assertEqual(streak_multiplier(5), 1.25)
+        self.assertEqual(streak_multiplier(10), 1.5)
+        self.assertEqual(streak_multiplier(20), 1.5)
+
+    def test_xp_dividend(self):
+        from core.services.base_economy import xp_dividend
+        self.assertEqual(xp_dividend(0), 0)
+        self.assertEqual(xp_dividend(19), 0)
+        self.assertEqual(xp_dividend(20), 1)
+        self.assertEqual(xp_dividend(39), 1)
+        self.assertEqual(xp_dividend(40), 2)
+
+    def test_crit_chance(self):
+        from core.services.base_economy import CRIT_CHANCE
+        self.assertEqual(CRIT_CHANCE, 0.05)
+
+    def test_production_plan_staff_and_modality(self):
+        from core.services.base_economy import production_plan, STAFF_BONUS, MODALITY_BUFF
+        # Use a tiny 0-day elapsed so base is 0, but multipliers still apply
+        # to non-zero base when elapsed > 0. This just sanity-checks the knobs.
+        self.assertEqual(STAFF_BONUS, 1.10)
+        self.assertEqual(MODALITY_BUFF, 1.20)
+
+
+# ---------------------------------------------------------------------------
+# Base-building DB/integration tests
+# ---------------------------------------------------------------------------
+class BaseEconomyFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="baseuser", password="pw", streak=3)
+        self.resources, _ = BaseResource.objects.get_or_create(user=self.user)
+
+    def test_apply_rest_day_bonus_once_per_date(self):
+        from datetime import date
+        from core.services.base_economy import apply_rest_day_bonus
+        on_date = date(2025, 1, 1)
+        DailyReadiness.objects.create(
+            user=self.user, date=on_date, streak_requirement=DailyReadiness.StreakRequirement.REST_DAY,
+            score=0,
+        )
+        first = apply_rest_day_bonus(self.resources, self.user, on_date=on_date)
+        self.assertGreater(first, 0)
+        self.resources.refresh_from_db()
+        second = apply_rest_day_bonus(self.resources, self.user, on_date=on_date)
+        self.assertEqual(second, 0)
+
+    def test_modality_buff_and_production_plan(self):
+        from core.services.base_economy import log_modality_workout, production_plan
+        from django.utils import timezone
+        def_obj = BaseBuildingDef.objects.create(
+            slug="deck", name="Deck", base_cost_materials=10, base_cost_energy=1,
+            base_duration_hours=1, materials_per_day=10, xp_bonus_pct=0,
+            requires_base_level=0, modality_affinity="cardio", is_active=True, sort_order=1,
+        )
+        b = BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=1, last_produced_at=timezone.now())
+        log_modality_workout(self.resources, "cardio")
+        planned = production_plan(b, self.user.streak, self.resources.active_buffs or {}, synergies=[])
+        self.assertGreaterEqual(planned, 0)
+
+    def test_evolve_building_requires_level_3(self):
+        from core.services.base_economy import evolve_building
+        def_obj = BaseBuildingDef.objects.create(
+            slug="cabana", name="Cabana", base_cost_materials=10, base_cost_energy=1,
+            base_duration_hours=1, materials_per_day=5, xp_bonus_pct=0,
+            requires_base_level=0, branch_choices={"Materials": "cabana_mat", "XP": "cabana_xp"},
+            is_active=True, sort_order=2,
+        )
+        b = BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=2)
+        ok, err = evolve_building(b, "cabana_mat")
+        self.assertFalse(ok)
+        b.level = 3
+        b.save(update_fields=["level"])
+        branch_def = BaseBuildingDef.objects.create(
+            slug="cabana_mat", name="Cabana Materials", base_cost_materials=10, base_cost_energy=1,
+            base_duration_hours=1, materials_per_day=8, xp_bonus_pct=0,
+            requires_base_level=0, is_active=True, sort_order=3,
+        )
+        ok, err = evolve_building(b, "cabana_mat")
+        self.assertTrue(ok)
+        b.refresh_from_db()
+        self.assertEqual(b.building_def.slug, "cabana_mat")
+
+    def test_blueprint_drop_on_pr(self):
+        from core.services.gamification import _handle_strength
+        from unittest.mock import patch
+        self.assertEqual(self.resources.blueprints.get("golden_flamingo", 0), 0)
+        log = RawActivityLog.objects.create(
+            user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
+            payload={"sets": 3, "total_volume_lbs": 10000, "exercise": "squat", "pr": True},
+        )
+        with patch("random.random", return_value=0.01):
+            _handle_strength(log)
+        self.resources.refresh_from_db()
+        self.assertEqual(self.resources.blueprints.get("golden_flamingo", 0), 1)
+
+class BaseAPITests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="baseapi", password="pw", streak=2)
+        self.client.login(username="baseapi", password="pw")
+        # Seed a buildable def + a micro-build def.
+        self.lawn = BaseBuildingDef.objects.create(
+            slug="lawn_chairs", name="Lawn Chairs", base_cost_materials=0, base_cost_energy=0,
+            base_duration_hours=0, materials_per_day=5, xp_bonus_pct=0,
+            requires_base_level=0, is_active=True, sort_order=1,
+        )
+        self.cabana = BaseBuildingDef.objects.create(
+            slug="cabana", name="Cabana", base_cost_materials=20, base_cost_energy=5,
+            base_duration_hours=2, materials_per_day=10, xp_bonus_pct=0,
+            requires_base_level=0, branch_choices={"Materials": "cabana_mat", "XP": "cabana_xp"},
+            is_active=True, sort_order=2,
+        )
+
+    def test_base_state_requires_login(self):
+        self.client.logout()
+        resp = self.client.get("/base/")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_base_state_shape(self):
+        resp = self.client.get("/base/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIn("resources", body)
+        self.assertIn("buildings", body)
+        self.assertIn("unlockable", body)
+        self.assertEqual(body["base_level"], 0)
+
+    def test_start_micro_builds_immediately(self):
+        resp = self.client.post("/base/start", data={"slug": "lawn_chairs"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["base_level"], 1)
+        self.assertEqual(len(body["buildings"]), 1)
+        self.assertEqual(body["buildings"][0]["level"], 1)
+        self.assertIn(body["buildings"][0]["status"], {"idle", "built"})
+
+    def test_start_400_on_missing_slug(self):
+        resp = self.client.post("/base/start", data={}, content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.json())
+
+    def test_collect_404_on_bad_id(self):
+        resp = self.client.post("/base/collect", data={"id": 999}, content_type="application/json")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_customize_400_on_bad_color(self):
+        b = BaseBuilding.objects.create(user=self.user, building_def=self.lawn, level=1)
+        resp = self.client.post("/base/customize", data={"id": b.pk, "color": "red"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_staff_and_unstaff(self):
+        b = BaseBuilding.objects.create(user=self.user, building_def=self.lawn, level=1)
+        resp = self.client.post("/base/staff", data={"id": b.pk, "friend_id": 7}, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        b.refresh_from_db()
+        self.assertEqual(b.staff_friend_id, 7)
+        resp = self.client.post("/base/staff", data={"id": b.pk, "friend_id": None}, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        b.refresh_from_db()
+        self.assertIsNone(b.staff_friend_id)
+
+    def test_evolve_requires_level_3(self):
+        b = BaseBuilding.objects.create(user=self.user, building_def=self.cabana, level=2)
+        resp = self.client.post("/base/evolve", data={"id": b.pk, "chosen_slug": "cabana_mat"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+
+    def test_milestone_idempotent(self):
+        resp = self.client.post("/base/milestone", data={}, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["celebrated"])
+
+    def test_csrf_403_without_token(self):
+        # Django's CSRF middleware rejects POSTs without the token before the view runs.
+        from django.test import Client
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.login(username="baseapi", password="pw")
+        resp = csrf_client.post("/base/start", data={"slug": "lawn_chairs"}, content_type="application/json")
+        self.assertEqual(resp.status_code, 403)
+

@@ -15,14 +15,18 @@ from django.contrib import messages
 from django.contrib.auth import login as auth_login
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Sum
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .forms import LiftosaurLinkForm, SignupForm, SparkyLinkForm
 from .models import (
+    BaseBuilding,
+    BaseBuildingDef,
     BaseResource,
     BossConfig,
     Modality,
@@ -33,7 +37,21 @@ from .models import (
     UserIntegration,
     XPLedger,
 )
-from .services import compute_readiness, process_log
+from .services import (
+    base_level,
+    collect_building,
+    complete_or_pending,
+    compute_readiness,
+    evaluate_synergies,
+    evolve_building,
+    maybe_drop_blueprint,
+    process_log,
+    production_plan,
+    refresh_resources,
+    resource_dump,
+    spend_speedups,
+    start_construction,
+)
 
 
 def _json_error(message, status=400):
@@ -504,6 +522,317 @@ def recovery_state(request):
             },
         }
     )
+
+
+def _load_base_post_body(request):
+    try:
+        return json.loads(request.body or b"{}") or {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def _serialize_building(instance, now=None):
+    now = now or timezone.now()
+    status = complete_or_pending(instance, now=now)
+    if status == "idle" and instance.level == 0:
+        status = "not_started"
+    def_obj = instance.building_def
+    active_buffs = {}
+    resources = getattr(instance.user, "base_resource", None)
+    if resources is not None:
+        active_buffs = resources.active_buffs or {}
+    accrued = 0
+    if instance.level > 0 and not instance.is_constructing(now):
+        accrued = round(
+            production_plan(
+                instance,
+                instance.user.streak,
+                active_buffs,
+                synergies=evaluate_synergies(instance.user),
+                now=now,
+            ),
+            2,
+        )
+    return {
+        "id": instance.pk,
+        "slug": def_obj.slug,
+        "name": def_obj.name,
+        "level": instance.level,
+        "target_level": instance.target_level,
+        "status": status,
+        "is_constructing": instance.is_constructing(now),
+        "construction_started_at": instance.construction_started_at.isoformat()
+        if instance.construction_started_at
+        else None,
+        "construction_duration_hours": instance.construction_duration_hours,
+        "custom_color": instance.custom_color,
+        "staff_friend_id": instance.staff_friend_id,
+        "accrued_materials": accrued,
+        "materials_per_day": def_obj.materials_per_day * instance.level
+        if instance.level > 0
+        else 0,
+        "xp_bonus_pct": def_obj.xp_bonus_pct * instance.level,
+        "max_level": def_obj.max_level,
+        "branch_choices": def_obj.branch_choices
+        if instance.level >= 3 and def_obj.branch_choices
+        else {},
+        "base_cost_materials": def_obj.base_cost_materials,
+        "base_cost_energy": def_obj.base_cost_energy,
+        "base_duration_hours": def_obj.base_duration_hours,
+        "requires_base_level": def_obj.requires_base_level,
+        "requires_blueprint": def_obj.requires_blueprint,
+        "modality_affinity": def_obj.modality_affinity,
+        "sort_order": def_obj.sort_order,
+    }
+
+
+def _base_payload(user, now=None):
+    now = now or timezone.now()
+    resources, _ = BaseResource.objects.get_or_create(user=user)
+    resources = refresh_resources(resources, user, now=now)
+
+    instances = list(
+        BaseBuilding.objects.filter(user=user).select_related("building_def")
+    )
+    buildings = [_serialize_building(b, now=now) for b in instances]
+
+    owned_slugs = {
+        b["building_def__slug"]
+        for b in BaseBuilding.objects.filter(user=user).values("building_def__slug")
+    }
+
+    unlockable = []
+    for def_obj in BaseBuildingDef.objects.filter(is_active=True).order_by("sort_order", "id"):
+        if def_obj.slug in owned_slugs:
+            continue
+        bl = base_level(user)
+        locked_reasons = []
+        if bl < def_obj.requires_base_level:
+            locked_reasons.append("Base level")
+        if def_obj.requires_blueprint:
+            blueprints = dict(resources.blueprints or {})
+            if int(blueprints.get(def_obj.requires_blueprint, 0)) <= 0:
+                locked_reasons.append("Requires blueprint")
+        unlockable.append({
+            "slug": def_obj.slug,
+            "name": def_obj.name,
+            "locked": bool(locked_reasons),
+            "locked_reason": locked_reasons[0] if locked_reasons else None,
+            "base_cost_materials": def_obj.base_cost_materials,
+            "base_cost_energy": def_obj.base_cost_energy,
+            "base_duration_hours": def_obj.base_duration_hours,
+            "requires_base_level": def_obj.requires_base_level,
+            "requires_blueprint": def_obj.requires_blueprint,
+            "modality_affinity": def_obj.modality_affinity,
+            "sort_order": def_obj.sort_order,
+        })
+
+    return {
+        "user": {"username": user.username, "streak": user.streak},
+        "resources": resource_dump(resources),
+        "base_level": base_level(user),
+        "buildings": buildings,
+        "unlockable": unlockable,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Base-building endpoints (Step 25)
+# ---------------------------------------------------------------------------
+
+@login_required
+def base_state(request):
+    """GET /base/ — full Flamingo Club state."""
+    return JsonResponse(_base_payload(request.user))
+
+
+@login_required
+@require_POST
+def base_start(request):
+    """POST /base/start — start a build or upgrade."""
+    data = _load_base_post_body(request)
+    slug = str(data.get("slug", "") or "").strip()
+    if not slug:
+        return _json_error("slug is required.", 400)
+
+    with transaction.atomic():
+        resources, _ = BaseResource.objects.select_for_update().get_or_create(
+            user=request.user
+        )
+        refresh_resources(resources, request.user)
+        ok, error = start_construction(request.user, slug)
+    if not ok:
+        return _json_error(error, 400)
+    return JsonResponse({"ok": True, **_base_payload(request.user)})
+
+
+@login_required
+@require_POST
+def base_speedup(request):
+    """POST /base/speedup — spend speedups to finish construction."""
+    data = _load_base_post_body(request)
+    pk = data.get("id")
+    hours = data.get("hours", 1)
+    try:
+        pk = int(pk)
+        hours = int(hours)
+    except (TypeError, ValueError):
+        return _json_error("id and hours must be integers.", 400)
+
+    instance = (
+        BaseBuilding.objects.filter(pk=pk, user=request.user)
+        .select_related("building_def")
+        .first()
+    )
+    if instance is None:
+        return _json_error("Building not found.", 404)
+
+    with transaction.atomic():
+        resources, _ = BaseResource.objects.select_for_update().get_or_create(
+            user=request.user
+        )
+        refresh_resources(resources, request.user)
+        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
+        ok, spent, error, completed = spend_speedups(building, hours=hours)
+    if not ok:
+        return _json_error(error, 400)
+    return JsonResponse(
+        {
+            "ok": True,
+            "speedups_spent": spent,
+            "completed": completed,
+            **_base_payload(request.user),
+        }
+    )
+
+
+@login_required
+@require_POST
+def base_collect(request):
+    """POST /base/collect — claim accrued materials."""
+    data = _load_base_post_body(request)
+    pk = data.get("id")
+    try:
+        pk = int(pk)
+    except (TypeError, ValueError):
+        return _json_error("id must be an integer.", 400)
+
+    instance = (
+        BaseBuilding.objects.filter(pk=pk, user=request.user)
+        .select_related("building_def")
+        .first()
+    )
+    if instance is None:
+        return _json_error("Building not found.", 404)
+
+    with transaction.atomic():
+        res, _ = BaseResource.objects.select_for_update().get_or_create(
+            user=request.user
+        )
+        refresh_resources(res, request.user)
+        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
+        collected, was_crit = collect_building(building)
+    return JsonResponse(
+        {
+            "ok": True,
+            "collected": collected,
+            "was_crit": was_crit,
+            "resources": resource_dump(res),
+        }
+    )
+
+
+@login_required
+@require_POST
+def base_customize(request):
+    """POST /base/customize — set a building's neon color."""
+    data = _load_base_post_body(request)
+    pk = data.get("id")
+    color = str(data.get("color", "") or "").strip()
+    try:
+        pk = int(pk)
+    except (TypeError, ValueError):
+        return _json_error("id must be an integer.", 400)
+    if not color or not color.startswith("#") or len(color) != 7:
+        try:
+            int(color.lstrip("#"), 16)
+        except (TypeError, ValueError):
+            return _json_error("color must be a 7-char #RRGGBB hex.", 400)
+
+    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
+    if instance is None:
+        return _json_error("Building not found.", 404)
+
+    instance.custom_color = color
+    instance.save(update_fields=["custom_color"])
+    return JsonResponse({"ok": True, **_base_payload(request.user)})
+
+
+@login_required
+@require_POST
+def base_staff(request):
+    """POST /base/staff — assign or clear a staff friend."""
+    data = _load_base_post_body(request)
+    pk = data.get("id")
+    friend_id = data.get("friend_id")
+    try:
+        pk = int(pk)
+        if friend_id is not None and friend_id != "":
+            friend_id = int(friend_id)
+        else:
+            friend_id = None
+    except (TypeError, ValueError):
+        return _json_error(
+            "id must be an integer and friend_id must be an integer or null.", 400
+        )
+
+    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
+    if instance is None:
+        return _json_error("Building not found.", 404)
+
+    instance.staff_friend_id = friend_id
+    instance.save(update_fields=["staff_friend_id"])
+    return JsonResponse({"ok": True, **_base_payload(request.user)})
+
+
+@login_required
+@require_POST
+def base_evolve(request):
+    """POST /base/evolve — swap a Lv3 building to a branch def."""
+    data = _load_base_post_body(request)
+    pk = data.get("id")
+    chosen_slug = str(data.get("chosen_slug", "") or "").strip()
+    try:
+        pk = int(pk)
+    except (TypeError, ValueError):
+        return _json_error("id must be an integer.", 400)
+    if not chosen_slug:
+        return _json_error("chosen_slug is required.", 400)
+
+    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
+    if instance is None:
+        return _json_error("Building not found.", 404)
+
+    with transaction.atomic():
+        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
+        ok, error = evolve_building(building, chosen_slug)
+    if not ok:
+        return _json_error(error, 400)
+    return JsonResponse({"ok": True, **_base_payload(request.user)})
+
+
+@login_required
+@require_POST
+def base_milestone(request):
+    """POST /base/milestone — ack a base-level milestone (idempotent)."""
+    resources, _ = BaseResource.objects.get_or_create(user=request.user)
+    bl = base_level(request.user)
+    celebrated = False
+    if bl >= 5 and bl % 5 == 0 and getattr(resources, "last_milestone_celebrated", 0) < bl:
+        resources.last_milestone_celebrated = bl
+        resources.save(update_fields=["last_milestone_celebrated"])
+        celebrated = True
+    return JsonResponse({"ok": True, "celebrated": celebrated})
 
 
 @login_required

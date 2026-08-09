@@ -28,6 +28,15 @@ urlpatterns = [
         views.home_assistant_webhook,
         name="home_assistant_webhook",
     ),
+    # Base-building meta-game (Step 25)
+    path("base/", views.base_state, name="base_state"),
+    path("base/start", views.base_start, name="base_start"),
+    path("base/speedup", views.base_speedup, name="base_speedup"),
+    path("base/collect", views.base_collect, name="base_collect"),
+    path("base/customize", views.base_customize, name="base_customize"),
+    path("base/staff", views.base_staff, name="base_staff"),
+    path("base/evolve", views.base_evolve, name="base_evolve"),
+    path("base/milestone", views.base_milestone, name="base_milestone"),
     # Dashboard page (Step 19)
     path("", views.dashboard_page, name="dashboard"),
 ]

@@ -2,10 +2,8 @@ services:
   db:
     image: postgres:15-alpine
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-flamingo_fitness}
-      POSTGRES_USER: ${POSTGRES_USER:-flamingo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flamingo-dev-password}
+    env_file:
+      - .env
     # Map to 5433 on the host to avoid clashing with any local Postgres on 5432.
     ports:
       - "5433:5432"
@@ -22,6 +20,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - flamingofitness
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:7-alpine
@@ -31,6 +36,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    networks:
+      - flamingofitness
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build: .
@@ -49,6 +61,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - flamingofitness
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   celery_worker:
     build: .
@@ -61,6 +80,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - flamingofitness
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   celery_beat:
     build: .
@@ -73,6 +99,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - flamingofitness
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:
+
+networks:
+  flamingofitness:

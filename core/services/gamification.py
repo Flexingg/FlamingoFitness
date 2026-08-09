@@ -13,6 +13,8 @@ Skill-tree progression (Step 14) is applied automatically by ``apply_to_skill_tr
 as each XP entry is created.
 """
 
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 
@@ -23,6 +25,13 @@ from ..models import (
     SkillTree,
     XPLedger,
 )
+from .base_economy import (
+    base_xp_bonus_pct,
+    maybe_drop_blueprint,
+    log_modality_workout,
+)
+
+logger = logging.getLogger(__name__)
 
 # One level of a skill tree = 100 XP.
 XP_PER_LEVEL = 100
@@ -107,8 +116,23 @@ def apply_to_skill_tree(user, modality, amount):
     while tree.xp >= XP_PER_LEVEL:
         tree.xp -= XP_PER_LEVEL
         tree.level += 1
-    tree.save(update_fields=["level", "xp", "total_xp"])
+        tree.save(update_fields=["level", "xp", "total_xp"])
     return tree
+
+
+def _apply_modality_buff(user, modality):
+    """Phase 7 (docs/09 §5.7): grant a 24h production buff for a logged workout.
+
+    ``"strength"`` handler -> ``"strength"``; ``cardio``/``endurance`` handlers
+    -> ``"cardio"``. Non-fatal so an economy error never loses the XP award.
+    """
+    try:
+        resources, _ = BaseResource.objects.get_or_create(user=user)
+        log_modality_workout(resources, modality)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Failed to set %s modality buff; XP already awarded.", modality
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +155,8 @@ def _handle_cardio(raw_log):
     xp = endurance_xp(payload.get("minutes", 0), payload.get("intensity", ""))
     if xp <= 0:
         return []
+    # Phase 7 (docs/09 §5.7): cardio workouts set a 24h cardio production buff.
+    _apply_modality_buff(raw_log.user, "cardio")
     return [
         XPLedger(
             user=raw_log.user,
@@ -152,6 +178,9 @@ def _handle_endurance(raw_log):
 
     if total_calories <= 0:
         return []
+
+    # Phase 7 (docs/09 section 5.7): exercise (endurance/cardio) sets a 24h cardio buff.
+    _apply_modality_buff(raw_log.user, "cardio")
 
     # 1 XP per 10 calories burned, minimum 10 XP
     xp = max(10, int(total_calories / 10))
@@ -205,6 +234,13 @@ def _handle_strength(raw_log):
             )
         )
         award_resources(raw_log.user, time_speedups=BOSS_TIME_SPEEDUPS)
+        # Phase 7 (docs/09 section 5.7): a PR boss fight rolls a rare blueprint.
+        try:
+            maybe_drop_blueprint(raw_log.user)
+        except Exception:  # noqa: BLE001
+            logger.exception('Blueprint drop roll failed; strength XP already awarded.')
+    # Phase 7 (docs/09 section 5.7): strength workouts set a 24h strength production buff.
+    _apply_modality_buff(raw_log.user, 'strength')
     return entries
 
 
@@ -550,6 +586,21 @@ def process_payload(user, source, event_type, payload, raw_log=None):
         holder.save()
 
     entries = _HANDLERS[event_type](holder)
+
+    # Phase 7 (docs/09 §5.9): buildings that grant XP% boost the effort XP
+    # awarded by this log. Scaled before the rows are persisted so skill trees
+    # see the same (capped) amount. Non-fatal - a scaling error never loses XP.
+    if entries:
+        try:
+            bonus = base_xp_bonus_pct(entries[0].user)
+            if bonus:
+                for entry in entries:
+                    if entry.amount > 0:
+                        entry.amount = max(
+                            1, int(round(entry.amount * (1 + bonus / 100.0)))
+                        )
+        except Exception:  # noqa: BLE001
+            logger.exception("base_xp_bonus_pct scaling failed; awarding unscaled XP")
 
     # Record which raw log produced each entry.
     for entry in entries:

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Flamingo Fitness</title>
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="theme-color" content="#FF5E9A">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -224,13 +225,31 @@
                     <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
                 </div>
             </section>
+
+            <!-- Base-building detail panel (Flamingo Club) -->
+            <section class="base-view hidden" id="base-view">
+                <div class="nutrition-view-header">
+                    <button class="btn-back" id="base-back" onclick="backToBasePlan()">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <h2 class="nutrition-view-title"><i class="fa-solid fa-umbrella-beach"></i> Flamingo Club</h2>
+                </div>
+
+                <div id="base-content"></div>
+
+                <div id="base-empty" class="nutrition-empty hidden">
+                    <div class="empty-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
+                    <p class="empty-title">Build your Flamingo Club</p>
+                    <p class="empty-desc">Earn materials from workouts and collect daily harvests to expand your base.</p>
+                </div>
+            </section>
         </main>
 
         <!-- Bottom Tab Nav -->
         <nav class="bottom-nav">
             <a href="#" class="nav-item active"><i class="fa-solid fa-map-location-dot"></i><span>Path</span></a>
-            <a href="#leaderboard" class="nav-item" id="nav-leagues"><i class="fa-solid fa-shield-halved"></i><span>Leagues</span></a>
-            <a href="#" class="nav-item"><i class="fa-solid fa-umbrella-beach"></i><span>Base</span></a>
+            <a href="#" class="nav-item" id="nav-leagues" onclick="loadLeaderboard(); return false;"><i class="fa-solid fa-shield-halved"></i><span>Leagues</span></a>
+            <a href="#" class="nav-item" id="nav-base" onclick="loadBase(); return false;"><i class="fa-solid fa-umbrella-beach"></i><span>Base</span></a>
             <a href="{% url 'profile' %}" class="nav-item"><i class="fa-solid fa-user"></i><span>Profile</span></a>
         </nav>
     </div>
@@ -245,6 +264,10 @@
         </div>
     </div>
 
+    <div class="milestone-toast" id="milestone-toast">Base Level Up!</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
     <script src="{% static 'core/js/dashboard.js' %}"></script>
     <script src="{% static 'core/js/nutrition.js' %}"></script>
     <script src="{% static 'core/js/hydration.js' %}"></script>
@@ -252,6 +275,7 @@
     <script src="{% static 'core/js/strength.js' %}"></script>
     <script src="{% static 'core/js/boss.js' %}"></script>
     <script src="{% static 'core/js/recovery.js' %}"></script>
+    <script src="{% static 'core/js/base.js' %}"></script>
     <script>
         // Register the service worker for offline/instant loading (Step 20).
         if ('serviceWorker' in navigator) {

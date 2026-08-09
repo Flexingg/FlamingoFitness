@@ -2,6 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
+    BaseBuilding,
+    BaseBuildingDef,
     BaseResource,
     BossConfig,
     DailyReadiness,
@@ -97,3 +99,40 @@ class BossConfigAdmin(admin.ModelAdmin):
     )
     list_filter = ("is_active",)
     search_fields = ("name", "exercise_match")
+
+
+@admin.register(BaseBuildingDef)
+class BaseBuildingDefAdmin(admin.ModelAdmin):
+    list_display = (
+        "slug",
+        "name",
+        "base_cost_materials",
+        "base_cost_energy",
+        "base_duration_hours",
+        "materials_per_day",
+        "xp_bonus_pct",
+        "requires_base_level",
+        "modality_affinity",
+        "requires_blueprint",
+        "is_active",
+        "sort_order",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("slug", "name")
+    ordering = ("sort_order", "id")
+
+
+@admin.register(BaseBuilding)
+class BaseBuildingAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "building_def",
+        "level",
+        "target_level",
+        "construction_started_at",
+        "custom_color",
+        "staff_friend_id",
+        "created_at",
+    )
+    list_filter = ("building_def",)
+    search_fields = ("user__username", "building_def__slug")

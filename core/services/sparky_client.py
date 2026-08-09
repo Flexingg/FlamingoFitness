@@ -303,9 +303,12 @@ class SparkyFitnessClient(MockAPIClient):
             except (TypeError, ValueError):
                 weight_num = None
             if weight_num:
-                #if unit_system != "imperial":
-                #    weight_num = round(weight_num * KG_TO_LBS, 1)
-                weight_num = round(weight_num * KG_TO_LBS, 1)
+                # Imperial accounts export lbs as-is; metric/unknown export kg
+                # and must be converted to the FlamingoFitness standard (lbs).
+                if unit_system != "imperial":
+                    weight_num = round(weight_num * KG_TO_LBS, 1)
+                else:
+                    weight_num = round(weight_num, 1)
                 entry_date = weight_payload.get("entry_date") or today.isoformat()
                 occurred_at = _to_dt(today)
                 if isinstance(entry_date, str):

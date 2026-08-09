@@ -25,6 +25,16 @@
     --text-main: #2B2B2B;
     --text-muted: #8E8E8E;
     --border-color: #E5E5E5;
+    --bg-sky: #87CEEB;
+    --neon-color: #FF5E9A;
+    --neon-glow: 0 0 12px var(--neon-color);
+}
+
+body.theme-night {
+    --bg-sky: #1A1A2E;
+    --bg-app: #16162A;
+    --text-muted: #C8C8D4;
+    --neon-glow: 0 0 14px var(--neon-color);
 }
 
 * {
@@ -600,3 +610,59 @@ body {
     transform: translateX(2px);
 }
 
+/* Base-building panel (Step 27 helpers). */
+.base-view { display: flex; flex-direction: column; height: 100%; }
+.base-section-title { font-weight: 800; font-size: 1.05rem; margin: 12px 16px 6px; color: var(--text-main); }
+.base-scroll-row { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 10px; }
+.base-grid { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 0 16px 16px; }
+.building-card { background: var(--bg-light); border: 2px solid var(--border-color); border-radius: 16px; padding: 12px; }
+.building-owned { border-color: #FFB6C1; }
+.building-locked { opacity: 0.7; }
+.building-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.building-name { font-weight: 800; font-size: 1rem; }
+.building-level { font-size: 0.8rem; color: var(--text-muted); margin-left: 4px; }
+.building-status { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+.building-accrued { font-size: 0.9rem; font-weight: 700; color: var(--primary-blue); margin-top: 6px; }
+.building-cost { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+.building-lock-reason { font-size: 0.8rem; color: var(--primary-red); margin-top: 6px; }
+.building-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.building-color { border: none; background: transparent; width: 32px; height: 32px; cursor: pointer; }
+.staff-circle { width: 32px; height: 32px; border-radius: 50%; border: 2px dashed var(--border-color); display: flex; align-items: center; justify-content: center; margin-top: 8px; cursor: pointer; color: var(--text-muted); }
+.btn-teal { background: var(--primary-cyan); color: #fff; }
+.theme-night { --bg-sky: #1A1A2E; }
+.theme-night .building-card { box-shadow: 0 0 12px rgba(255, 255, 255, 0.08); }
+
+
+.theme-night .app-container { background-color: var(--bg-app); }
+.building-card { transition: transform 0.1s ease, box-shadow 0.2s ease; }
+.building-card:active { transform: translateY(1px); }
+.building-built { border-color: #58CC02; }
+.building-constructing { border-color: var(--primary-orange); }
+.building-constructing .building-status::after { content: '...'; }
+.building-color { -webkit-appearance: none; appearance: none; border: none; padding: 0; }
+.building-color::-webkit-color-swatch-wrapper { padding: 0; }
+.building-color::-webkit-color-swatch { border: none; border-radius: 50%; }
+.building-color::-moz-color-swatch { border: none; border-radius: 50%; }
+.staff-circle { transition: background 0.2s ease, border-color 0.2s ease; }
+.staff-circle:hover { border-color: var(--primary-pink); color: var(--primary-pink); }
+.base-resource-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--bg-light); border: 2px solid var(--border-color); font-weight: 800; font-size: 0.95rem; }
+.base-resource-pill.pill-materials { color: var(--primary-blue); }
+.base-resource-pill.pill-energy { color: var(--primary-purple); }
+.base-resource-pill.pill-speedups { color: var(--primary-orange); }
+.base-resource-pill.pill-blueprints { color: #FFD700; }
+.energy-meter { height: 8px; background: var(--border-color); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.energy-meter .bar-fill { height: 100%; background: var(--primary-purple); transition: width 0.3s ease; }
+@keyframes crit-pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+}
+.crit-anim { animation: crit-pop 0.35s ease; }
+@keyframes neon-flicker {
+    0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+    20%, 24%, 55% { opacity: 0.6; }
+}
+.theme-night .building-owned { animation: neon-flicker 4s infinite; }
+.milestone-toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: var(--primary-pink); color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 800; box-shadow: var(--neon-glow); z-index: 999; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+.milestone-toast.show { opacity: 1; }
+.base-wallet { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 16px; }

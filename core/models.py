@@ -9,6 +9,8 @@ Phase 2 of the build sequence (docs/07_Next_Steps.md steps 5-7):
 The BaseResource model backs the base-building meta-game (materials/energy).
 """
 
+from datetime import timedelta
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
@@ -229,6 +231,34 @@ class BaseResource(models.Model):
     materials = models.PositiveIntegerField(default=0)
     energy = models.PositiveIntegerField(default=0)
     time_speedups = models.PositiveIntegerField(default=0)
+    # Phase 7 (docs/09): passive-regen + idempotency + state trackers.
+    energy_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Passive energy regen checkpoint (never stored while above the cap).",
+    )
+    last_daily_harvest = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Last date the daily XP -> materials dividend was minted (idempotency).",
+    )
+    last_rest_bonus_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Last date the rest-day energy spike was granted (idempotency).",
+    )
+    blueprints = models.JSONField(
+        default=dict,
+        help_text="Rare blueprint ownership, e.g. {'golden_flamingo': 1} (unlocks prestige defs).",
+    )
+    active_buffs = models.JSONField(
+        default=dict,
+        help_text="Modality production buffs, e.g. {'strength_buff_expiry': 'iso-date'}.",
+    )
+    last_milestone_celebrated = models.IntegerField(
+        default=0,
+        help_text="Base level whose confetti celebration was acknowledged (5, 10, ...).",
+    )
 
     def __str__(self):
         return f"{self.user.username} base: {self.materials} mat, {self.energy} en"
@@ -263,4 +293,125 @@ class BossConfig(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.bodyweight_multiplier}x BW)"
+
+
+class BaseBuildingDef(models.Model):
+    """Admin-configurable catalog for the base-building meta-game (Phase 7).
+
+    One row per building type ("The Flamingo Club"): costs, construction
+    duration, daily material production, XP bonus, branch options, modality
+    affinity, blueprint gates and rest-day recovery additions. Tuned in the
+    Django admin (`/admin/`).
+    """
+
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=80)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=40, default="fa-umbrella-beach")
+    base_cost_materials = models.PositiveIntegerField(default=40)
+    base_cost_energy = models.PositiveIntegerField(default=10)
+    base_duration_hours = models.PositiveIntegerField(
+        default=6, help_text="0 = instant micro-build."
+    )
+    materials_per_day = models.PositiveIntegerField(default=0)
+    xp_bonus_pct = models.PositiveIntegerField(default=0)
+    max_level = models.PositiveIntegerField(default=5)
+    requires_base_level = models.PositiveIntegerField(default=0)
+    requires_blueprint = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="e.g. 'golden_flamingo' - must be owned in BaseResource.blueprints.",
+    )
+    modality_affinity = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        help_text="e.g. 'strength' / 'cardio' - matches an active_buffs key for 1.2x production.",
+    )
+    branch_choices = models.JSONField(
+        default=dict,
+        help_text="Level-3 evolution menu, e.g. {'Materials': 'cabana_mat', 'XP': 'cabana_xp'}.",
+    )
+    rest_day_bonus_add = models.PositiveIntegerField(
+        default=0,
+        help_text="Extra rest-day energy granted while this building is owned (Recovery Pool).",
+    )
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def cost_for_level(self, target_level):
+        """Material + energy cost for building/upgrading TO ``target_level``.
+
+        Both scale +40% per level above 1.
+        """
+        scale = 1 + 0.4 * (target_level - 1)
+        return round(self.base_cost_materials * scale), round(
+            self.base_cost_energy * scale
+        )
+
+    def duration_for_level(self, target_level):
+        return self.base_duration_hours * target_level
+
+    def bonus_pct_for_level(self, target_level):
+        return self.xp_bonus_pct * target_level
+
+    def __str__(self):
+        return f"{self.name} ({self.slug})"
+
+
+class BaseBuilding(models.Model):
+    """A user's instance of a BaseBuildingDef (per-user level/construction state).
+
+    ``level == 0`` means never built. While constructing, ``target_level`` holds
+    the level under construction and ``construction_started_at`` +
+    ``construction_duration_hours`` describe the timer.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="base_buildings"
+    )
+    building_def = models.ForeignKey(
+        BaseBuildingDef, on_delete=models.CASCADE, related_name="instances"
+    )
+    level = models.PositiveIntegerField(
+        default=0, help_text="Built level (0 = never built)."
+    )
+    target_level = models.PositiveIntegerField(
+        default=0, help_text="In-construction target level."
+    )
+    construction_started_at = models.DateTimeField(null=True, blank=True)
+    construction_duration_hours = models.PositiveIntegerField(default=0)
+    last_produced_at = models.DateTimeField(
+        null=True, blank=True, help_text="Idle-accrual checkpoint for production."
+    )
+    custom_color = models.CharField(
+        max_length=7, default="#FF69B4", help_text="Neon customization (#RRGGBB)."
+    )
+    staff_friend_id = models.IntegerField(
+        null=True, blank=True, help_text="Social +10% production boost avatar id."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "building_def"], name="unique_user_building_def"
+            )
+        ]
+
+    def is_constructing(self, now=None):
+        """True while the construction timer is running (lazy - never stored)."""
+        if not self.construction_started_at:
+            return False
+        now = now or timezone.now()
+        return now < self.construction_started_at + timedelta(
+            hours=self.construction_duration_hours
+        )
+
+    def __str__(self):
+        return f"{self.user.username} {self.building_def.slug} Lv{self.level}"
 
