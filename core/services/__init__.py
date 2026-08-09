@@ -17,6 +17,7 @@ from .gamification import (  # noqa: F401
     summarize_endurance,
     summarize_hydration,
     summarize_nutrition,
+    summarize_sleep,
     summarize_strength,
 )
 from .readiness import (  # noqa: F401

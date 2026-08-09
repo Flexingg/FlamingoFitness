@@ -294,13 +294,37 @@ def endurance_state(request):
             },
         }
     )
+def _best_lifts_from_history(history):
+    """Derive the user's all-time best lifts (heaviest set weight + Epley est.
+    1RM) per exercise, across a list of summarize_strength() day summaries.
+
+    These personal records are surfaced by the PR Boss panel (GET /api/v1/boss/),
+    not the Strength panel.
+    """
+    best = {}
+    for h in history:
+        for ex in h["exercises"]:
+            key = ex["name"].lower()
+            prev = best.get(key)
+            if prev is None or (ex["est_1rm"] or 0) > (prev["est_1rm"] or 0):
+                best[key] = {
+                    "name": ex["name"],
+                    "weight": ex["weight"],
+                    "reps": ex["reps"],
+                    "unit": ex["unit"],
+                    "est_1rm": ex["est_1rm"],
+                    "date": h["date"],
+                }
+    return [best[k] for k in sorted(best)]
+
+
 @login_required
 def strength_state(request):
     """GET /api/v1/strength/
 
-    Returns Liftosaur strength summaries (volume / duration / PRs), the full
-    strength history, the strength skill-tree state, and whether Liftosaur is
-    linked.
+    Returns Liftosaur strength summaries (volume / duration), the full strength
+    history, the strength skill-tree state, and whether Liftosaur is linked.
+    Personal records (best lifts) moved to GET /api/v1/boss/ with the PR Boss.
     """
     from .services import summarize_strength
 
@@ -321,24 +345,6 @@ def strength_state(request):
         defaults={"level": 1, "xp": 0, "total_xp": 0},
     )
 
-    # Derive the user's all-time best lifts (heaviest set weight + Epley est
-    # 1RM) per exercise, across every strength log.
-    best = {}
-    for h in history:
-        for ex in h["exercises"]:
-            key = ex["name"].lower()
-            prev = best.get(key)
-            if prev is None or (ex["est_1rm"] or 0) > (prev["est_1rm"] or 0):
-                best[key] = {
-                    "name": ex["name"],
-                    "weight": ex["weight"],
-                    "reps": ex["reps"],
-                    "unit": ex["unit"],
-                    "est_1rm": ex["est_1rm"],
-                    "date": h["date"],
-                }
-    best_lifts = [best[k] for k in sorted(best)]
-
     liftosaur = UserIntegration.objects.filter(
         user=request.user, provider=Provider.LIFTOSAUR, is_active=True
     ).first()
@@ -350,7 +356,6 @@ def strength_state(request):
             "demo": liftosaur is not None and not has_key,
             "today": today,
             "history": history,
-            "best_lifts": best_lifts,
             "skill_tree": {
                 "level": st.level,
                 "xp": st.xp,
@@ -436,6 +441,67 @@ def boss_state(request):
                 user=request.user, provider=Provider.LIFTOSAUR, is_active=True
             ).exists(),
             "bosses": result,
+            # Personal records moved here from the Strength panel.
+            "best_lifts": _best_lifts_from_history(summaries),
+        }
+    )
+
+
+@login_required
+def recovery_state(request):
+    """GET /api/v1/recovery/
+
+    Recovery detail panel data: today's readiness score (recovery engine),
+    recent sleep history (SparkyFitness), and the Recovery skill-tree state.
+    Sleep XP (8h+ = 50, 5-8h = 20) is credited to the Recovery tree by the
+    gamification layer when sleep logs are ingested.
+    """
+    from .services import summarize_sleep
+
+    user = request.user
+    sparky = UserIntegration.objects.filter(
+        user=user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+
+    logs = (
+        RawActivityLog.objects.filter(user=user, event_type="sleep")
+        .order_by("-occurred_at")
+    )
+    history = [summarize_sleep(log) for log in logs]
+
+    today_str = timezone.localdate().isoformat()
+    today = next((h for h in history if h["date"] == today_str), None)
+    if today is None and history:
+        today = history[0]
+
+    readiness = compute_readiness(user, on_date=timezone.localdate())
+
+    st, _ = SkillTree.objects.get_or_create(
+        user=user,
+        modality=Modality.RECOVERY,
+        defaults={"level": 1, "xp": 0, "total_xp": 0},
+    )
+
+    return JsonResponse(
+        {
+            "linked": sparky is not None,
+            "demo": sparky is not None and not has_key,
+            "readiness": {
+                "score": readiness.score,
+                "streak_requirement": readiness.streak_requirement,
+                "message": readiness.message,
+                "body_battery": readiness.body_battery,
+                "sleep_hours": readiness.sleep_hours,
+            },
+            "today": today,
+            "history": history,
+            "skill_tree": {
+                "level": st.level,
+                "xp": st.xp,
+                "total_xp": st.total_xp,
+                "progress_pct": st.progress_pct,
+            },
         }
     )
 

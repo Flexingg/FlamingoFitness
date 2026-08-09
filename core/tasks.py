@@ -28,30 +28,88 @@ def ingest_results(integration, results):
     """Persist fetch() result tuples into RawActivityLog and award XP.
 
     Shared by the Celery pollers and the profile page's Link & Sync action so
-    both create RawActivityLog rows exactly the same way. Returns the number
-    of log rows created.
+    both persist RawActivityLog rows exactly the same way. Returns the number
+    of NEW log rows created.
+
+    DEDUP: rows are keyed by (user, source, event_type, occurred_at), so
+    syncing the same day twice (beat poll, manual re-link, Liftosaur re-sync)
+    refreshes the payload instead of inserting a duplicate. All clients emit
+    day-anchored occurred_at values (midnight of the data's own date), which
+    is what makes this key stable across polls. XP is only awarded when a row
+    is first created - never on refresh - which also keeps nutrition /
+    hydration / endurance / strength / sleep / scale XP from being
+    double-awarded on repeated syncs.
+
+    SELF-HEALING: databases ingested before dedup landed may hold several
+    legacy rows for the same key (the old code created one per poll). A plain
+    update_or_create would raise MultipleObjectsReturned and crash the poller,
+    so we look the rows up manually: keep the newest one, refresh its payload,
+    and delete the stale extras (their XPLedger entries survive via the
+    SET_NULL raw_log FK).
     """
     created = 0
+    updated = 0
+    purged = 0
     for source, event_type, payload, occurred_at in results:
-        log = RawActivityLog.objects.create(
-            user=integration.user,
-            source=source,
-            event_type=event_type,
-            payload=payload,
-            occurred_at=occurred_at,
+        existing = list(
+            RawActivityLog.objects.filter(
+                user=integration.user,
+                source=source,
+                event_type=event_type,
+                occurred_at=occurred_at,
+            ).order_by("-created_at", "-id")
         )
-        # Convert the fresh payload into XP immediately (best effort).
-        try:
-            from .services import process_log
-
-            process_log(log)
-        except Exception:  # noqa: BLE001 - keep polling resilient
-            logger.exception(
-                "XP processing failed for %s log (user=%s)",
-                event_type,
-                integration.user.username,
+        if existing:
+            log = existing[0]
+            log.payload = payload
+            log.save(update_fields=["payload"])
+            was_created = False
+            if len(existing) > 1:
+                stale = RawActivityLog.objects.filter(
+                    pk__in=[dup.pk for dup in existing[1:]]
+                )
+                deleted_count, _ = stale.delete()
+                purged += deleted_count
+                logger.warning(
+                    "Collapsed %d legacy duplicate %s row(s) for %s (%s).",
+                    deleted_count,
+                    event_type,
+                    integration.user.username,
+                    source,
+                )
+        else:
+            log = RawActivityLog.objects.create(
+                user=integration.user,
+                source=source,
+                event_type=event_type,
+                payload=payload,
+                occurred_at=occurred_at,
             )
-        created += 1
+            was_created = True
+        if was_created:
+            # Convert the fresh payload into XP immediately (best effort).
+            try:
+                process_log(log)
+            except Exception:  # noqa: BLE001 - keep polling resilient
+                logger.exception(
+                    "XP processing failed for %s log (user=%s)",
+                    event_type,
+                    integration.user.username,
+                )
+            created += 1
+        else:
+            updated += 1
+
+    if updated or purged:
+        logger.info(
+            "Ingest for %s (%s): %d new row(s), %d existing row(s) refreshed "
+            "(duplicates skipped), %d legacy duplicate row(s) collapsed.",
+            integration.user.username,
+            integration.provider,
+            created,
+            updated,
+            purged,
+        )
 
     integration.last_polled = timezone.now()
     integration.save(update_fields=["last_polled"])

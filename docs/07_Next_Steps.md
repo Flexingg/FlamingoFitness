@@ -45,7 +45,7 @@ Phase 6: Frontend Integration & PWA
 
 Current Focus / Likely Next Work
 
-- Recovery (sleep) skill-tree detail panel — the Recovery node exists in the skill tree but has no dedicated state endpoint or detail view yet.
+- [x] Recovery (sleep) skill-tree detail panel — DONE: the green Recovery node opens a detail view (`js/recovery.js` + `recovery-view` in `dashboard.html`) fed by `GET /api/v1/recovery/` (readiness score, sleep history, Recovery skill tree).
+- [x] `GET /api/v1/recovery/` — DONE, mirrors the Nutrition/Hydration/Endurance/Strength pattern.
 - Formalize the Base-Building meta-game UI (materials/energy already tracked in `BaseResource`).
-- Add `GET /api/v1/recovery/` to mirror the Nutrition/Hydration/Endurance/Strength pattern.
 - Seed default `BossConfig` entries via a data migration or management command (currently configured in the admin).

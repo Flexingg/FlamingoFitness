@@ -105,6 +105,44 @@
         intro.appendChild(guidance);
         content.appendChild(intro);
 
+        // Personal Records (moved here from the Strength panel).
+        if (data.best_lifts && data.best_lifts.length) {
+            var prTitle = document.createElement('div');
+            prTitle.className = 'history-title';
+            prTitle.innerHTML = '<i class="fa-solid fa-medal"></i> Personal Records';
+            content.appendChild(prTitle);
+
+            var prList = document.createElement('div');
+            prList.style.display = 'flex';
+            prList.style.flexDirection = 'column';
+            prList.style.gap = '6px';
+            prList.style.marginBottom = '14px';
+
+            data.best_lifts.forEach(function (b) {
+                var row = document.createElement('div');
+                row.className = 'nutrition-day-card';
+                row.style.padding = '12px';
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+
+                var left = document.createElement('span');
+                left.style.fontWeight = '800';
+                left.textContent = b.name;
+
+                var right = document.createElement('span');
+                right.style.fontWeight = '700';
+                right.style.color = 'var(--primary-orange)';
+                right.textContent = (b.weight || 0) + (b.unit || 'lb') +
+                    ' x ' + (b.reps || 0) + '  (est 1RM ' + (b.est_1rm || 0) + ')';
+
+                row.appendChild(left);
+                row.appendChild(right);
+                prList.appendChild(row);
+            });
+            content.appendChild(prList);
+        }
+
         // Boss list.
         if (!data.bosses || !data.bosses.length) {
             var none = document.createElement('div');

@@ -89,9 +89,9 @@ Response:
 
 GET /api/v1/strength/  (views.strength_state)
 
-Returns Liftosaur strength summaries (volume / duration / sets / PRs), the full
+Returns Liftosaur strength summaries (volume / duration / sets), the full
 strength history, the strength skill-tree state, and whether Liftosaur is linked.
-Response:
+Personal records (best lifts) moved to GET /api/v1/boss/. Response:
 
 {
   "linked": true,
@@ -107,16 +107,14 @@ Response:
     ]
   },
   "history": [ ... same shape by day ... ],
-  "best_lifts": [
-    { "name": "Bench Press", "weight": 265, "reps": 5, "unit": "lb", "est_1rm": 309.2, "date": "2026-08-07" }
-  ],
   "skill_tree": { "level": 1, "xp": 43, "total_xp": 43, "progress_pct": 43 }
 }
 
 GET /api/v1/boss/  (views.boss_state)
 
 Compares the user's best lifts against admin-configured PR Boss bodyweight
-benchmarks (BossConfig). Response:
+benchmarks (BossConfig), and also returns the user's personal records
+(best_lifts - moved here from the Strength panel). Response:
 
 {
   "bodyweight": 180.0,
@@ -124,7 +122,29 @@ benchmarks (BossConfig). Response:
   "bosses": [
     { "name": "Bench Press", "exercise_match": "Bench Press", "multiplier": 1.5,
       "goal": 270.0, "best_lift": 309.2, "conquered": true, "progress_pct": 100 }
+  ],
+  "best_lifts": [
+    { "name": "Bench Press", "weight": 265, "reps": 5, "unit": "lb", "est_1rm": 309.2, "date": "2026-08-07" }
   ]
+}
+
+GET /api/v1/recovery/  (views.recovery_state)
+
+Feeds the green Recovery node's detail panel: today's readiness score from the
+recovery engine, recent SparkyFitness sleep history, and the Recovery skill-tree
+state. Response:
+
+{
+  "linked": true,
+  "demo": false,
+  "readiness": {
+    "score": 82, "streak_requirement": "train",
+    "message": "Recovered and ready to train.",
+    "body_battery": 88, "sleep_hours": 7.6
+  },
+  "today": { "date": "2026-08-08", "sleep_hours": 7.6, "deep_pct": 21, "rem_pct": 19, "xp": 20 },
+  "history": [ ... same shape by night ... ],
+  "skill_tree": { "level": 2, "xp": 20, "total_xp": 120, "progress_pct": 20 }
 }
 
 GET /api/v1/leaderboard/weekly

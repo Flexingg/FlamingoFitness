@@ -66,7 +66,7 @@
             empty.classList.remove('hidden');
             empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-dumbbell"></i></div>' +
                 '<p class="empty-title">Link Liftosaur</p>' +
-                '<p class="empty-desc">No strength data yet. Connect Liftosaur to track volume and PRs.</p>' +
+                '<p class="empty-desc">No strength data yet. Connect Liftosaur to track your lifting volume.</p>' +
                 '<a href="/profile/" class="btn-flamingo">Link Liftosaur</a>';
             return;
         }
@@ -75,7 +75,7 @@
             empty.classList.remove('hidden');
             empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-spinner fa-spin"></i></div>' +
                 '<p class="empty-title">Linked \u2014 no workouts yet</p>' +
-                '<p class="empty-desc">Once your Liftosaur workouts sync, your volume, PRs and XP will appear here.</p>';
+                '<p class="empty-desc">Once your Liftosaur workouts sync, your volume and XP will appear here. PRs live in the PR Boss panel.</p>';
             return;
         }
 
@@ -121,44 +121,6 @@
         skillSection.appendChild(guidance);
 
         content.appendChild(skillSection);
-
-        // Best lifts (all-time PRs).
-        if (data.best_lifts && data.best_lifts.length) {
-            var bestTitle = document.createElement('div');
-            bestTitle.className = 'history-title';
-            bestTitle.innerHTML = '<i class="fa-solid fa-medal"></i> Best Lifts';
-            content.appendChild(bestTitle);
-
-            var bestList = document.createElement('div');
-            bestList.style.display = 'flex';
-            bestList.style.flexDirection = 'column';
-            bestList.style.gap = '6px';
-            bestList.style.marginBottom = '14px';
-
-            data.best_lifts.forEach(function (b) {
-                var row = document.createElement('div');
-                row.className = 'nutrition-day-card';
-                row.style.padding = '12px';
-                row.style.display = 'flex';
-                row.style.justifyContent = 'space-between';
-                row.style.alignItems = 'center';
-
-                var left = document.createElement('span');
-                left.style.fontWeight = '800';
-                left.textContent = b.name;
-
-                var right = document.createElement('span');
-                right.style.fontWeight = '700';
-                right.style.color = 'var(--primary-purple)';
-                right.textContent = (b.weight || 0) + (b.unit || 'lb') +
-                    ' x ' + (b.reps || 0) + '  (est 1RM ' + (b.est_1rm || 0) + ')';
-
-                row.appendChild(left);
-                row.appendChild(right);
-                bestList.appendChild(row);
-            });
-            content.appendChild(bestList);
-        }
 
         // Today / most-recent workout.
         if (data.today) {

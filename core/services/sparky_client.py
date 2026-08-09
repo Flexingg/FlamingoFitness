@@ -23,6 +23,10 @@ from .api_clients import MockAPIClient
 
 PROVIDER = "sparkyfitness"
 
+# SparkyFitness metric accounts export bodyweight in kg; FlamingoFitness
+# standardizes on lbs (same constant as the Liftosaur client).
+KG_TO_LBS = 2.20462
+
 
 def _to_dt(day):
     """Return an aware datetime representing the start of a given date."""
@@ -127,17 +131,29 @@ class SparkyFitnessClient(MockAPIClient):
             # AI NOTE: The spec dictates stages are nested inside a `stagePercentages` object,
             # NOT at the root level of the payload.
             stages = entry.get("stagePercentages", {})
-            
+
+            # AI NOTE (dedup): SleepAnalytics carries its own `date`. Anchor the
+            # log's occurred_at to THAT night (not "today") so re-syncs hit the
+            # same RawActivityLog key and never create duplicate rows.
+            sleep_day = today
+            entry_day = entry.get("date")
+            if isinstance(entry_day, str):
+                try:
+                    sleep_day = date.fromisoformat(entry_day[:10])
+                except ValueError:
+                    pass
+
             logs.append((
                 PROVIDER,
                 "sleep",
                 {
+                    "date": sleep_day.isoformat(),
                     "sleep_hours": self._sleep_hours(entry),
                     "deep_pct": int(stages.get("deep", 0) or 0),
                     "rem_pct": int(stages.get("rem", 0) or 0),
                     "raw": entry,
                 },
-                _to_dt(today), # Often mapped to today for poller consistency
+                _to_dt(sleep_day),
             ))
 
         # =====================================================================
@@ -243,6 +259,71 @@ class SparkyFitnessClient(MockAPIClient):
                 },
                 _to_dt(yesterday),
             ))
+
+        # =====================================================================
+        # 5. BODYWEIGHT (latest check-in / scale)
+        # AI NOTE: The OpenAPI spec defines GET /measurements/most-recent/{measurementType}
+        # ("weight, steps, body_fat_percentage, etc.") to fetch the single latest
+        # reading of a type — use "weight". The response carries a `weight` field
+        # (CheckInMeasurement schema). Fall back to
+        # GET /measurements/check-in/latest-on-or-before-date?date={today} if the
+        # most-recent endpoint returns nothing. Emitting one `scale` log gives the
+        # PR Boss (views.py `_latest_bodyweight`) the user's latest bodyweight
+        # regardless of which day they last checked in.
+        #
+        # UNITS: SparkyFitness check-ins are stored in the account's unit system
+        # (GET /user-preferences -> unit_system). Metric accounts export KG, so
+        # convert to lbs (the unit FlamingoFitness standardizes on). Imperial
+        # accounts are left as-is. Default = metric/unknown => convert kg -> lb.
+        # =====================================================================
+        prefs = self._get(api_key, "/user-preferences")
+        unit_system = "metric"
+        if isinstance(prefs, dict) and prefs.get("unit_system"):
+            unit_system = str(prefs.get("unit_system")).lower()
+
+        weight_payload = None
+        most_recent = self._get(api_key, "/measurements/most-recent/weight")
+        if isinstance(most_recent, dict) and most_recent.get("weight") is not None:
+            weight_payload = most_recent
+        else:
+            latest_check_in = self._get(
+                api_key,
+                "/measurements/check-in/latest-on-or-before-date",
+                params={"date": today.isoformat()},
+            )
+            if (
+                isinstance(latest_check_in, dict)
+                and latest_check_in.get("weight") is not None
+            ):
+                weight_payload = latest_check_in
+
+        if weight_payload is not None:
+            try:
+                weight_num = float(weight_payload.get("weight"))
+            except (TypeError, ValueError):
+                weight_num = None
+            if weight_num:
+                #if unit_system != "imperial":
+                #    weight_num = round(weight_num * KG_TO_LBS, 1)
+                weight_num = round(weight_num * KG_TO_LBS, 1)
+                entry_date = weight_payload.get("entry_date") or today.isoformat()
+                occurred_at = _to_dt(today)
+                if isinstance(entry_date, str):
+                    try:
+                        occurred_at = _to_dt(date.fromisoformat(entry_date[:10]))
+                    except ValueError:
+                        pass
+                logs.append((
+                    PROVIDER,
+                    "scale",
+                    {
+                        "date": entry_date,
+                        "weight": weight_num,
+                        "unit": "lb",
+                        "_id": weight_payload.get("id") or weight_payload.get("_id"),
+                    },
+                    occurred_at,
+                ))
 
         # =====================================================================
         # 4. ENDURANCE / EXERCISE DATA

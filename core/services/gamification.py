@@ -408,6 +408,25 @@ def summarize_strength(raw_log):
     }
 
 
+def summarize_sleep(raw_log):
+    """Build a UI-ready sleep summary for one RawActivityLog (SparkyFitness).
+
+    Returns hours slept, deep/REM percentages, and the Recovery XP the rulebook
+    (docs/03) grants for it (8h+ = 50 XP, 5-8h = 20 XP).
+    """
+    payload = raw_log.payload or {}
+    hours = float(payload.get("sleep_hours", 0) or 0)
+    date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
+
+    return {
+        "date": date_str,
+        "sleep_hours": round(hours, 1),
+        "deep_pct": int(payload.get("deep_pct", 0) or 0),
+        "rem_pct": int(payload.get("rem_pct", 0) or 0),
+        "xp": sleep_xp(hours),
+    }
+
+
 @_register("nutrition")
 def _handle_nutrition(raw_log):
     """SparkyFitness nutrition log (docs/10).

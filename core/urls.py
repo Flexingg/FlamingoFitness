@@ -21,6 +21,7 @@ urlpatterns = [
     path("endurance/", views.endurance_state, name="endurance_state"),
     path("strength/", views.strength_state, name="strength_state"),
     path("boss/", views.boss_state, name="boss_state"),
+    path("recovery/", views.recovery_state, name="recovery_state"),
     path("leaderboard/weekly", views.leaderboard_weekly, name="leaderboard_weekly"),
     path(
         "webhooks/home-assistant",

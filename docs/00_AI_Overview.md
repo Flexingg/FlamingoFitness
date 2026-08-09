@@ -26,7 +26,7 @@ Database: PostgreSQL (using JSONB for flexible ELT webhook ingestion).
 
 Backend: Python / Django. Handles data transformation, XP math, auth, demo environment gating (`DEMO` variable), and serves the REST APIs / Views.
 
-Frontend: Vanilla HTML5, CSS3 (CSS Variables/Flexbox/Grid), and modular vanilla JavaScript (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`). No heavy frontend frameworks.
+Frontend: Vanilla HTML5, CSS3 (CSS Variables/Flexbox/Grid), and modular vanilla JavaScript (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`, `recovery.js`). No heavy frontend frameworks.
 
 Mobile Delivery: Progressive Web App (PWA). Mobile-first design, strictly utilizing a manifest.json and Service Workers.
 
@@ -36,7 +36,7 @@ Future Integration: Home Assistant (Webhooks/REST/MQTT) for smart home environme
 
 docs/01_Database_Schema.md: The PostgreSQL/Django schema (User, RawActivityLog, XPLedger, SkillTree, DailyReadiness).
 
-docs/02_API_Contracts.md: The REST API endpoints (`/dashboard/state`, `/nutrition/`, `/hydration/`, `/endurance/`, `/leaderboard/weekly`, webhooks).
+docs/02_API_Contracts.md: The REST API endpoints (`/dashboard/state`, `/nutrition/`, `/hydration/`, `/endurance/`, `/strength/`, `/boss/`, `/recovery/`, `/leaderboard/weekly`, webhooks).
 
 docs/03_Gamification_Math.md: The "Effort XP" rulebook across all modalities.
 

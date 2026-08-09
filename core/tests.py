@@ -270,6 +270,121 @@ class SparkyTests(TestCase):
         entries = process_log(log)
         self.assertEqual(entries, [])
 
+    def test_fetch_pulls_latest_bodyweight_via_most_recent(self):
+        # Real path must emit a `scale` log from GET /measurements/most-recent/weight.
+        # SparkyFitness metric accounts export kg -> converted to lbs (x2.20462).
+        from core.services.sparky_client import SparkyFitnessClient
+
+        integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        client = SparkyFitnessClient()
+
+        def fake_get(api_key, path, params=None):
+            if path == "/measurements/most-recent/weight":
+                return {
+                    "id": "ci-1",
+                    "entry_date": "2026-08-06",
+                    "weight": 83.0,  # kg
+                }
+            return {}
+
+        client._get = fake_get
+        logs = client.fetch(integration)
+        scales = [p for _, et, p, _ in logs if et == "scale"]
+        self.assertEqual(len(scales), 1)
+        self.assertEqual(scales[0]["weight"], 183.0)  # 83 kg -> 183.0 lb
+        self.assertEqual(scales[0]["date"], "2026-08-06")
+        self.assertEqual(scales[0]["unit"], "lb")
+
+    def test_fetch_bodyweight_falls_back_to_check_in(self):
+        # If /measurements/most-recent/weight returns nothing, fall back to
+        # /measurements/check-in/latest-on-or-before-date.
+        from core.services.sparky_client import SparkyFitnessClient
+
+        integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        client = SparkyFitnessClient()
+
+        def fake_get(api_key, path, params=None):
+            if path == "/measurements/check-in/latest-on-or-before-date":
+                return {"entry_date": "2026-08-05", "weight": 84}  # kg
+            return {}
+
+        client._get = fake_get
+        logs = client.fetch(integration)
+        scales = [p for _, et, p, _ in logs if et == "scale"]
+        self.assertEqual(len(scales), 1)
+        self.assertEqual(scales[0]["weight"], 185.2)  # 84 kg -> 185.2 lb
+
+    def test_fetch_bodyweight_imperial_preference_keeps_lbs(self):
+        # Imperial accounts already export lbs - no conversion.
+        from core.services.sparky_client import SparkyFitnessClient
+
+        integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        client = SparkyFitnessClient()
+
+        def fake_get(api_key, path, params=None):
+            if path == "/user-preferences":
+                return {"unit_system": "imperial"}
+            if path == "/measurements/most-recent/weight":
+                return {"entry_date": "2026-08-06", "weight": 185}
+            return {}
+
+        client._get = fake_get
+        logs = client.fetch(integration)
+        scales = [p for _, et, p, _ in logs if et == "scale"]
+        self.assertEqual(len(scales), 1)
+        self.assertEqual(scales[0]["weight"], 185.0)
+
+    def test_fetch_no_weight_means_no_scale_log(self):
+        from core.services.sparky_client import SparkyFitnessClient
+
+        integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        client = SparkyFitnessClient()
+        client._get = lambda api_key, path, params=None: {}
+        logs = client.fetch(integration)
+        self.assertFalse(any(et == "scale" for _, et, _, _ in logs))
+
+    def test_fetch_sleep_anchored_to_entry_date(self):
+        # Sleep logs must carry the night's own date (stable dedup key),
+        # not "today" - otherwise re-syncs duplicate rows day over day.
+        from core.services.sparky_client import SparkyFitnessClient
+
+        integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        client = SparkyFitnessClient()
+
+        def fake_get(api_key, path, params=None):
+            if path == "/sleep/analytics":
+                return [
+                    {
+                        "date": "2026-08-06",
+                        "timeAsleep": 28800,  # 8h in seconds
+                        "stagePercentages": {"deep": 20, "rem": 22},
+                    }
+                ]
+            return {}
+
+        client._get = fake_get
+        logs = client.fetch(integration)
+        sleeps = [(p, occ) for _, et, p, occ in logs if et == "sleep"]
+        self.assertEqual(len(sleeps), 1)
+        payload, occurred_at = sleeps[0]
+        self.assertEqual(payload["date"], "2026-08-06")
+        self.assertEqual(occurred_at.date().isoformat(), "2026-08-06")
+
 
 class AccountTests(TestCase):
     def setUp(self):
@@ -590,7 +705,8 @@ class StrengthBossViewTests(TestCase):
         body = resp.json()
         self.assertTrue(body["linked"])
         self.assertGreaterEqual(body["today"]["total_volume_lbs"], 22000)
-        self.assertEqual(body["best_lifts"][0]["name"], "Bench Press")
+        # PRs moved out of the Strength panel - they live on /api/v1/boss/ now.
+        self.assertNotIn("best_lifts", body)
 
     def test_boss_endpoint_conquered(self):
         self._seed()
@@ -602,11 +718,242 @@ class StrengthBossViewTests(TestCase):
         self.assertEqual(bench["goal"], 270.0)      # 180 * 1.5
         self.assertEqual(bench["best_lift"], 309.2)
         self.assertTrue(bench["conquered"])
+        # Personal records now ship with the PR Boss payload.
+        self.assertEqual(body["best_lifts"][0]["name"], "Bench Press")
 
     def test_boss_endpoint_requires_bodyweight(self):
         resp = self.client.get("/api/v1/boss/")
         self.assertEqual(resp.status_code, 200)
         self.assertIsNone(resp.json()["bodyweight"])
+
+
+class RecoveryViewTests(TestCase):
+    """GET /api/v1/recovery/ feeds the green Recovery node's panel."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="sleepy", password="pw")
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        self.client.force_login(self.user)
+
+    def test_needs_login(self):
+        client = self.client_class()
+        resp = client.get("/api/v1/recovery/")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_endpoint_returns_readiness_and_sleep_history(self):
+        from django.utils import timezone as tz
+
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.SPARKYFITNESS, event_type="sleep",
+            occurred_at=tz.now(),
+            payload={
+                "date": tz.localdate().isoformat(),
+                "sleep_hours": 8.2, "deep_pct": 21, "rem_pct": 19,
+            },
+        )
+        resp = self.client.get("/api/v1/recovery/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["linked"])
+        self.assertFalse(body["demo"])  # has a real api key
+        self.assertIn("score", body["readiness"])
+        self.assertIn("streak_requirement", body["readiness"])
+        self.assertEqual(len(body["history"]), 1)
+        self.assertEqual(body["history"][0]["sleep_hours"], 8.2)
+        self.assertEqual(body["history"][0]["xp"], 50)  # 8h+ sleep
+        self.assertIsNotNone(body["today"])
+        self.assertIn("skill_tree", body)
+
+    def test_endpoint_without_sparky_shows_unlinked(self):
+        other = User.objects.create_user(username="nosleep", password="pw")
+        client = self.client_class()
+        client.force_login(other)
+        resp = client.get("/api/v1/recovery/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertFalse(body["linked"])
+        self.assertEqual(body["history"], [])
+
+
+class IngestDedupTests(TestCase):
+    """Syncing twice must never duplicate rows or XP (any modality)."""
+
+    def setUp(self):
+        from django.utils import timezone as tz
+
+        self.user = User.objects.create_user(username="dupcheck", password="pw")
+        self.integration = UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "sk_test"}, is_active=True,
+        )
+        self.day = tz.make_aware(tz.datetime(2026, 8, 7, 0, 0))
+        # A full day of tuples covering every dedup-sensitive modality.
+        self.results = [
+            (
+                "sparkyfitness", "nutrition",
+                {
+                    "date": "2026-08-07",
+                    "food_entries": [{"protein": 185, "calories": 2200}],
+                    "goals": {"protein": 180, "calories": 2400},
+                },
+                self.day,
+            ),
+            (
+                "sparkyfitness", "hydration",
+                {
+                    "date": "2026-08-07",
+                    "water_intake_entries": [{"time": "08:00", "amount": 70}],
+                    "water_goal": 64,
+                },
+                self.day,
+            ),
+            (
+                "sparkyfitness", "endurance",
+                {
+                    "date": "2026-08-07",
+                    "exercise_entries": [{"name": "Run", "calories_burned": 450,
+                                          "duration_minutes": 35}],
+                    "total_calories_burned": 450,
+                    "total_duration_minutes": 35,
+                },
+                self.day,
+            ),
+            (
+                "sparkyfitness", "sleep",
+                {"date": "2026-08-07", "sleep_hours": 8.1, "deep_pct": 20,
+                 "rem_pct": 21},
+                self.day,
+            ),
+            (
+                "sparkyfitness", "scale",
+                {"date": "2026-08-07", "weight": 183.0, "unit": "lb"},
+                self.day,
+            ),
+            (
+                "liftosaur", "strength",
+                {
+                    "date": "2026-08-07", "program": "5/3/1",
+                    "duration_minutes": 55, "total_volume_lbs": 22000,
+                    "volume_lbs": 22000, "total_sets": 15, "completed": True,
+                    "pr": True,
+                    "exercises": [
+                        {"name": "Squat", "sets": 5, "reps": 5, "weight": 315,
+                         "unit": "lb", "volume_lbs": 7875, "est_1rm": 367.5},
+                    ],
+                },
+                self.day,
+            ),
+        ]
+
+    def test_double_sync_creates_no_duplicates(self):
+        from core.tasks import ingest_results
+
+        first = ingest_results(self.integration, self.results)
+        self.assertEqual(first, 6)
+        xp_after_first = XPLedger.objects.filter(user=self.user).count()
+        self.assertGreater(xp_after_first, 0)
+
+        # Second sync of the exact same data (beat poll / manual re-link).
+        second = ingest_results(self.integration, self.results)
+        self.assertEqual(second, 0)
+
+        # Row counts unchanged per modality (no duplicate imports).
+        for event_type in ("nutrition", "hydration", "endurance", "sleep",
+                           "scale"):
+            count = RawActivityLog.objects.filter(
+                user=self.user, source=Provider.SPARKYFITNESS,
+                event_type=event_type,
+            ).count()
+            self.assertEqual(count, 1, msg=f"duplicate {event_type} rows")
+        self.assertEqual(
+            RawActivityLog.objects.filter(
+                user=self.user, source=Provider.LIFTOSAUR,
+                event_type="strength",
+            ).count(),
+            1,
+            msg="duplicate strength/PR rows",
+        )
+
+        # XP must not be double-awarded on re-sync.
+        self.assertEqual(XPLedger.objects.filter(user=self.user).count(),
+                         xp_after_first)
+
+    def test_refresh_updates_payload_in_place(self):
+        from core.tasks import ingest_results
+
+        ingest_results(self.integration, self.results)
+        more_water = [
+            (
+                "sparkyfitness", "hydration",
+                {
+                    "date": "2026-08-07",
+                    "water_intake_entries": [{"time": "08:00", "amount": 90}],
+                    "water_goal": 64,
+                },
+                self.day,
+            ),
+        ]
+        created = ingest_results(self.integration, more_water)
+        self.assertEqual(created, 0)
+        log = RawActivityLog.objects.get(
+            user=self.user, source=Provider.SPARKYFITNESS,
+            event_type="hydration",
+        )
+        self.assertEqual(log.payload["water_intake_entries"][0]["amount"], 90)
+
+    def test_legacy_duplicates_are_collapsed_not_crash(self):
+        # Before dedup landed, repeated polls created several rows for the
+        # same key (e.g. admin had 18 sleep rows on one date). Ingest must
+        # collapse them - keep the newest, drop the rest - instead of raising
+        # MultipleObjectsReturned.
+        from core.tasks import ingest_results
+
+        sleep_tuple = next(t for t in self.results if t[1] == "sleep")
+        _, event_type, payload, occurred_at = sleep_tuple
+
+        # Simulate 18 legacy duplicate rows for that key.
+        for i in range(18):
+            RawActivityLog.objects.create(
+                user=self.user, source="sparkyfitness", event_type=event_type,
+                payload=dict(payload, stale_marker=i), occurred_at=occurred_at,
+            )
+        self.assertEqual(
+            RawActivityLog.objects.filter(
+                user=self.user, event_type="sleep"
+            ).count(),
+            18,
+        )
+
+        xp_before = XPLedger.objects.filter(user=self.user).count()
+        created = ingest_results(self.integration, [sleep_tuple])
+        self.assertEqual(created, 0)
+
+        # Exactly one row survives, refreshed with the latest payload.
+        rows = RawActivityLog.objects.filter(
+            user=self.user, event_type="sleep"
+        )
+        self.assertEqual(rows.count(), 1)
+        self.assertNotIn("stale_marker", rows.get().payload)
+        # The collapsed rows were processed=False stubs, so no XP was ever
+        # awarded for them and none is awarded now.
+        self.assertEqual(
+            XPLedger.objects.filter(user=self.user).count(), xp_before
+        )
+
+        # A second sync stays stable (no crash, no growth).
+        created = ingest_results(self.integration, [sleep_tuple])
+        self.assertEqual(created, 0)
+        self.assertEqual(
+            RawActivityLog.objects.filter(
+                user=self.user, event_type="sleep"
+            ).count(),
+            1,
+        )
+
+
 class ProfileLinkTests(TestCase):
     """Profile page renders both link forms and persists Liftosaur keys."""
 

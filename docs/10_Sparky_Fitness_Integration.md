@@ -10,16 +10,19 @@ Base URL: `https://fit.randalls.cc/api` — auth via `x-api-key` header. Live Op
 
 `fetch(integration, days=2)` returns a list of `(provider, event_type, payload, occurred_at)` tuples, one per day, ready for the poller. Supported `event_type` values:
 
-- `sleep` — SparkyFitness `/sleep/analytics`. `_sleep_hours()` prioritizes OpenAPI-documented fields `totalSleepDuration` / `timeAsleep` (integers, in **seconds** → divided by 3600).
+- `sleep` — SparkyFitness `/sleep/analytics`. `_sleep_hours()` prioritizes OpenAPI-documented fields `totalSleepDuration` / `timeAsleep` (integers, in **seconds** → divided by 3600). Each log carries the night's own `date` and is anchored to it (`occurred_at` = that date's midnight) — NOT "today" — so re-syncs dedup correctly.
 - `nutrition` — SparkyFitness `/food-entries/range/{start}/{end}` (grouped per day).
 - `hydration` — SparkyFitness `/measurements/water-intake/range` (grouped per day, water in oz).
 - `endurance` — SparkyFitness `/exercise-entries/range/{start}/{end}` (grouped per day into calories + duration).
+- `scale` — latest bodyweight. Primary endpoint: `GET /measurements/most-recent/weight` (the spec's purpose-built "latest measurement of a type"); fallback: `GET /measurements/check-in/latest-on-or-before-date?date={today}`. **Units:** SparkyFitness stores check-ins in the account's unit system (`GET /user-preferences` → `unit_system`); metric accounts export **kg**, which the client converts to **lb** (×2.20462) since FlamingoFitness standardizes on lbs. Emits a single `scale` log (`weight` in lb, `entry_date`, `unit`, `_id`) so `views.py _latest_bodyweight()` — used by the PR Boss panel — always has the user's most recent weight regardless of which day they last checked in.
 
 `DEMO` behavior: with `DEMO=True` and no API key, `fetch` returns realistic demo payloads so link → poll → XP can be exercised end-to-end. With `DEMO=False` (default) and no key, it returns nothing so the UI shows the "Link SparkyFitness" CTA.
 
 2. Polling Task (`core/tasks.py`)
 
 `poll_sparkyfitness` runs on Celery Beat every 4 hours. It iterates active `sparkyfitness` integrations, calls `SparkyFitnessClient().fetch(integration)`, persists each tuple to `RawActivityLog` (source=`sparkyfitness`, event_type, payload, occurred_at), and immediately runs `process_log` to award XP.
+
+**Dedup:** `ingest_results` keys rows on `(user, source, event_type, occurred_at)`, so re-syncing the same day (beat poll, manual re-link, Liftosaur re-sync) refreshes the payload instead of inserting duplicates, and XP is only awarded the first time a row is created. This is why every emitted tuple uses a day-anchored `occurred_at` (midnight of the data's own date — including sleep, which is anchored to the night's date, not "today"). Applies to nutrition, hydration, endurance, strength/PRs, sleep, and scale alike. **Self-healing:** rows ingested before dedup landed may hold several legacy duplicates per key (the old code created one per poll — e.g. 18 sleep rows for one date); ingest keeps the newest row, refreshes it, and deletes the stale extras (logged as "Collapsed N legacy duplicate row(s)") instead of raising `MultipleObjectsReturned`. Already-awarded XP is left untouched.
 
 3. Transformation / Gamification Layer (`core/services/gamification.py`)
 
