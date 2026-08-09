@@ -55,7 +55,7 @@ services:
              python manage.py create_demo_accounts &&
              gunicorn flamingo_fitness.wsgi:application --bind 0.0.0.0:8000 --workers 3"
     ports:
-      - "8000:8000"
+      - "${WEB_PORT:-8000}:8000"
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-key-change-me}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
@@ -67,6 +67,7 @@ services:
       POSTGRES_HOST: ${POSTGRES_HOST:-db}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      WEB_PORT: ${WEB_PORT:-8000}
     depends_on:
       db:
         condition: service_healthy
