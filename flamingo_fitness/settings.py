@@ -53,16 +53,21 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # CSRF trusted origins: required when the site is served from a different
 # origin than the Django host (e.g. Cloudflare Tunnel custom domain).
-# Accepts a comma-separated list of origins including the scheme.
+# Accepts a comma-separated list. If an entry has no scheme (http:// or
+# https://), https:// is prepended automatically so Portainer users can
+# just type domain names.
 _CSRF_TRUSTED_ORIGINS = os.getenv(
     "DJANGO_CSRF_TRUSTED_ORIGINS", ""
 )
 if _CSRF_TRUSTED_ORIGINS.strip():
-    CSRF_TRUSTED_ORIGINS = [
-        origin.strip()
-        for origin in _CSRF_TRUSTED_ORIGINS.split(",")
-        if origin.strip()
-    ]
+    CSRF_TRUSTED_ORIGINS = []
+    for origin in _CSRF_TRUSTED_ORIGINS.split(","):
+        origin = origin.strip()
+        if not origin:
+            continue
+        if "://" not in origin:
+            origin = f"https://{origin}"
+        CSRF_TRUSTED_ORIGINS.append(origin)
 else:
     CSRF_TRUSTED_ORIGINS = []
 
@@ -258,4 +263,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=15, hour=6),
     },
 }
+
+# ---------------------------------------------------------------------------
+# Cookie security (required for Cloudflare Tunnel / reverse proxy HTTPS)
+# ---------------------------------------------------------------------------
+# When behind a TLS-terminating proxy the browser sees HTTPS, so cookies
+# marked Secure are sent correctly. Without these, the CSRF cookie may be
+# dropped on form submissions and produce a 403.
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
 
