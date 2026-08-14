@@ -93,6 +93,58 @@
 .provider-list {
     margin-bottom: 20px;
 }
+
+/* Avatar upload card (docs/13 UI tune-up) */
+.avatar-card .auth-subtitle { margin-bottom: 12px; }
+.avatar-edit {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.avatar-edit-preview {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid var(--primary-pink);
+    flex-shrink: 0;
+    background: #ddd;
+}
+.avatar-edit-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.avatar-edit-label {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 2px 0;
+}
+.avatar-edit-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.avatar-upload-btn { cursor: pointer; }
+.avatar-upload-status {
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--dark-green);
+    min-height: 1em;
+    word-break: break-word;
+}
+.avatar-upload-status.avatar-status-error { color: var(--primary-red); }
+
+
 .provider-item {
     display: flex;
     align-items: center;

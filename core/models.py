@@ -415,3 +415,298 @@ class BaseBuilding(models.Model):
     def __str__(self):
         return f"{self.user.username} {self.building_def.slug} Lv{self.level}"
 
+
+class BadgeDef(models.Model):
+    """Static achievement badge catalog (Roadmap idea #5).
+
+    A badge is a *derived* milestone: its ``key`` maps to a check predicate in
+    ``core/services/badges.py`` that reads data we already store (``User.streak``,
+    ``RawActivityLog``, ``SkillTree``, ``BaseResource``, base level), so no new
+    ingestion is required. Grants are recorded on :class:`UserBadge`.
+    """
+
+    key = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=80)
+    description = models.CharField(
+        max_length=255, blank=True, help_text="Shown on the badge tile."
+    )
+    icon = models.CharField(
+        max_length=60,
+        default="fa-medal",
+        help_text="FontAwesome icon class, e.g. 'fa-fire' (no 'fa-solid' prefix).",
+    )
+    category = models.CharField(max_length=40, default="Milestones")
+    points = models.PositiveIntegerField(
+        default=10,
+        help_text="Badge Points awarded for earning this badge (scale by difficulty).",
+    )
+    rule = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            'Declarative earn rule evaluated by core/services/badges.py, e.g. '
+            '{"type": "streak", "minimum": 30}. See the README "Achievement '
+            'badges" section for all rule types. An empty rule can never be earned.'
+        ),
+    )
+    sort_order = models.IntegerField(default=0)
+    is_active = models.BooleanField(
+        default=True, help_text="Inactive badges are hidden from players."
+    )
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return self.name
+
+
+class UserBadge(models.Model):
+    """A badge granted to a user (idempotent - unique per user/badge)."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="badges"
+    )
+    badge = models.ForeignKey(
+        BadgeDef, on_delete=models.CASCADE, related_name="grants"
+    )
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "badge"], name="unique_user_badge")
+        ]
+        ordering = ["-awarded_at"]
+
+    def __str__(self):
+        return f"{self.user.username} / {self.badge.name}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 (docs/13): Leagues, Challenges & Flocks
+# ---------------------------------------------------------------------------
+class LeagueTier(models.TextChoices):
+    """Weekly league tiers, awarded by weekly Effort XP (docs/13 §3.1)."""
+
+    BRONZE = "bronze", "Bronze"
+    SILVER = "silver", "Silver"
+    GOLD = "gold", "Gold"
+    DIAMOND = "diamond", "Diamond"
+    FLAMINGO_LEGEND = "flamingo_legend", "Flamingo Legend"
+
+
+class LeagueWeek(models.Model):
+    """One calendar week (Monday-anchored) of the Effort XP league.
+
+    Completes the parked Step 8b (docs/07): the weekly leaderboard now has
+    persistence. Weeks open lazily via ``ensure_current_week`` and are closed
+    by the Monday beat task (or lazily on read), which snapshots ranks into
+    :class:`LeagueResult` and pays the top-3 rewards.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        CLOSED = "closed", "Closed"
+
+    week_start = models.DateField(
+        unique=True, help_text="Monday of the league week (local time)."
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.OPEN
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-week_start"]
+
+    @property
+    def week_end(self):
+        return self.week_start + timedelta(days=6)
+
+    def __str__(self):
+        return f"Week of {self.week_start.isoformat()} ({self.status})"
+
+
+class LeagueResult(models.Model):
+    """Per-user snapshot of one closed league week (rank / tier / reward)."""
+
+    week = models.ForeignKey(
+        LeagueWeek, on_delete=models.CASCADE, related_name="results"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="league_results"
+    )
+    xp = models.IntegerField(default=0, help_text="Effort XP earned that week.")
+    rank = models.PositiveIntegerField(default=0)
+    tier = models.CharField(
+        max_length=20, choices=LeagueTier.choices, default=LeagueTier.BRONZE
+    )
+    reward = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Rewards paid on close, e.g. {"time_speedups": 5, "materials": 25}.',
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["week", "user"], name="unique_week_user_result")
+        ]
+        ordering = ["rank"]
+
+    def __str__(self):
+        return f"{self.user.username} #{self.rank} week {self.week.week_start}"
+
+
+class Challenge(models.Model):
+    """A rolling community challenge (docs/13 §3.3).
+
+    Exactly ONE challenge may be active at a time; ``save()`` deactivates all
+    others when this row is activated, so the admin UI cannot double-activate.
+    Progress is derived live from data we already store (no new ingestion).
+    """
+
+    class Metric(models.TextChoices):
+        CALORIES_BURNED = "calories_burned", "Calories Burned"
+
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=80)
+    description = models.TextField(blank=True)
+    icon = models.CharField(max_length=60, default="fa-fire-flame-curved")
+    metric = models.CharField(
+        max_length=30, choices=Metric.choices, default=Metric.CALORIES_BURNED
+    )
+    window_days = models.PositiveIntegerField(
+        default=30, help_text="Rolling window the metric is aggregated over."
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Single-active rule (docs/13 §3.4): activating one deactivates the rest.
+        if self.is_active:
+            Challenge.objects.exclude(pk=self.pk).filter(is_active=True).update(
+                is_active=False
+            )
+
+    def __str__(self):
+        return self.name
+
+class Friendship(models.Model):
+    """A friend request / accepted friendship between two users.
+
+    ``status="pending"`` is a request from ``from_user`` to ``to_user``;
+    ``status="accepted"`` means both are friends. A pair is friends iff an
+    accepted row exists in EITHER direction - always query both.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+
+    from_user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="friend_requests_sent"
+    )
+    to_user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="friend_requests_received"
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_user", "to_user"], name="unique_friendship_direction"
+            )
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.from_user.username} -> {self.to_user.username} ({self.status})"
+
+
+class Flock(models.Model):
+    """A small social group (Duolingo-family sized, up to 8 members)."""
+
+    name = models.CharField(max_length=80)
+    icon = models.CharField(max_length=60, default="fa-dove")
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flocks_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+
+
+class FlockMembership(models.Model):
+    """One flock per user (OneToOne) - join/leave never juggles rows."""
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        MEMBER = "member", "Member"
+
+    flock = models.ForeignKey(
+        Flock, on_delete=models.CASCADE, related_name="memberships"
+    )
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="flock_membership"
+    )
+    role = models.CharField(
+        max_length=10, choices=Role.choices, default=Role.MEMBER
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["joined_at"]
+
+    def __str__(self):
+        return f"{self.user.username} in {self.flock.name} ({self.role})"
+
+
+class FlockInvite(models.Model):
+    """An invitation for a user to join a flock (owner-initiated)."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        DECLINED = "declined", "Declined"
+
+    flock = models.ForeignKey(
+        Flock, on_delete=models.CASCADE, related_name="invites"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="flock_invites"
+    )
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flock_invites_sent",
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["flock", "user"], name="unique_flock_invite")
+        ]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.flock.name} ({self.status})"

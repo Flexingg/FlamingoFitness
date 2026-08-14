@@ -1,9 +1,13 @@
 # 🏝️ Phase 7 Plan: Base-Building Meta-Game ("The Flamingo Club")
 
-> **STATUS: DRAFT** — written for human review. Nothing below is implemented yet.
+> **STATUS: IMPLEMENTED** — built as Phase 7 (Steps 21–28, docs/07). Migration
+> `0004`, `core/services/base_economy.py`, the gamification hooks, the eight
+> `/base/*` endpoints, `core/static/core/js/base.js`, the day/night CSS, the
+> demo catalog seeding, and the test classes listed in §10 all exist. The
+> checkboxes in `docs/07` are ticked to match.
 >
-> **AI Context for implementers:** when implementation starts, each step below
-> maps to a `[ ]` checkbox in `docs/07_Next_Steps.md` (Phase 7, Steps 21–28).
+> **AI Context:** each step below mapped to a `[ ]` checkbox in
+> `docs/07_Next_Steps.md` (Phase 7, Steps 21–28) and has been completed.
 > Follow the existing codebase patterns: `BossConfig`-style admin catalog,
 > vanilla-JS panel controllers (`loadX` / `backToX` / `renderX`), lazy per-panel
 > APIs, `core/services/__init__.py` re-exports, and the validation loop
@@ -839,23 +843,23 @@ at the end of each step.
 
 ### Painted Phase 7 checklist (mirrors `docs/07`)
 
-> All eight steps are **unchecked pending approval** — nothing is implemented yet.
+> All eight steps are **complete** and verified (see `docs/07`).
 
-- [ ] **Step 21 — Models:** `BaseBuildingDef`, `BaseBuilding`,
+- [x] **Step 21 — Models:** `BaseBuildingDef`, `BaseBuilding`,
       `BaseResource` additions → migration `0004` applied.
-- [ ] **Step 22 — Economy service:** `base_economy.py` (overflow-safe energy,
+- [x] **Step 22 — Economy service:** `base_economy.py` (overflow-safe energy,
       rest bonus, daily harvest, production_plan, crit collect, evolve,
       modality buffs, synergies, XP bonus) + re-exports.
-- [ ] **Step 23 — Gamification hooks:** XP bonus in `process_payload`,
+- [x] **Step 23 — Gamification hooks:** XP bonus in `process_payload`,
       buffs from strength/cardio logs, blueprint drops on boss PRs.
-- [ ] **Step 24 — Admin & seeding:** catalog registered + seeded incl. Lawn
+- [x] **Step 24 — Admin & seeding:** catalog registered + seeded incl. Lawn
       Chairs, branches, Gold Statue; demo player pre-built + blueprint.
-- [ ] **Step 25 — Views & API:** eight `/base/*` endpoints + URLs + auth/CSRF.
-- [ ] **Step 26 — Frontend logic:** `base.js` controller, haptics, Day/Night,
+- [x] **Step 25 — Views & API:** eight `/base/*` endpoints + URLs + auth/CSRF.
+- [x] **Step 26 — Frontend logic:** `base.js` controller, haptics, Day/Night,
       Web Audio blips, confetti + milestone ack.
-- [ ] **Step 27 — Frontend UI:** day/night CSS vars, neon glow, building
+- [x] **Step 27 — Frontend UI:** day/night CSS vars, neon glow, building
       cards/color picker/staff circles, branch modal, milestone toast.
-- [ ] **Step 28 — Tests & Docs:** full suite + `node --check` + docs sweep.
+- [x] **Step 28 — Tests & Docs:** full suite + `node --check` + docs sweep.
 
 ### Definition of Done (acceptance view)
 

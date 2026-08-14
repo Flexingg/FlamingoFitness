@@ -11,10 +11,9 @@
     window.backToHydrationPlan = function () {
         var view = document.getElementById('hydration-view');
         if (view) view.classList.add('hidden');
-        var tree = document.getElementById('skill-tree');
-        if (tree) tree.classList.remove('hidden');
-        var hint = document.getElementById('loading-hint');
-        if (hint) hint.classList.add('hidden');
+        // Use ensureSinglePanelVisible to hide all other panels first,
+        // then show only the skill tree (prevents stacking)
+        window.ensureSinglePanelVisible('skill-tree');
     };
 
     // Fetch + render the hydration panel.
@@ -29,8 +28,8 @@
             console.warn('[hydration] hydration-view not found, aborting');
             return;
         }
-        if (tree) tree.classList.add('hidden');
-        view.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels, then show only this panel.
+        window.ensureSinglePanelVisible('hydration-view');
         content.classList.add('hidden');
         empty.classList.add('hidden');
         fetch(HYDRATION_URL, { credentials: 'same-origin' })

@@ -11,10 +11,9 @@
     window.backToNutritionPlan = function () {
         var view = document.getElementById('nutrition-view');
         if (view) view.classList.add('hidden');
-        var tree = document.getElementById('skill-tree');
-        if (tree) tree.classList.remove('hidden');
-        var hint = document.getElementById('loading-hint');
-        if (hint) hint.classList.remove('hidden');
+        // Use ensureSinglePanelVisible to hide all other panels first,
+        // then show only the skill tree (prevents stacking)
+        window.ensureSinglePanelVisible('skill-tree');
     };
 
     // Fetch + render the nutrition panel.
@@ -30,8 +29,8 @@
             console.warn('[nutrition] nutrition-view not found, aborting');
             return;
         }
-        if (tree) tree.classList.add('hidden');
-        view.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels, then show only this panel.
+        window.ensureSinglePanelVisible('nutrition-view');
         content.classList.add('hidden');
         empty.classList.add('hidden');
         console.log('[nutrition] fetching', NUTRITION_URL);

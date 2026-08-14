@@ -54,6 +54,10 @@ docs/10_Sparky_Fitness_Integration.md: SparkyFitness API client, polling tasks, 
 
 docs/11_Liftosaur_Integration.md: Liftosaur API client and workout parser spec.
 
+docs/12_Gamification_Ideas_Roadmap.md: Future gamification idea bank (Phase 8+) — seasons/ranked leagues, quest board, flocks/raids, badges, pacing & integrity, Home Assistant synergy, hydration micro-games, progression curves, PWA nudges; each idea mapped to existing models/endpoints with effort tags and a prioritized review overlay. Items #1 (leagues) and #3 (flocks) shipped in Phase 8.
+
+docs/13_Leagues_Challenges_Flocks.md: Phase 8 build spec (IMPLEMENTED) — weekly leagues with tiers/history/rewards, the single-active challenge system (default: calories burned in the last 30 days), and the social layer (friends + Flocks + real-friend base staffing).
+
 docs/liftosaur_api_spec.md: The Liftosaur API spec for workout ingestion.
 
 docs/sparky_fitness_open_api_spec_json.json: The SparkyFitness OpenAPI spec for webhook ingestion.

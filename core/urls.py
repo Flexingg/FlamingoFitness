@@ -14,6 +14,7 @@ urlpatterns = [
     ),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("profile/", views.profile, name="profile"),
+    path("profile/avatar", views.avatar_upload, name="avatar_upload"),
     # API (Steps 16-18)
     path("dashboard/state", views.dashboard_state, name="dashboard_state"),
     path("nutrition/", views.nutrition_state, name="nutrition_state"),
@@ -22,7 +23,22 @@ urlpatterns = [
     path("strength/", views.strength_state, name="strength_state"),
     path("boss/", views.boss_state, name="boss_state"),
     path("recovery/", views.recovery_state, name="recovery_state"),
-    path("leaderboard/weekly", views.leaderboard_weekly, name="leaderboard_weekly"),
+        path("leaderboard/weekly", views.leaderboard_weekly, name="leaderboard_weekly"),
+    # Achievement badges (Roadmap idea #5)
+    path("badges/", views.badges_state, name="badges_state"),
+    # Phase 8: Leagues, Challenges & Flocks (docs/13)
+    path("leagues/", views.leagues_state, name="leagues_state"),
+    path("challenges/", views.challenges_state, name="challenges_state"),
+    path("social/", views.social_state_view, name="social_state"),
+    path("friends/request", views.friends_request, name="friends_request"),
+    path("friends/respond", views.friends_respond, name="friends_respond"),
+    path("friends/remove", views.friends_remove, name="friends_remove"),
+    path("flocks/create", views.flocks_create, name="flocks_create"),
+    path("flocks/invite", views.flocks_invite, name="flocks_invite"),
+    path("flocks/respond", views.flocks_respond, name="flocks_respond"),
+    path("flocks/leave", views.flocks_leave, name="flocks_leave"),
+    # Top-nav stat explainers (click streak / materials / energy badges)
+    path("stats/<str:stat>/", views.stat_info, name="stat_info"),
     path(
         "webhooks/home-assistant",
         views.home_assistant_webhook,

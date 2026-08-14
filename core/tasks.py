@@ -19,6 +19,7 @@ from .services import (
     compute_readiness,
     get_client,
     process_log,
+    tick_base_economy,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,3 +200,46 @@ def compute_readiness_for_all():
     from .services import compute_readiness_for_all_users
 
     compute_readiness_for_all_users()
+
+
+@shared_task
+def tick_base_economy_daily():
+    """Daily base-building economy maintenance (docs/09 §9, Step 28).
+
+    Idempotent (every action is stamped by date/timestamp), so it is safe to
+    run more than once. Delegates to the pure ``tick_base_economy`` helper:
+    energy refill, daily XP->materials harvest, expired buff cleanup, lazy
+    construction completion, and whole-day auto-collection (no crits in the
+    background - crits stay a manual-collect thrill).
+    """
+    return tick_base_economy()
+
+
+@shared_task
+def close_league_week_task():
+    """Weekly league rollover (Phase 8, docs/13 §9).
+
+    Closes any stale open league week (snapshot ranks/tiers into
+    LeagueResult + pay the top-3 rewards), then opens the current week.
+    Idempotent by stored status/dates; the leagues view also runs this
+    lazily, so a beat outage never loses a snapshot.
+    """
+    from .services import close_league_week, ensure_current_week, week_start_for
+    from .models import LeagueWeek
+
+    now = timezone.now()
+    current_monday = week_start_for(timezone.localdate(now))
+    closed = 0
+    stale = LeagueWeek.objects.filter(
+        status="open", week_start__lt=current_monday
+    ).order_by("week_start")
+    for week in stale:
+        if close_league_week(week, now=now):
+            closed += 1
+    week = ensure_current_week(now=now)
+    logger.info(
+        "close_league_week_task: closed %d week(s); current week %s",
+        closed,
+        week.week_start,
+    )
+    return closed

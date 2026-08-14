@@ -1,9 +1,15 @@
 /* ============================================================
    Flamingo Fitness - Service Worker (Step 20)
    Caches static assets (CSS/JS/icons) for instant, offline loading.
+
+   IMPORTANT (Phase 8 fix): bump CACHE_NAME whenever shipped assets change.
+   v1 was cache-first, which left visitors with a stale dashboard.css after
+   the leagues update (new JS + old CSS = unstyled tabs). v2 switches static
+   assets to network-first with a cache fallback so iterations always land,
+   while offline support is preserved.
    ============================================================ */
 
-var CACHE_NAME = 'flamingo-fitness-v1';
+var CACHE_NAME = 'flamingo-fitness-v2';
 
 // Assets to pre-cache on install.
 var PRECACHE_URLS = [
@@ -17,7 +23,9 @@ var PRECACHE_URLS = [
 self.addEventListener('install', function (event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function (cache) {
-            return cache.addAll(PRECACHE_URLS);
+            return cache.addAll(PRECACHE_URLS).catch(function () {
+                // Individual failures (e.g. an icon) must not kill the update.
+            });
         }).then(function () {
             return self.skipWaiting();
         })
@@ -40,7 +48,8 @@ self.addEventListener('activate', function (event) {
     );
 });
 
-// Cache-first for static assets; network-first for the app shell and API.
+// Network-first for static assets (cache fallback when offline);
+// the app shell and API always hit the network.
 self.addEventListener('fetch', function (event) {
     var requestUrl = new URL(event.request.url);
 
@@ -48,21 +57,24 @@ self.addEventListener('fetch', function (event) {
     if (requestUrl.pathname.indexOf('/api/') === 0 || requestUrl.pathname === '/') {
         return;
     }
+    // Only handle same-origin GETs.
+    if (event.request.method !== 'GET' || requestUrl.origin !== location.origin) {
+        return;
+    }
 
     event.respondWith(
-        caches.match(event.request).then(function (cached) {
-            if (cached) {
-                return cached;
+        fetch(event.request).then(function (response) {
+            if (response && response.ok) {
+                var clone = response.clone();
+                caches.open(CACHE_NAME).then(function (cache) {
+                    cache.put(event.request, clone);
+                });
             }
-            return fetch(event.request).then(function (response) {
-                // Only cache successful GET responses for our own origin.
-                if (response && response.ok && requestUrl.origin === location.origin) {
-                    var clone = response.clone();
-                    caches.open(CACHE_NAME).then(function (cache) {
-                        cache.put(event.request, clone);
-                    });
-                }
-                return response;
+            return response;
+        }).catch(function () {
+            // Offline (or network failure): fall back to the cached copy.
+            return caches.match(event.request).then(function (cached) {
+                return cached || Response.error();
             });
         })
     );

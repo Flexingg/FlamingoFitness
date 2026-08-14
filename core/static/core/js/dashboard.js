@@ -17,6 +17,54 @@
 
     var LEADERBOARD_URL = '/api/v1/leaderboard/weekly';
 
+    // Every panel that can be opened from the bottom nav / skill-tree nodes.
+    var PANEL_IDS = ['skill-tree', 'nutrition-view', 'hydration-view',
+        'endurance-view', 'strength-view', 'boss-view', 'recovery-view',
+        'base-view', 'badges-view', 'leagues-view'];
+
+    // Hide ALL panels so opening a new one REPLACES the current view instead
+    // of stacking underneath it (Phase 8 bug-fix).
+    window.hideAllPanels = function () {
+        PANEL_IDS.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+        var hint = document.getElementById('loading-hint');
+        if (hint) hint.classList.add('hidden');
+        var err = document.getElementById('error-hint');
+        if (err) err.classList.add('hidden');
+    };
+
+    // Bottom-nav active-tab management.
+    window.setActiveNav = function (id) {
+        var items = document.querySelectorAll('.bottom-nav .nav-item');
+        for (var i = 0; i < items.length; i++) {
+            items[i].classList.toggle('active', items[i].id === id);
+        }
+    };
+
+    // Path tab: return to the skill tree from anywhere.
+    window.showPath = function () {
+        if (window.closeModal) window.closeModal();
+        window.hideAllPanels();
+        var tree = document.getElementById('skill-tree');
+        if (tree) tree.classList.remove('hidden');
+        window.setActiveNav('nav-path');
+    };
+
+    // Phase 8: Ensure only one panel is visible at a time when navigating.
+    // This replaces the stacking behavior where multiple panels could be visible
+    // if back/next navigation doesn't fully clear previous panels.
+    window.ensureSinglePanelVisible = function(visiblePanelId) {
+        // Hide ALL panels first (this is the key fix - hide everything before showing new one)
+        window.hideAllPanels();
+        // Then show only the specified panel if it exists
+        var panel = document.getElementById(visiblePanelId);
+        if (panel) {
+            panel.classList.remove('hidden');
+        }
+    };
+
     function showError(message) {
         var hint = document.getElementById('loading-hint');
         var err = document.getElementById('error-hint');
@@ -35,6 +83,11 @@
         document.querySelector('#stat-materials span').textContent = data.resources.materials;
         document.querySelector('#stat-energy span').textContent = data.resources.energy;
         document.getElementById('avatar-img').src = data.user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
+        // Add onerror fallback so broken uploaded images revert to the cartoon default.
+        document.getElementById('avatar-img').onerror = function () {
+            this.onerror = null;
+            this.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
+        };
 
         // Readiness card
         var card = document.getElementById('readiness-card');
@@ -165,7 +218,12 @@
         }, 1200);
     });
     document.getElementById('nav-leagues').addEventListener('click', function (e) {
-        if (window.addModal) {
+        // Phase 8 (docs/13): open the full Leagues/Challenges/Flock panel when
+        // leagues.js is loaded; fall back to the legacy modal otherwise.
+        if (window.loadLeagues) {
+            e.preventDefault();
+            window.loadLeagues();
+        } else if (window.addModal) {
             e.preventDefault();
             loadLeaderboard();
         }

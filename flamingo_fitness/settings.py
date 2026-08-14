@@ -94,7 +94,11 @@ MIDDLEWARE = [
     # WhiteNoise must stay here so Gunicorn can serve /static/ correctly
     # even in production. It must come right after SecurityMiddleware.
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    # WhiteNoise serves /static/ (and, via the subclass in
+    # flamingo_fitness/whitenoise.py, uploaded /media/ avatars) so Gunicorn can
+    # serve everything with no separate file server. Comes right after
+    # SecurityMiddleware (docs/05).
+    "flamingo_fitness.whitenoise.MediaServingWhiteNoise",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -209,6 +213,17 @@ else:
 WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 
 # ---------------------------------------------------------------------------
+# Media (user-uploaded profile pictures / avatars)
+# ---------------------------------------------------------------------------
+# Uploads are stored on the local filesystem under MEDIA_ROOT and served from
+# MEDIA_URL. In development Django's static() helper serves them; in
+# production the WhiteNoise middleware is subclassed (flamingo_fitness.whitenoise)
+# so the same gunicorn process resolves /media/* without a separate static
+# server. See core/services/avatar.py for the upload pipeline.
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# ---------------------------------------------------------------------------
 # Redis / Celery
 # ---------------------------------------------------------------------------
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -261,6 +276,19 @@ CELERY_BEAT_SCHEDULE = {
     "compute-morning-readiness-daily": {
         "task": "core.tasks.compute_readiness_for_all",
         "schedule": crontab(minute=15, hour=6),
+    },
+    # Daily base-building economy tick (docs/09 §9): energy refill, XP->materials
+    # harvest, expired buff cleanup, lazy construction completion, auto-collect.
+    # Idempotent, safe to run twice.
+    "tick-base-economy-daily": {
+        "task": "core.tasks.tick_base_economy_daily",
+        "schedule": crontab(minute=5, hour=0),
+    },
+    # Phase 8 (docs/13 §9): close the finished league week (snapshot ranks,
+    # pay top-3 rewards) and open the new one. Monday just after midnight.
+    "close-league-weekly": {
+        "task": "core.tasks.close_league_week_task",
+        "schedule": crontab(minute=35, hour=0, day_of_week=1),
     },
 }
 

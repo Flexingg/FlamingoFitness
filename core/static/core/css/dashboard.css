@@ -95,6 +95,16 @@ body {
     border: 2px solid var(--border-color);
     background: #ddd;
 }
+/* Clickable top-nav avatar -> profile picture editor (docs/13 UI tune-up) */
+.avatar-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    text-decoration: none;
+    transition: border-color 0.15s ease;
+}
+.avatar-nav:hover { border-color: var(--primary-pink); }
 
 /* Scrollable main area */
 .main-scroll {
@@ -666,3 +676,509 @@ body {
 .milestone-toast { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); background: var(--primary-pink); color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 800; box-shadow: var(--neon-glow); z-index: 999; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
 .milestone-toast.show { opacity: 1; }
 .base-wallet { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 16px; }
+
+/* ============================================================
+   Achievement Badges panel (Roadmap idea #5)
+   ============================================================ */
+.badges-summary { font-size: 0.95rem; color: var(--dark-pink); margin: 14px 16px 6px; font-weight: 700; }
+.badges-new {
+    background: rgba(255,94,154,0.12);
+    border: 1px solid var(--primary-pink);
+    border-radius: 10px;
+    color: var(--dark-pink);
+    padding: 8px 10px;
+    margin: 6px 16px 10px;
+    font-weight: 700;
+}
+.badge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 10px;
+    padding: 8px 16px 24px;
+}
+.badge-tile {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+    padding: 12px 8px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+.badge-tile.earned {
+    background: linear-gradient(135deg, #FFF9F0 0%, #FFF5F7 100%);
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 10px rgba(255,153,51,0.45);
+}
+.badge-tile.locked { opacity: 0.6; filter: grayscale(0.7); }
+.badge-icon { font-size: 1.8rem; margin-bottom: 6px; }
+.badge-name { font-size: 0.75rem; font-weight: 700; color: var(--text-main); }
+.badge-cat { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+.badge-state { font-size: 0.62rem; font-weight: 700; margin-top: 6px; }
+.badge-tile.earned .badge-state { color: var(--primary-green); }
+.badge-tile.locked .badge-state { color: var(--text-muted); }
+.badge-tile { cursor: pointer; transition: transform 0.1s ease, box-shadow 0.15s ease; }
+.badge-tile:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(216,58,115,0.18); }
+.badge-points { font-size: 0.62rem; font-weight: 800; color: var(--primary-orange); margin-top: 4px; }
+.badge-detail {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    margin: 14px 16px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+.badge-detail.earned { border-color: var(--primary-orange); }
+.badge-detail-head { display: flex; align-items: center; gap: 12px; }
+.badge-detail-icon {
+    font-size: 2rem;
+    width: 56px; height: 56px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,94,154,0.12);
+    color: var(--dark-pink);
+    flex-shrink: 0;
+}
+.badge-detail.earned .badge-detail-icon { background: rgba(255,153,51,0.15); color: var(--dark-orange); }
+.badge-detail-name { font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+.badge-detail-meta { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; }
+.badge-detail-desc { font-size: 0.85rem; color: var(--text-main); margin: 12px 0; line-height: 1.4; }
+.badge-detail-status { margin-top: 8px; }
+.badge-earned-flag { font-size: 0.9rem; font-weight: 800; color: var(--primary-green); }
+.badge-locked-flag { font-size: 0.9rem; font-weight: 800; color: var(--text-muted); margin-bottom: 8px; }
+.badge-progress-text { font-size: 0.8rem; color: var(--dark-pink); font-weight: 700; margin-bottom: 8px; }
+.badge-detail-back { margin-top: 14px; width: 100%; }
+
+/* ============================================================
+   Top-nav stat explainer (click streak / materials / energy)
+   ============================================================ */
+.stat-badge.stat-clickable {
+    cursor: pointer;
+    padding: 4px 8px;
+    margin: -4px -8px; /* keep top-nav spacing unchanged */
+    border-radius: 12px;
+    background: transparent;
+    border: none;
+    font: inherit;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.stat-badge.stat-clickable:hover {
+    background-color: rgba(255, 94, 154, 0.08);
+    transform: translateY(-1px);
+}
+.stat-badge.stat-clickable:active { transform: translateY(1px); }
+.stat-badge.stat-clickable:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--primary-pink);
+}
+
+.stat-modal-content {
+    text-align: left;
+    max-height: 84vh;
+    overflow-y: auto;
+    width: 92%;
+    max-width: 360px;
+}
+.stat-modal-icon { margin-bottom: 8px; }
+.stat-modal-value {
+    font-size: 1.9rem;
+    font-weight: 900;
+    line-height: 1.1;
+    margin-bottom: 8px;
+}
+.stat-modal-desc { margin-bottom: 8px; }
+.stat-modal-body { margin-bottom: 16px; }
+.stat-modal-close { margin-top: 4px; }
+
+.stat-section-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 14px 0 6px;
+}
+.stat-fact-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--border-color);
+}
+.stat-fact-row:last-child { border-bottom: none; }
+.stat-fact-value { color: var(--dark-pink); font-weight: 800; text-align: right; }
+
+.stat-howto {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    line-height: 1.35;
+}
+.stat-howto li { margin-bottom: 6px; }
+
+.stat-history-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.stat-history-row:last-child { border-bottom: none; }
+.stat-history-amount {
+    min-width: 48px;
+    font-size: 0.85rem;
+    font-weight: 900;
+    text-align: right;
+    padding-top: 1px;
+}
+.stat-history-amount.neutral { color: var(--text-muted); font-size: 0.72rem; }
+.stat-history-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.stat-history-label { font-size: 0.85rem; font-weight: 800; color: var(--text-main); }
+.stat-history-detail { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); }
+.stat-history-date {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    white-space: nowrap;
+    padding-top: 2px;
+}
+.stat-modal-empty {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 10px 0;
+}
+
+/* Tap-to-expand accordion sections (facts / how-to-earn) keep the modal
+   calm by default - details open only when the player asks for them. */
+.stat-acc {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+.stat-acc-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+.stat-acc-head:hover { background: rgba(255, 94, 154, 0.06); }
+.stat-acc-head:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--primary-pink); }
+.stat-acc-title { display: flex; align-items: center; gap: 6px; }
+.stat-acc-count {
+    display: inline-block;
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: rgba(255, 94, 154, 0.15);
+    color: var(--dark-pink);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-align: center;
+}
+.stat-acc-chev {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    transition: transform 0.18s ease;
+}
+.stat-acc.open { border-color: var(--primary-pink); }
+.stat-acc.open .stat-acc-chev { transform: rotate(180deg); }
+.stat-acc-body { display: none; padding: 2px 12px 12px; }
+.stat-acc.open .stat-acc-body { display: block; }
+.stat-acc-body .stat-fact-row:first-child { padding-top: 0; }
+
+/* History "Show all" expander */
+.stat-show-more {
+    width: 100%;
+    margin-top: 8px;
+    background: none;
+    border: 2px dashed var(--border-color);
+    border-radius: 10px;
+    padding: 7px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--dark-pink);
+    cursor: pointer;
+}
+.stat-show-more:hover {
+    border-color: var(--primary-pink);
+    background: rgba(255, 94, 154, 0.06);
+}
+
+/* ============================================================
+   Phase 8 (docs/13): Leagues, Challenges & Flocks
+   ============================================================ */
+
+/* Sub-tab bar inside the leagues panel */
+.leagues-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.leagues-tab {
+    flex: 1;
+    padding: 10px 6px;
+    border: none;
+    border-bottom: 4px solid var(--border-color);
+    border-radius: 14px 14px 8px 8px;
+    background: var(--bg-light);
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: transform 0.1s, border-bottom 0.1s;
+}
+.leagues-tab.active {
+    color: var(--primary-pink);
+    border-bottom-color: var(--primary-pink);
+    background: #fff;
+    box-shadow: 0 3px 0 rgba(216, 58, 115, 0.15);
+}
+.leagues-tab:active { transform: translateY(2px); }
+
+/* Week summary card */
+.league-week-card {
+    background: linear-gradient(135deg, var(--primary-purple), var(--primary-pink));
+    color: #fff;
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 6px 0 var(--dark-purple);
+}
+.league-week-title { font-weight: 900; font-size: 1.1rem; margin-bottom: 4px; }
+.league-week-range { font-size: 0.85rem; opacity: 0.92; margin-bottom: 8px; }
+.league-week-me { font-size: 0.9rem; font-weight: 700; }
+
+/* Leaderboard rows (shared by leagues + challenges + flock members) */
+.league-board { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.league-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    padding: 10px 12px;
+}
+.league-row.row-you {
+    border-color: var(--primary-pink);
+    background: rgba(255, 94, 154, 0.07);
+}
+.league-rank { width: 30px; text-align: center; font-weight: 900; font-size: 1rem; }
+.league-avatar, .friend-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 2px solid var(--border-color); background: #ddd;
+    flex-shrink: 0;
+}
+.league-name, .friend-name {
+    flex: 1; font-weight: 800; font-size: 0.92rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.league-xp, .friend-xp { font-weight: 800; color: var(--primary-purple); font-size: 0.85rem; }
+
+/* Tier chips */
+.tier-chip {
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    color: #fff;
+    flex-shrink: 0;
+}
+.tier-bronze { background: #CD7F32; }
+.tier-silver { background: #9AA5B1; }
+.tier-gold { background: #E6A817; }
+.tier-diamond { background: #00C2E0; }
+.tier-flamingo_legend {
+    background: linear-gradient(135deg, var(--primary-pink), var(--primary-orange));
+    box-shadow: var(--neon-glow);
+}
+
+/* Past-week history rows */
+.league-history-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 0.82rem;
+}
+.league-history-week { font-weight: 700; color: var(--text-muted); flex: 1; }
+.league-history-rank { font-weight: 900; }
+.league-history-xp { font-weight: 700; margin-left: auto; padding-right: 8px; }
+.league-history-reward { font-weight: 800; color: var(--primary-orange); font-size: 0.75rem; }
+
+/* Empty-state hint when the user hasn't earned XP (docs/13 UI tune-up) */
+.league-empty-hint {
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 14px 0 8px;
+    opacity: 0.85;
+}
+.league-history-xp { font-weight: 800; color: var(--primary-purple); }
+.league-history-reward { font-weight: 800; }
+
+/* Challenge card */
+.challenge-card {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+.challenge-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.challenge-icon {
+    width: 46px; height: 46px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--primary-orange), var(--primary-pink));
+    color: #fff; font-size: 1.3rem;
+    box-shadow: 0 4px 0 var(--dark-orange);
+    flex-shrink: 0;
+}
+.challenge-name { font-size: 1.05rem; font-weight: 900; }
+.challenge-meta { font-size: 0.78rem; color: var(--text-muted); font-weight: 700; }
+.challenge-desc { font-size: 0.88rem; color: var(--text-main); margin-bottom: 10px; }
+
+/* Flock / social cards */
+.flock-card {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 20px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+.flock-invite-card { border-color: var(--primary-cyan); }
+.flock-invite-text { font-size: 0.88rem; margin-bottom: 10px; }
+.flock-total { font-size: 0.88rem; color: var(--text-main); margin-bottom: 10px; }
+.flock-leave { margin-top: 12px; width: 100%; }
+.flock-mate { color: var(--primary-cyan); }
+.flock-owner { color: var(--primary-orange); }
+
+.friend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.friend-row:last-child { border-bottom: none; }
+.friend-row.row-you { background: rgba(255, 94, 154, 0.07); border-radius: 10px; }
+
+.social-search {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+.social-search input {
+    flex: 1;
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 0.9rem;
+    background: var(--bg-app);
+    color: var(--text-main);
+    user-select: text;
+}
+.social-search input:focus { outline: none; border-color: var(--primary-pink); }
+
+.social-btn-group { display: flex; gap: 6px; flex-shrink: 0; }
+.social-state-tag {
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.tag-friends { background: rgba(88, 204, 2, 0.15); color: var(--dark-green); }
+.tag-pending { background: rgba(255, 153, 51, 0.15); color: var(--dark-orange); }
+
+.btn-sm {
+    padding: 8px 12px;
+    font-size: 0.72rem;
+    border-radius: 12px;
+    border-bottom-width: 3px;
+}
+.btn-danger {
+    background-color: var(--primary-red);
+    border-bottom-color: var(--dark-red);
+}
+
+/* Toast for social errors */
+.social-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 90px;
+    transform: translateX(-50%);
+    background: var(--text-main);
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.85rem;
+    padding: 12px 18px;
+    border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 60;
+    max-width: 80%;
+    text-align: center;
+    animation: toast-in 0.2s ease-out;
+}
+@keyframes toast-in {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Friend picker modal (base staffing / flock invites) */
+.friend-picker-content { max-height: 80vh; overflow-y: auto; }
+.friend-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 14px 0;
+    text-align: left;
+}
+.friend-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--bg-app);
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    cursor: pointer;
+}
+.friend-picker-row:hover { border-color: var(--primary-pink); }
+.friend-picker-clear { color: var(--primary-red); justify-content: center; }
+

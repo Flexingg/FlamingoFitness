@@ -60,3 +60,43 @@ from .base_economy import (  # noqa: F401
     tick_base_economy,
     xp_dividend,
 )
+from .stat_explainers import STAT_KEYS, explain_stat  # noqa: F401
+from .avatar import (  # noqa: F401
+    DEFAULT_AVATAR,
+    avatar_url,
+    reset_avatar,
+    save_avatar,
+)
+from .leagues import (  # noqa: F401
+    LEAGUE_TIERS,
+    LEAGUE_TOP_N_REWARDED,
+    WEEKLY_REWARDS,
+    close_league_week,
+    ensure_current_week,
+    league_state,
+    tier_for_xp,
+    week_start_for,
+    weekly_xp_map,
+    weekly_xp_rows,
+)
+from .challenges import (  # noqa: F401
+    active_challenge,
+    calories_burned_in_window,
+    challenge_state,
+    metric_progress,
+)
+from .social import (  # noqa: F401
+    FLOCK_MAX_MEMBERS,
+    create_flock,
+    friends_of,
+    get_friendship,
+    invite_to_flock,
+    leave_flock,
+    membership_of,
+    remove_friend,
+    respond_flock_invite,
+    respond_friend_request,
+    search_users,
+    send_friend_request,
+    social_state,
+)

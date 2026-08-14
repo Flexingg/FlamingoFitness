@@ -32,6 +32,26 @@ Completion Bonus: +20 XP for finishing a programmed workout.
 
 Time Bonus: +1 XP per 30 minutes in the gym (`session_time_xp`).
 
+Phase 8 — Leagues & Challenges (docs/13, constants in core/services/leagues.py & challenges.py)
+
+League tiers (pure function of weekly Effort XP):
+
+- bronze 0+ · silver 100+ · gold 300+ · diamond 600+ · flamingo_legend 1000+
+
+Weekly close rewards (paid to the ranked leaderboard when the week closes; additive only):
+
+- Rank 1: +5 Time Speed-ups, +25 Materials
+- Rank 2: +3 Time Speed-ups, +15 Materials
+- Rank 3: +1 Time Speed-up, +10 Materials
+
+Challenge metric "calories_burned" (default challenge, window = 30 days):
+
+- Progress = SUM(endurance payload.total_calories_burned) + SUM(cardio payload.calories)
+  over RawActivityLog rows in the last window_days calendar days (incl. today).
+- Exactly ONE challenge may be active at a time (Challenge.save() deactivates the rest).
+- No stored progress - the board is derived live on every read.
+
+
 Example: 22,000 lb volume + completion + 55 min = 22 + 20 + 1 = 43 XP.
 
 PR Boss (admin-configurable benchmarks)

@@ -172,3 +172,77 @@ Payload:
   "attributes": {"unit": "kg"}
 }
 
+Phase 8 — Leagues, Challenges & Flocks (docs/13)
+
+GET /api/v1/leagues/
+
+Live weekly league board. Lazily closes stale weeks (snapshot + rewards).
+Response:
+
+{
+  "week": { "week_start": "2026-08-10", "week_end": "2026-08-16",
+            "status": "open", "days_left": 3 },
+  "tiers": [ { "tier": "flamingo_legend", "label": "Flamingo Legend", "min_xp": 1000 } ],
+  "my_tier": "gold", "my_rank": 2,
+  "leaderboard": [
+    { "rank": 1, "username": "player1", "avatar": "...", "xp": 450,
+      "tier": "gold", "is_you": false }
+  ],
+  "history": [
+    { "week_start": "2026-08-03", "rank": 1, "xp": 510, "tier": "diamond",
+      "reward": { "time_speedups": 5, "materials": 25 } }
+  ]
+}
+
+GET /api/v1/challenges/
+
+The single active challenge (default: calories burned in the last 30 days)
+with a live ranked progress board. `challenge` is null when none is active.
+Response:
+
+{
+  "challenge": { "slug": "calories_burned_30d", "name": "Calorie Torch",
+                 "description": "...", "icon": "fa-fire-flame-curved",
+                 "metric": "calories_burned", "window_days": 30, "unit": "kcal" },
+  "my_progress": 6320,
+  "leaderboard": [
+    { "rank": 1, "username": "player1", "avatar": "...", "progress": 6320, "is_you": true }
+  ]
+}
+
+GET /api/v1/social/?q=
+
+Friends, requests, the caller's flock + invites, and optional find-friends
+search (`q`). `relationship` ∈ none | pending_out | pending_in | friends.
+Response:
+
+{
+  "friends": [ { "id": 2, "username": "admin", "avatar": "...",
+                 "weekly_xp": 120, "same_flock": true, "in_flock": true } ],
+  "incoming_requests": [ { "id": 3, "username": "newbie", "avatar": "..." } ],
+  "outgoing_requests": [ { "id": 4, "username": "someone", "avatar": "..." } ],
+  "flock": { "id": 1, "name": "Flamingo Fam", "icon": "fa-dove",
+             "member_count": 2, "max_members": 8, "my_role": "owner",
+             "weekly_total_xp": 570,
+             "members": [ { "id": 2, "username": "admin", "avatar": "...",
+                            "role": "member", "weekly_xp": 120, "is_you": false } ] },
+  "flock_invites": [ { "flock_id": 2, "name": "Beach Squad", "icon": "fa-dove",
+                       "member_count": 3, "invited_by": "admin" } ],
+  "search_results": [ { "id": 5, "username": "randy", "avatar": "...",
+                        "relationship": "none" } ]
+}
+
+Mutating social endpoints (all return a fresh social snapshot; auth + CSRF):
+
+- POST /api/v1/friends/request  {"username"} — pending or reverse-auto-accept; 404 unknown user.
+- POST /api/v1/friends/respond  {"user_id", "action": accept|decline} — recipient-only.
+- POST /api/v1/friends/remove   {"user_id"}.
+- POST /api/v1/flocks/create    {"name"} — owner role; 400 if already in a flock.
+- POST /api/v1/flocks/invite    {"user_id"} — owner-only, friends-only, target flockless.
+- POST /api/v1/flocks/respond   {"flock_id", "action": accept|decline} — 400 when full (8).
+- POST /api/v1/flocks/leave     {} — last member out deletes the flock.
+
+POST /api/v1/base/staff now rejects `friend_id`s that are not real, accepted
+friends (Phase 8; null still un-staffs).
+
+

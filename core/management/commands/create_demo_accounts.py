@@ -9,6 +9,9 @@ Creates:
   * active Garmin / Peloton / Liftosaur integrations for player1
   * the 9-entry BaseBuildingDef catalog (idempotent by slug)
   * demo BaseBuilding instances (lawn_chairs Lv1 + cabana Lv1 built)
+  * the default Phase 8 challenge ("Calorie Torch", calories/30d), the
+    current open league week, a demo friendship (player1 <-> admin) and the
+    "Flamingo Fam" flock (docs/13 §8)
 
 This command is idempotent and safe to run on every container startup.
 It does NOT run any mock pollers or create activity data.
@@ -23,6 +26,10 @@ from core.models import (
     BaseBuildingDef,
     BaseResource,
     BossConfig,
+    Challenge,
+    Flock,
+    FlockMembership,
+    Friendship,
     Provider,
     UserIntegration,
 )
@@ -292,4 +299,56 @@ class Command(BaseCommand):
         self.stdout.write(f"Integrations ensured ({created_integrations} newly created).")
         self.stdout.write(f"PR Boss benchmarks ensured ({created_bosses} newly created).")
         self.stdout.write(f"Demo building instances ensured ({created_instances} newly created).")
+        self._seed_phase8_social(admin, player)
         self.stdout.write(self.style.SUCCESS("Demo accounts created."))
+
+    def _seed_phase8_social(self, admin, player):
+        """Phase 8 (docs/13 §8): default challenge, league week, friendship,
+        and the demo flock. Idempotent - safe on every startup."""
+        from core.services.leagues import ensure_current_week
+
+        # 1. The single default challenge: calories burned in the last 30 days.
+        challenge, created = Challenge.objects.get_or_create(
+            slug="calories_burned_30d",
+            defaults={
+                "name": "Calorie Torch",
+                "description": "Most calories burned in the last 30 days. "
+                "Every workout counts - keep the flame alive!",
+                "icon": "fa-fire-flame-curved",
+                "metric": Challenge.Metric.CALORIES_BURNED,
+                "window_days": 30,
+                "is_active": True,
+                "sort_order": 1,
+            },
+        )
+        if not created and not challenge.is_active:
+            challenge.is_active = True
+            challenge.save(update_fields=["is_active"])
+
+        # 2. Ensure the current open league week exists (lazy-close stale ones).
+        week = ensure_current_week()
+
+        # 3. Demo friendship: player1 -> admin (accepted).
+        Friendship.objects.get_or_create(
+            from_user=player,
+            to_user=admin,
+            defaults={"status": Friendship.Status.ACCEPTED},
+        )
+
+        # 4. Demo flock "Flamingo Fam" owned by player1, admin as member.
+        flock = Flock.objects.filter(name="Flamingo Fam").first()
+        if flock is None:
+            flock = Flock.objects.create(name="Flamingo Fam", created_by=player)
+        FlockMembership.objects.get_or_create(
+            user=player,
+            defaults={"flock": flock, "role": FlockMembership.Role.OWNER},
+        )
+        FlockMembership.objects.get_or_create(
+            user=admin,
+            defaults={"flock": flock, "role": FlockMembership.Role.MEMBER},
+        )
+
+        self.stdout.write(
+            f"Phase 8 social ensured (challenge='{challenge.slug}', "
+            f"week={week.week_start}, flock='{flock.name}')."
+        )

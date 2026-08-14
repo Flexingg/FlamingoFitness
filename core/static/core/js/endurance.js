@@ -11,10 +11,9 @@
     window.backToEndurancePlan = function () {
         var view = document.getElementById('endurance-view');
         if (view) view.classList.add('hidden');
-        var tree = document.getElementById('skill-tree');
-        if (tree) tree.classList.remove('hidden');
-        var hint = document.getElementById('loading-hint');
-        if (hint) hint.classList.add('hidden');
+        // Use ensureSinglePanelVisible to hide all other panels first,
+        // then show only the skill tree (prevents stacking)
+        window.ensureSinglePanelVisible('skill-tree');
     };
 
     // Fetch + render the endurance panel.
@@ -29,8 +28,8 @@
             console.warn('[endurance] endurance-view not found, aborting');
             return;
         }
-        if (tree) tree.classList.add('hidden');
-        view.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels, then show only this panel.
+        window.ensureSinglePanelVisible('endurance-view');
         content.classList.add('hidden');
         empty.classList.add('hidden');
         fetch(ENDURANCE_URL, { credentials: 'same-origin' })

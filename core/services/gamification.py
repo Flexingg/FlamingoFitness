@@ -116,7 +116,10 @@ def apply_to_skill_tree(user, modality, amount):
     while tree.xp >= XP_PER_LEVEL:
         tree.xp -= XP_PER_LEVEL
         tree.level += 1
-        tree.save(update_fields=["level", "xp", "total_xp"])
+    # Persist EVERY grant (level-up or not) - previously the save lived only
+    # inside the while loop, so any sub-100 XP entry was mutated in memory but
+    # never written and the skill tree silently showed 0 XP.
+    tree.save(update_fields=["level", "xp", "total_xp"])
     return tree
 
 

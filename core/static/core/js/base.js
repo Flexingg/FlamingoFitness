@@ -41,11 +41,44 @@
             body: JSON.stringify(body || {}),
         });
     }
+    // Phase 8 (docs/13 §7.3): staff with REAL friends via the picker modal
+    // (openFriendPicker is provided by leagues.js). Falls back to the legacy
+    // prompt when leagues.js is not loaded.
+    function postStaff(buildingId, friendId) {
+        postBase('staff', { id: buildingId, friend_id: friendId })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d.ok) window.renderBase(d);
+                else if (d.error) alert(d.error);
+            })
+            .catch(function () { alert('Staff failed.'); });
+    }
+    function staffWithFriendPicker(buildingId) {
+        if (!window.openFriendPicker) {
+            var fid = prompt('Staff with friend ID (leave blank to un-staff):', '');
+            if (fid === null) return;
+            postStaff(buildingId, fid ? parseInt(fid, 10) : null);
+            return;
+        }
+        fetch('/api/v1/social/', { credentials: 'same-origin' })
+            .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
+            .then(function (social) {
+                window.openFriendPicker({
+                    title: 'Staff this building',
+                    friends: social.friends || [],
+                    allowClear: true,
+                    onPick: function (friend) {
+                        postStaff(buildingId, friend ? friend.id : null);
+                    }
+                });
+            })
+            .catch(function () { alert('Could not load your friends.'); });
+    }
     window.backToBasePlan = function () {
         var view = document.getElementById('base-view');
         if (view) view.classList.add('hidden');
-        var tree = document.getElementById('skill-tree');
-        if (tree) tree.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels, then show only the skill tree.
+        window.ensureSinglePanelVisible('skill-tree');
     };
     window.loadBase = function () {
         console.log('[base] loadBase start');
@@ -55,8 +88,8 @@
         var tree = document.getElementById('skill-tree');
         if (!view) return;
         applyDayNight();
-        if (tree) tree.classList.add('hidden');
-        view.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels, then show only the base.
+        window.ensureSinglePanelVisible('base-view');
         content.classList.add('hidden');
         empty.classList.add('hidden');
         fetch(BASE_URL, { credentials: 'same-origin' })
@@ -186,24 +219,14 @@
                                 .then(function (d) { if (d.ok) { playCollect(); haptic(50); window.renderBase(d); } })
                                 .catch(function () { alert('Evolve failed.'); });
                         } else if (action === 'staff') {
-                            var fid = prompt('Staff with friend ID (leave blank to un-staff):', b.staff_friend_id || '');
-                            if (fid === null) return;
-                            postBase('staff', { id: id, friend_id: fid ? parseInt(fid, 10) : null })
-                                .then(function (r) { return r.json(); })
-                                .then(function (d) { if (d.ok) window.renderBase(d); })
-                                .catch(function () { alert('Staff failed.'); });
+                            staffWithFriendPicker(id);
                         }
                     });
                 });
                 var staffCircle = card.querySelector('.staff-circle');
                 if (staffCircle) {
                     staffCircle.addEventListener('click', function () {
-                        var fid = prompt('Staff with friend ID (leave blank to un-staff):', b.staff_friend_id || '');
-                        if (fid === null) return;
-                        postBase('staff', { id: b.id, friend_id: fid ? parseInt(fid, 10) : null })
-                            .then(function (r) { return r.json(); })
-                            .then(function (d) { if (d.ok) window.renderBase(d); })
-                            .catch(function () { alert('Staff failed.'); });
+                        staffWithFriendPicker(b.id);
                     });
                 }
                 grid.appendChild(card);

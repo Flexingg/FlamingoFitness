@@ -38,17 +38,33 @@ from .models import (
     XPLedger,
 )
 from .services import (
+    STAT_KEYS,
+    avatar_url,
     base_level,
+    challenge_state,
     collect_building,
     complete_or_pending,
     compute_readiness,
+    create_flock,
     evaluate_synergies,
     evolve_building,
+    explain_stat,
+    friends_of,
+    invite_to_flock,
+    league_state,
+    leave_flock,
     maybe_drop_blueprint,
     process_log,
     production_plan,
     refresh_resources,
+    remove_friend,
+    reset_avatar,
     resource_dump,
+    respond_flock_invite,
+    respond_friend_request,
+    save_avatar,
+    send_friend_request,
+    social_state,
     spend_speedups,
     start_construction,
 )
@@ -154,6 +170,31 @@ def profile(request):
             "lift_log_count": lift_log_count,
         },
     )
+
+
+@login_required
+@require_POST
+def avatar_upload(request):
+    """POST /api/v1/profile/avatar — upload or reset a profile picture.
+
+    The avatar is stored as a plain URL string (core/services/avatar.py), so
+    no model schema change was needed. Multipart FormData with an ``avatar``
+    file; or ``{action: "reset"}`` as a form field to revert to the DiceBear
+    default. The CSRF token is sent as the ``X-CSRFToken`` header by the
+    frontend (docs/08). Returns the fresh avatar URL for an optimistic update.
+    """
+    if request.POST.get("action") == "reset":
+        ok, avatar = reset_avatar(request.user)
+        return JsonResponse({"ok": ok, "avatar": avatar})
+
+    upload = request.FILES.get("avatar")
+    if not upload:
+        return _json_error("No image uploaded.", 400)
+
+    ok, result = save_avatar(request.user, upload)
+    if not ok:
+        return _json_error(result["message"], result.get("status", 400))
+    return JsonResponse({"ok": True, "avatar": result})
 
 
 @login_required
@@ -790,6 +831,13 @@ def base_staff(request):
     if instance is None:
         return _json_error("Building not found.", 404)
 
+    # Phase 8 (docs/13 §5.3): staff must be a real, accepted friend (the
+    # Phase 7 mocked id list is retired). null still un-staffs.
+    if friend_id is not None:
+        friend_ids = {friend.pk for friend in friends_of(request.user)}
+        if friend_id not in friend_ids:
+            return _json_error("You can only staff with a friend.", 400)
+
     instance.staff_friend_id = friend_id
     instance.save(update_fields=["staff_friend_id"])
     return JsonResponse({"ok": True, **_base_payload(request.user)})
@@ -858,7 +906,11 @@ def dashboard_state(request):
 
     return JsonResponse(
         {
-            "user": {"username": user.username, "streak": user.streak},
+            "user": {
+                "username": user.username,
+                "streak": user.streak,
+                "avatar": avatar_url(user),
+            },
             "resources": {
                 "materials": resources.materials,
                 "energy": resources.energy,
@@ -895,6 +947,174 @@ def leaderboard_weekly(request):
         for row in rows
     ]
     return JsonResponse({"leaderboard": leaderboard, "window_days": 7})
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 (docs/13): Leagues, Challenges & Flocks
+# ---------------------------------------------------------------------------
+def _social_json(request):
+    """Fresh social snapshot - every friend/flock mutation returns this."""
+    return JsonResponse({"ok": True, **social_state(request.user)})
+
+
+@login_required
+def leagues_state(request):
+    """GET /api/v1/leagues/ (docs/13 §6.1).
+
+    Live weekly league board (ranks + tiers), the caller's rank/tier, and the
+    persisted history of closed weeks. ``ensure_current_week`` lazily closes
+    stale weeks so a beat outage never loses a snapshot.
+    """
+    return JsonResponse(league_state(request.user))
+
+
+@login_required
+def challenges_state(request):
+    """GET /api/v1/challenges/ (docs/13 §6.2).
+
+    The single active challenge (default: calories burned in the last 30
+    days) with a live ranked progress board.
+    """
+    return JsonResponse(challenge_state(request.user))
+
+
+@login_required
+def social_state_view(request):
+    """GET /api/v1/social/ (docs/13 §6.3).
+
+    Friends, requests, the caller's flock + invites, and (with ``?q=``)
+    find-friends search results.
+    """
+    query = request.GET.get("q", "").strip()
+    return JsonResponse(social_state(request.user, q=query or None))
+
+
+@login_required
+@require_POST
+def friends_request(request):
+    """POST /friends/request {"username"} - send (or auto-accept) a request."""
+    data = _load_base_post_body(request)
+    ok, result = send_friend_request(request.user, data.get("username"))
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def friends_respond(request):
+    """POST /friends/respond {"user_id", "action": accept|decline}."""
+    data = _load_base_post_body(request)
+    action = str(data.get("action", "") or "").strip().lower()
+    if action not in ("accept", "decline"):
+        return _json_error("action must be 'accept' or 'decline'.", 400)
+    try:
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return _json_error("user_id must be an integer.", 400)
+    ok, result = respond_friend_request(request.user, user_id, action == "accept")
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def friends_remove(request):
+    """POST /friends/remove {"user_id"} - end a friendship."""
+    data = _load_base_post_body(request)
+    try:
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return _json_error("user_id must be an integer.", 400)
+    ok, result = remove_friend(request.user, user_id)
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def flocks_create(request):
+    """POST /flocks/create {"name"} - form a new flock (owner role)."""
+    data = _load_base_post_body(request)
+    ok, result = create_flock(request.user, data.get("name"))
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def flocks_invite(request):
+    """POST /flocks/invite {"user_id"} - owner invites a flockless friend."""
+    data = _load_base_post_body(request)
+    try:
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError):
+        return _json_error("user_id must be an integer.", 400)
+    ok, result = invite_to_flock(request.user, user_id)
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def flocks_respond(request):
+    """POST /flocks/respond {"flock_id", "action": accept|decline}."""
+    data = _load_base_post_body(request)
+    action = str(data.get("action", "") or "").strip().lower()
+    if action not in ("accept", "decline"):
+        return _json_error("action must be 'accept' or 'decline'.", 400)
+    try:
+        flock_id = int(data.get("flock_id"))
+    except (TypeError, ValueError):
+        return _json_error("flock_id must be an integer.", 400)
+    ok, result = respond_flock_invite(request.user, flock_id, action == "accept")
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+@require_POST
+def flocks_leave(request):
+    """POST /flocks/leave {} - leave (last member out deletes the flock)."""
+    ok, result = leave_flock(request.user)
+    if not ok:
+        return _json_error(result["message"], result["status"])
+    return _social_json(request)
+
+
+@login_required
+def badges_state(request):
+    """GET /api/v1/badges/
+
+    Returns the user's achievement badges (Roadmap idea #5). The badge engine
+    is a pure derivation over data we already store - no new ingestion. The
+    endpoint lazily runs ``badges_state`` which grants any newly-earned badges
+    and serializes the full catalog + current grants.
+    """
+    from .services.badges import badges_state as _badges_state
+
+    return JsonResponse(_badges_state(request.user))
+
+
+@login_required
+def stat_info(request, stat):
+    """GET /api/v1/stats/<stat>/ - explain a top-nav stat + earning history.
+
+    Opened by clicking the streak / materials / energy badges in the top nav.
+    Returns what the stat means, how to earn it, and recent history derived
+    from data we already store (core/services/stat_explainers.py).
+    """
+    if stat not in STAT_KEYS:
+        return _json_error(f"Unknown stat '{stat}'.", 404)
+
+    resources, _ = BaseResource.objects.get_or_create(user=request.user)
+    resources = refresh_resources(resources, request.user)
+    return JsonResponse(explain_stat(request.user, resources, stat))
 
 
 @csrf_exempt

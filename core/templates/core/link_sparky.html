@@ -32,6 +32,28 @@
                 </ul>
             {% endif %}
 
+            <!-- Avatar / profile picture upload (docs/13 UI tune-up) -->
+            <div class="auth-card avatar-card">
+                <h2 class="auth-title" style="font-size:1.2rem;">Your avatar</h2>
+                <p class="auth-subtitle">Add a profile picture so your flock can spot you.</p>
+                <div class="avatar-edit">
+                    <div class="avatar-edit-preview">
+                        <img id="avatar-edit-img" class="avatar-edit-img"
+                             src="{{ request.user.avatar|default:'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo' }}" alt="Avatar">
+                        <div class="avatar-edit-label"><i class="fa-solid fa-camera"></i></div>
+                    </div>
+                    <div class="avatar-edit-actions">
+                        <label class="btn-flamingo btn-sm avatar-upload-btn">
+                            <i class="fa-solid fa-upload"></i> Choose picture
+                            <input type="file" id="avatar-edit-file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
+                        </label>
+                        <button type="button" class="btn-flamingo btn-sm btn-danger avatar-reset-btn"
+                                id="avatar-edit-reset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+                        <div class="avatar-upload-status" id="avatar-edit-status"></div>
+                    </div>
+                </div>
+            </div>
+
             <h2 class="auth-title" style="font-size:1.3rem;">Your integrations</h2>
             <p class="auth-subtitle">Connect data sources to power your XP.</p>
 
@@ -79,5 +101,73 @@
             </div>
         </main>
     </div>
+    <script>
+        /* Avatar upload / reset (docs/13 UI tune-up). Sends the X-CSRFToken
+           header (required even for multipart POSTs, docs/08). On success the
+           preview updates optimistically with the returned URL. */
+        (function () {
+            var CSRFToken = function () {
+                var tag = document.querySelector('meta[name="csrf-token"]');
+                var csrf = document.querySelector('[name="csrfmiddlewaretoken"]');
+                if (tag) return tag.getAttribute('content');
+                if (csrf) return csrf.value;
+                return '';
+            };
+            var img = document.getElementById('avatar-edit-img');
+            var file = document.getElementById('avatar-edit-file');
+            var status = document.getElementById('avatar-edit-status');
+            var resetBtn = document.getElementById('avatar-edit-reset');
+            var FALLBACK = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
+
+            function show(msg, isError) {
+                if (!status) return;
+                status.textContent = msg;
+                status.classList.toggle('avatar-status-error', !!isError);
+            }
+
+            // Live preview on file selection.
+            if (file) file.addEventListener('change', function () {
+                if (!file.files || !file.files[0]) return;
+                var reader = new FileReader();
+                reader.onload = function () { if (img) img.src = reader.result; };
+                reader.readAsDataURL(file.files[0]);
+            });
+
+            function send(formData) {
+                fetch('/api/v1/profile/avatar', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': CSRFToken() },
+                    body: formData
+                }).then(function (res) {
+                    return res.json().catch(function () { return {}; }).then(function (data) {
+                        if (!res.ok) throw { message: (data && data.error) || ('Error ' + res.status) };
+                        return data;
+                    });
+                }).then(function (data) {
+                    if (img && data.avatar) { img.src = data.avatar; }
+                    show('\u2705 Avatar updated');
+                }).catch(function (err) {
+                    show((err && err.message) ? err.message : 'Could not update avatar', true);
+                });
+            }
+
+            if (file) file.addEventListener('change', function () {
+                if (!file.files || !file.files[0]) return;
+                var fd = new FormData();
+                fd.append('avatar', file.files[0]);
+                show('Uploading\u2026');
+                send(fd);
+            });
+
+            if (resetBtn) resetBtn.addEventListener('click', function () {
+                var fd = new FormData();
+                fd.append('action', 'reset');
+                show('Resetting\u2026');
+                send(fd);
+            });
+
+            if (img) img.onerror = function () { img.src = FALLBACK; };
+        })();
+    </script>
 </body>
 </html>
