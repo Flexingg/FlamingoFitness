@@ -119,35 +119,6 @@ body {
     gap: 24px;
 }
 
-/* Readiness card */
-.readiness-card {
-    background: linear-gradient(135deg, var(--primary-pink), var(--primary-orange));
-    border-radius: 20px;
-    padding: 20px;
-    color: white;
-    position: relative;
-    box-shadow: 0 6px 0 var(--dark-orange);
-    margin-bottom: 6px;
-}
-.readiness-card.rest-day {
-    background: linear-gradient(135deg, #8E8E8E, #5A5A5A);
-    box-shadow: 0 6px 0 #3F3F3F;
-}
-.readiness-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 12px;
-}
-.readiness-title { font-size: 1.4rem; font-weight: 900; line-height: 1.2; }
-.readiness-score {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-weight: 800;
-}
-.readiness-desc { font-size: 1rem; font-weight: 600; margin-bottom: 16px; opacity: 0.9; }
-
 /* 3D "Duolingo pop" button */
 .btn-flamingo {
     background-color: var(--bg-light);

@@ -94,6 +94,10 @@ MIDDLEWARE = [
     # WhiteNoise must stay here so Gunicorn can serve /static/ correctly
     # even in production. It must come right after SecurityMiddleware.
     "django.middleware.security.SecurityMiddleware",
+    # Makes the CSRF/session cookies' Secure flag follow the request scheme
+    # (HTTPS -> Secure, plain-HTTP LAN -> not), so DEBUG=False's Secure-only
+    # cookies don't lock HTTP LAN logins out with a CSRF 403.
+    "flamingo_fitness.middleware.SchemeAwareSecureCookiesMiddleware",
     # WhiteNoise serves /static/ (and, via the subclass in
     # flamingo_fitness/whitenoise.py, uploaded /media/ avatars) so Gunicorn can
     # serve everything with no separate file server. Comes right after
@@ -293,12 +297,13 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # ---------------------------------------------------------------------------
-# Cookie security (required for Cloudflare Tunnel / reverse proxy HTTPS)
+# Cookie security
 # ---------------------------------------------------------------------------
-# When behind a TLS-terminating proxy the browser sees HTTPS, so cookies
-# marked Secure are sent correctly. Without these, the CSRF cookie may be
-# dropped on form submissions and produce a 403.
+# CSRF + session cookies default to Secure when DEBUG=False so the HTTPS
+# Cloudflare Tunnel deployment keeps hardened cookies. Middleware
+# ``flamingo_fitness.middleware.SchemeAwareSecureCookiesMiddleware`` then
+# rewrites the Secure flag per request: without it, browsers refuse to send
+# Secure cookies over http:// and the LAN login POST fails CSRF with a 403.
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

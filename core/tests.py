@@ -2270,3 +2270,71 @@ class AvatarUploadTests(TestCase):
         self.assertIn("dicebear", resp.json()["user"]["avatar"])
 
 
+
+
+class AuthCookieSchemeTests(TestCase):
+    """Secure cookie flags must follow the request scheme.
+
+    DEBUG=False sets CSRF_COOKIE_SECURE / SESSION_COOKIE_SECURE to True, which
+    breaks the plain-HTTP LAN install: browsers refuse to send Secure cookies
+    over http:// so the login POST returns 403 (CSRF) and the dashboard never
+    loads. SchemeAwareSecureCookiesMiddleware rewrites the flags per request.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            username="securecookie", password="securecookie-pass"
+        )
+
+    def test_login_over_plain_http_loads_dashboard(self):
+        import re
+
+        from django.conf import settings as django_settings
+        from django.test import Client
+
+        # enforce_csrf_checks=True mimics a real browser: without a usable CSRF
+        # cookie + token the POST would be rejected with 403.
+        client = Client(enforce_csrf_checks=True)
+        login_page = client.get("/login/")
+        self.assertEqual(login_page.status_code, 200)
+
+        csrf_cookie = login_page.cookies[django_settings.CSRF_COOKIE_NAME]
+        self.assertFalse(
+            csrf_cookie["secure"],
+            "CSRF cookie must NOT be Secure over plain HTTP or browsers drop it",
+        )
+
+        token = re.search(
+            r'name="csrfmiddlewaretoken" value="([^"]+)"',
+            login_page.content.decode("utf-8"),
+        ).group(1)
+        resp = client.post(
+            "/login/",
+            {"username": "securecookie", "password": "securecookie-pass", "next": "/"},
+            HTTP_REFERER="http://testserver/login/",
+        )
+        self.assertEqual(resp.status_code, 302, "login must redirect to the dashboard")
+        self.assertEqual(resp.url, "/")
+        self.assertTrue(client.session.get("_auth_user_id"))
+
+        session_cookie = resp.cookies[django_settings.SESSION_COOKIE_NAME]
+        self.assertFalse(session_cookie["secure"])
+
+        # Follow-up requests over http must stay authenticated.
+        dashboard = client.get("/")
+        self.assertEqual(dashboard.status_code, 200)
+
+    def test_auth_cookies_stay_secure_over_https(self):
+        from django.conf import settings as django_settings
+        from django.test import Client
+
+        client = Client(secure=True)
+        resp = client.get("/login/")
+        self.assertEqual(resp.status_code, 200)
+        csrf_cookie = resp.cookies[django_settings.CSRF_COOKIE_NAME]
+        self.assertTrue(
+            csrf_cookie["secure"],
+            "CSRF cookie must stay Secure over HTTPS (Cloudflare tunnel)",
+        )
+

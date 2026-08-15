@@ -88,8 +88,9 @@
         var tree = document.getElementById('skill-tree');
         if (!view) return;
         applyDayNight();
-        // Single-panel navigation: hide ALL panels, then show only the base.
+                // Single-panel navigation: hide ALL panels, then show only the base.
         window.ensureSinglePanelVisible('base-view');
+        if (window.setActiveNav) window.setActiveNav('nav-base');
         content.classList.add('hidden');
         empty.classList.add('hidden');
         fetch(BASE_URL, { credentials: 'same-origin' })

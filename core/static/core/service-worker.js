@@ -9,7 +9,7 @@
    while offline support is preserved.
    ============================================================ */
 
-var CACHE_NAME = 'flamingo-fitness-v2';
+var CACHE_NAME = 'flamingo-fitness-v3';
 
 // Assets to pre-cache on install.
 var PRECACHE_URLS = [

@@ -3,7 +3,7 @@
 <html lang="en" class="dark" data-theme="{{ request.user.theme|default:'device' }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Flamingo Fitness</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="theme-color" content="#FF5E9A">
@@ -74,8 +74,13 @@
         }
 
         .stat-clickable { cursor: pointer; }
-        .readiness-card { background-color: rgb(30 41 59); }
-        .readiness-card.rest-day { background-color: rgb(51 65 85); }
+
+        /* Mobile browser chrome: use the dynamic/small viewport height so the bottom
+           tab bar sits ABOVE the browser's own UI when not installed as a PWA
+           (100vh extends underneath it). Browsers without dvh/svh support ignore
+           these and fall back to Tailwind's h-screen (100vh). */
+        body { height: 100dvh !important; height: 100svh !important; }
+
         .nav-item { color: #94a3b8; }
         .nav-item:hover { color: #e2e8f0; }
         .nav-item.active { color: #FF5E9A; }
@@ -234,18 +239,6 @@
                 <i class="fa-solid fa-spinner fa-spin mr-2 text-flamingo"></i> Syncing your flock...
             </div>
             <div class="hidden mx-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-bold text-center" id="error-hint"></div>
-
-            <!-- Dynamic Readiness Card -->
-            <section class="readiness-card m-4 p-5 rounded-3xl border border-slate-600 shadow-[0_8px_30px_rgb(0,0,0,0.35)]" id="readiness-card">
-                <div class="flex justify-between items-start mb-3">
-                    <h2 class="text-xl font-black text-white leading-tight drop-shadow-sm">Garmin<br>Readiness</h2>
-                    <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl text-green-400 font-bold border border-slate-700 shadow-inner">
-                        <i class="fa-solid fa-battery-three-quarters"></i> <span id="readiness-score">-</span>
-                    </div>
-                </div>
-                <p class="text-slate-300 text-sm font-semibold mb-5 leading-relaxed" id="readiness-desc">-</p>
-                <button class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg shadow-flamingo/20" id="readiness-action">Start 5/3/1 Workout</button>
-            </section>
 
             <!-- Skill Tree -->
             <section class="relative py-8 px-4 flex flex-col gap-8 min-h-[480px] hidden" id="skill-tree">
@@ -565,7 +558,7 @@
                     <i class="fa-solid fa-umbrella-beach text-xl mb-1.5 drop-shadow-sm"></i>
                     <span class="text-[11px] tracking-wide">Base</span>
                 </a>
-                <a href="{% url 'profile' %}" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16">
+                <a href="{% url 'profile' %}" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-profile">
                     <i class="fa-solid fa-user text-xl mb-1.5 drop-shadow-sm"></i>
                     <span class="text-[11px] tracking-wide">Profile</span>
                 </a>

@@ -15,8 +15,6 @@
         recovery:  { node: 'node-recovery',  cls: 'node-recovery' }
     };
 
-    var LEADERBOARD_URL = '/api/v1/leaderboard/weekly';
-
     // Every panel that can be opened from the bottom nav / skill-tree nodes.
     var PANEL_IDS = ['skill-tree', 'nutrition-view', 'hydration-view',
         'endurance-view', 'strength-view', 'boss-view', 'recovery-view',
@@ -73,8 +71,6 @@
             err.textContent = message;
             err.classList.remove('hidden');
         }
-        var card = document.getElementById('readiness-card');
-        if (card) card.classList.add('hidden');
     }
 
     function renderState(data) {
@@ -88,26 +84,6 @@
             this.onerror = null;
             this.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
         };
-
-        // Readiness card
-        var card = document.getElementById('readiness-card');
-        document.getElementById('readiness-score').textContent = data.readiness.score + '%';
-        document.getElementById('readiness-desc').textContent = data.readiness.message;
-
-        var isRest = data.readiness.streak_requirement === 'rest_day';
-        card.classList.toggle('rest-day', isRest);
-        var action = document.getElementById('readiness-action');
-        if (isRest) {
-            action.textContent = 'Rest is training. Recover!';
-            action.onclick = function () {
-                addModal('Recovery Day', data.readiness.message, 'Recover');
-            };
-        } else {
-            action.textContent = 'Start 5/3/1 Workout';
-            action.onclick = function () {
-                addModal('Heavy Squat Day', 'You\u2019re recovered! Time to tackle your 5/3/1 Squat programming.', 'Log via Liftosaur');
-            };
-        }
 
         // Skill tree nodes - every node is always unlocked/clickable. The UI
         // must never present a locked skill tree, so we force-clear any lock
@@ -215,35 +191,6 @@
         document.getElementById('loading-hint').classList.add('hidden');
         document.getElementById('skill-tree').classList.remove('hidden');
 
-        // Kick off leaderboard fetch in the background
-        loadLeaderboard();
-    }
-
-    function loadLeaderboard() {
-        // Only auto-pop the weekly leagues modal once per 7-day window.
-        var lastKey = 'ff_last_league_modal';
-        var last = localStorage.getItem(lastKey);
-        var now = Date.now();
-        var WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-        if (last && (now - parseInt(last, 10)) < WEEK_MS) {
-            return;
-        }
-
-        fetch(LEADERBOARD_URL, { credentials: 'same-origin' })
-            .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
-            .then(function (data) {
-                var board = data.leaderboard || [];
-                if (!board.length) return;
-                addModal(
-                    'Weekly Leagues',
-                    board.slice(0, 5).map(function (r, i) {
-                        return (i + 1) + '. ' + r.username + ' \u2014 ' + r.total_xp + ' XP';
-                    }).join('\n'),
-                    'Nice work!'
-                );
-                localStorage.setItem(lastKey, String(now));
-            })
-            .catch(function () { /* leaderboard is optional on load */ });
     }
 
     // ---- Simple modal helpers ----
@@ -276,14 +223,13 @@
         }, 1200);
     });
     document.getElementById('nav-leagues').addEventListener('click', function (e) {
-        // Phase 8 (docs/13): open the full Leagues/Challenges/Flock panel when
-        // leagues.js is loaded; fall back to the legacy modal otherwise.
+        // Phase 8 (docs/13): open the full Leagues/Challenges/Flock panel.
+        // Safety net for the inline onclick on #nav-leagues (keeps the anchor
+        // from scrolling to "#" if that handler is ever removed).
         if (window.loadLeagues) {
             e.preventDefault();
             window.loadLeagues();
-        } else if (window.addModal) {
-            e.preventDefault();
-            loadLeaderboard();
+            window.setActiveNav('nav-leagues');
         }
     });
 

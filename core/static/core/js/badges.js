@@ -32,10 +32,12 @@
         var view = document.getElementById('badges-view');
         var content = document.getElementById('badges-content');
         var empty = document.getElementById('badges-empty');
-        var tree = document.getElementById('skill-tree');
         if (!view) { console.warn('[badges] badges-view not found, aborting'); return; }
-        if (tree) tree.classList.add('hidden');
-        view.classList.remove('hidden');
+        // Single-panel navigation: hide ALL panels first, then show only badges.
+        // (Fixes opening Badges from Leagues / Base, whose panels used to stay
+        // visible and stack underneath the badges view.)
+        window.ensureSinglePanelVisible('badges-view');
+        if (window.setActiveNav) window.setActiveNav('nav-badges');
         if (content) content.classList.add('hidden');
         if (empty) empty.classList.add('hidden');
         fetch(BADGES_URL, { credentials: 'same-origin' })

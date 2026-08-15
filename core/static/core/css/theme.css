@@ -80,8 +80,6 @@ html.light .bg-red-500 {
 /* ------------------------------------------------------------------
    4. Shell + modal palette (mirrors dashboard.html inline <style>)
    ------------------------------------------------------------------ */
-html.light .readiness-card { background-color: #ffffff !important; }
-html.light .readiness-card.rest-day { background-color: #eef2f7 !important; }
 html.light .nav-item { color: #64748b; }
 html.light .nav-item:hover { color: #334155; }
 
