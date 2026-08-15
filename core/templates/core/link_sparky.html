@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" data-theme="{{ request.user.theme|default:'device' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -9,10 +9,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <!-- Theme controller: resolves light/dark/device/time BEFORE first paint -->
+    <script src="{% static 'core/js/theme.js' %}"></script>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
     <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+    <!-- Light palette layer (no-op unless html.light is active) -->
+    <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -74,6 +78,32 @@
                         <div class="avatar-upload-status text-xs font-bold text-green-400" id="avatar-edit-status"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Appearance / color-theme preference (saved per account) -->
+            <div class="auth-card bg-slate-800 border border-slate-600 rounded-3xl p-5 mb-5 shadow-xl">
+                <h2 class="auth-title text-lg font-black text-white text-left mb-1"><i class="fa-solid fa-palette text-flamingo mr-1.5"></i> Appearance</h2>
+                <p class="auth-subtitle text-slate-400 text-xs font-semibold text-left mb-4">Pick how Flamingo Fitness looks. Your choice saves instantly and follows you on every device.</p>
+                <form method="post" action="{% url 'profile' %}" id="theme-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="theme">
+                    <div class="grid grid-cols-2 gap-2 mb-2" id="theme-options">
+                        {% for value, label in theme_choices %}
+                        <label class="theme-option{% if request.user.theme == value %} theme-option-active{% endif %}" title="{{ label }}">
+                            <input type="radio" name="theme" value="{{ value }}"
+                                   class="theme-option-radio"
+                                   {% if request.user.theme == value %}checked{% endif %}>
+                            {% if value == "light" %}<i class="fa-solid fa-sun theme-option-icon"></i>
+                            {% elif value == "dark" %}<i class="fa-solid fa-moon theme-option-icon"></i>
+                            {% elif value == "device" %}<i class="fa-solid fa-mobile-screen theme-option-icon"></i>
+                            {% else %}<i class="fa-solid fa-clock theme-option-icon"></i>{% endif %}
+                            <span>{{ label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <p class="text-center text-xs font-bold text-slate-400 mb-1">Saves automatically when you tap an option.</p>
+                    <div class="text-center text-xs font-bold text-green-400" id="theme-save-status"></div>
+                </form>
             </div>
 
             <!-- Integrations Section Title -->
@@ -194,6 +224,33 @@
             });
 
             if (img) img.onerror = function () { img.src = FALLBACK; };
+        })();
+    </script>
+
+    <script>
+        /* Appearance picker: preview instantly, then auto-save. The native
+           form.submit() carries the CSRF token, so the server just flips
+           User.theme and redirects back with the new data-theme applied. */
+        (function () {
+            var form = document.getElementById('theme-form');
+            if (!form) return;
+            var status = document.getElementById('theme-save-status');
+            var radios = form.querySelectorAll('.theme-option-radio');
+
+            radios.forEach(function (radio) {
+                radio.addEventListener('change', function () {
+                    var labels = form.querySelectorAll('.theme-option');
+                    for (var i = 0; i < labels.length; i++) {
+                        labels[i].classList.toggle('theme-option-active', false);
+                    }
+                    var label = radio.closest('label');
+                    if (label) label.classList.add('theme-option-active');
+                    // Instant visual preview before the reload.
+                    if (window.ffApplyTheme) window.ffApplyTheme(radio.value);
+                    if (status) status.textContent = 'Saving\u2026';
+                    form.submit();
+                });
+            });
         })();
     </script>
 </body>

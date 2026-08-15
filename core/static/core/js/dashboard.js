@@ -109,58 +109,65 @@
             };
         }
 
-        // Skill tree nodes
+        // Skill tree nodes - every node is always unlocked/clickable. The UI
+        // must never present a locked skill tree, so we force-clear any lock
+        // styling/icons regardless of whether the API returns data for the
+        // modality yet.
         var bossUnlocked = false;
-        for (var key in data.skill_trees) {
-            if (data.skill_trees.hasOwnProperty(key)) {
-                var tree = data.skill_trees[key];
-                var meta = MODALITY_META[key];
-                var btn = document.getElementById(meta.node);
-                if (btn) {
-                    btn.classList.add(meta.cls);
-                    btn.classList.remove('node-locked', 'opacity-70');
-                    var lockIcon = btn.querySelector('.fa-lock');
-                    if (lockIcon) lockIcon.remove();
+        for (var key in MODALITY_META) {
+            if (!MODALITY_META.hasOwnProperty(key)) continue;
+            var meta = MODALITY_META[key];
+            var btn = document.getElementById(meta.node);
+            if (!btn) continue;
+            var tree = (data.skill_trees && data.skill_trees[key]) || null;
 
-                    // Clean up any old injected badges/bars before re-adding
-                    var oldBadge = btn.querySelector('.node-level');
-                    if (oldBadge) oldBadge.remove();
-                    var oldXpWrap = btn.querySelector('.node-xp-wrap');
-                    if (oldXpWrap) oldXpWrap.remove();
+            btn.classList.add(meta.cls);
+            btn.classList.remove('node-locked', 'opacity-70');
+            var lockIcon = btn.querySelector('.fa-lock');
+            if (lockIcon) lockIcon.remove();
 
-                    if (tree && tree.level !== undefined) {
-                        var badge = document.createElement('span');
-                        badge.className = 'node-level';
-                        badge.textContent = 'Lv ' + tree.level;
-                        btn.appendChild(badge);
-                    }
-                    // Add XP progress bar under each skill tree node
-                    if (tree && tree.xp !== undefined) {
-                        var xpWrap = document.createElement('div');
-                        xpWrap.className = 'node-xp-wrap';
-                        var xpBar = document.createElement('div');
-                        xpBar.className = 'node-xp-bar';
-                        var xpFill = document.createElement('div');
-                        xpFill.className = 'node-xp-fill';
-                        xpFill.style.width = Math.min(100, Math.max(0, tree.progress_pct || 0)) + '%';
-                        xpBar.appendChild(xpFill);
-                        xpWrap.appendChild(xpBar);
-                        var xpText = document.createElement('div');
-                        xpText.className = 'node-xp-text';
-                        xpText.textContent = (tree.xp || 0) + ' / 100 XP';
-                        xpWrap.appendChild(xpText);
-                        btn.appendChild(xpWrap);
-                    }
-                    if (tree && tree.progress_pct >= 100 && key === 'strength') {
-                        bossUnlocked = true;
-                    }
-                }
+            // Clean up any old injected badges/bars before re-adding
+            var oldBadge = btn.querySelector('.node-level');
+            if (oldBadge) oldBadge.remove();
+            var oldXpWrap = btn.querySelector('.node-xp-wrap');
+            if (oldXpWrap) oldXpWrap.remove();
+
+            if (tree && tree.level !== undefined) {
+                var badge = document.createElement('span');
+                badge.className = 'node-level';
+                badge.textContent = 'Lv ' + tree.level;
+                btn.appendChild(badge);
+            }
+            // Add XP progress bar under each skill tree node
+            if (tree && tree.xp !== undefined) {
+                var xpWrap = document.createElement('div');
+                xpWrap.className = 'node-xp-wrap';
+                var xpBar = document.createElement('div');
+                xpBar.className = 'node-xp-bar';
+                var xpFill = document.createElement('div');
+                xpFill.className = 'node-xp-fill';
+                xpFill.style.width = Math.min(100, Math.max(0, tree.progress_pct || 0)) + '%';
+                xpBar.appendChild(xpFill);
+                xpWrap.appendChild(xpBar);
+                var xpText = document.createElement('div');
+                xpText.className = 'node-xp-text';
+                xpText.textContent = (tree.xp || 0) + ' / 100 XP';
+                xpWrap.appendChild(xpText);
+                btn.appendChild(xpWrap);
+            }
+            if (tree && tree.progress_pct >= 100 && key === 'strength') {
+                bossUnlocked = true;
             }
         }
         var boss = document.getElementById('node-boss');
-        if (boss && bossUnlocked) {
-            boss.classList.add('node-strength');
-            boss.classList.remove('node-locked');
+        if (boss) {
+            // The PR Boss is always visible/clickable too (no lock).
+            boss.classList.remove('node-locked', 'opacity-70');
+            var bossLock = boss.querySelector('.fa-lock');
+            if (bossLock) bossLock.remove();
+            if (bossUnlocked) {
+                boss.classList.add('node-strength');
+            }
         }
 
         // Determine which node is worst today (lowest XP today).

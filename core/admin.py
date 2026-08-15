@@ -29,13 +29,13 @@ class FlamingoUserAdmin(UserAdmin):
     """Expose our custom streak/avatar fields in the Django admin panel."""
 
     fieldsets = UserAdmin.fieldsets + (
-        ("Flamingo Fitness", {"fields": ("streak", "avatar")}),
+        ("Flamingo Fitness", {"fields": ("streak", "avatar", "theme")}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ("Flamingo Fitness", {"fields": ("streak", "avatar")}),
+        ("Flamingo Fitness", {"fields": ("streak", "avatar", "theme")}),
     )
-    list_display = ("username", "streak", "is_active", "is_staff", "date_joined")
-    list_filter = ("is_active", "is_staff", "is_superuser")
+    list_display = ("username", "streak", "theme", "is_active", "is_staff", "date_joined")
+    list_filter = ("is_active", "is_staff", "is_superuser", "theme")
     search_fields = ("username", "email")
 
 

@@ -30,6 +30,15 @@ class Modality(models.TextChoices):
     RECOVERY = "recovery", "Recovery"
 
 
+class Theme(models.TextChoices):
+    """User-selectable app appearance (light / dark / device / time)."""
+
+    LIGHT = "light", "Light"
+    DARK = "dark", "Dark"
+    DEVICE = "device", "Device"
+    TIME = "time", "Time"
+
+
 class Provider(models.TextChoices):
     """External data sources we poll via Celery."""
 
@@ -51,6 +60,15 @@ class User(AbstractUser):
         blank=True,
         default="https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo",
         help_text="Avatar image URL shown on leaderboards and the dashboard.",
+    )
+    theme = models.CharField(
+        max_length=10,
+        choices=Theme.choices,
+        default=Theme.DEVICE,
+        help_text=(
+            "Appearance preference: force Light or Dark, follow the device, "
+            "or switch by time of day (dark 6pm-6am)."
+        ),
     )
 
     @property

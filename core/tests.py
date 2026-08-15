@@ -437,6 +437,29 @@ class AccountTests(TestCase):
         else:
             self.assertEqual(logs, [])  # real mode: no key => no data
 
+    def test_theme_update_saves_per_account(self):
+        self.client.force_login(self.user)
+        # Default is device; update to light.
+        self.assertEqual(self.user.theme, "device")
+        resp = self.client.post("/profile/", {"action": "theme", "theme": "light"})
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.theme, "light")
+
+        # Invalid choice is rejected and the stored value is unchanged.
+        resp = self.client.post("/profile/", {"action": "theme", "theme": "neon"})
+        self.assertEqual(resp.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.theme, "light")
+
+        # The dashboard page serves the preference for the theme controller.
+        resp = self.client.get("/")
+        self.assertContains(resp, 'data-theme="light"')
+
+    def test_theme_update_requires_auth(self):
+        resp = self.client.post("/profile/", {"action": "theme", "theme": "dark"})
+        self.assertEqual(resp.status_code, 302)  # redirect to login
+
     def test_login_page_renders(self):
         resp = self.client.get("/login/")
         self.assertEqual(resp.status_code, 200)

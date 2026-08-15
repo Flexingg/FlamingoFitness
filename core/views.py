@@ -23,7 +23,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
-from .forms import LiftosaurLinkForm, SignupForm, SparkyLinkForm
+from .forms import LiftosaurLinkForm, SignupForm, SparkyLinkForm, ThemeForm
 from .models import (
     BaseBuilding,
     BaseBuildingDef,
@@ -33,6 +33,7 @@ from .models import (
     Provider,
     RawActivityLog,
     SkillTree,
+    Theme,
     User,
     UserIntegration,
     XPLedger,
@@ -99,6 +100,16 @@ def profile(request):
     liftosaur = integrations.filter(provider=Provider.LIFTOSAUR).first()
 
     if request.method == "POST":
+        # Theme preference update (Appearance card on the profile page). Kept
+        # separate from provider linking so the two POST flows stay independent.
+        if request.POST.get("action") == "theme":
+            theme_form = ThemeForm(request.POST)
+            if theme_form.is_valid():
+                request.user.theme = theme_form.cleaned_data["theme"]
+                request.user.save(update_fields=["theme"])
+                messages.success(request, "Appearance updated.")
+            return redirect("profile")
+
         provider_key = request.POST.get("provider", "sparkyfitness")
         if provider_key == "liftosaur":
             form = LiftosaurLinkForm(request.POST)
@@ -168,6 +179,7 @@ def profile(request):
             "sparky": sparky,
             "liftosaur": liftosaur,
             "lift_log_count": lift_log_count,
+            "theme_choices": Theme.choices,
         },
     )
 

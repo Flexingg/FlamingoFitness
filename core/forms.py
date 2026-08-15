@@ -4,7 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Provider, UserIntegration
+from .models import Provider, Theme, UserIntegration
 
 User = get_user_model()
 
@@ -61,4 +61,13 @@ class LiftosaurLinkForm(forms.Form):
         integration.is_active = True
         integration.save()
         return integration
+
+
+class ThemeForm(forms.Form):
+    """Update the account's color-theme preference (profile page).
+
+    The profile view posts ``action=theme`` together with the chosen value.
+    """
+
+    theme = forms.ChoiceField(choices=Theme.choices)
 
