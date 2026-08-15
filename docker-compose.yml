@@ -53,7 +53,7 @@ services:
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
              python manage.py create_demo_accounts &&
-             gunicorn flamingo_fitness.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+             gunicorn flamingo_fitness.wsgi:application --bind 0.0.0.0:8000 --workers 3 --forwarded-allow-ips='*'"
     ports:
       - "${WEB_PORT:-8000}:8000"
     environment:
