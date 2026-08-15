@@ -1,46 +1,65 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Log in · Flamingo Fitness</title>
     <meta name="theme-color" content="#FF5E9A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
     <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        flamingo: '#FF5E9A',
+                        'flamingo-dark': '#D83A73',
+                    },
+                    fontFamily: { sans: ['Nunito', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="app-container">
-        <div style="margin: auto; width: 100%; padding: 24px;">
-            <div style="text-align:center; font-size: 3rem; margin-bottom: 4px;">🦩</div>
-            <h1 class="auth-title">Welcome back!</h1>
-            <p class="auth-subtitle">Log in to keep your streak alive.</p>
+<body class="bg-black text-slate-100 font-sans antialiased h-screen w-screen overflow-hidden flex justify-center">
+    <div class="app-container w-full max-w-md h-full bg-slate-900 flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto">
+        <div class="m-auto w-full p-6">
+            <div class="text-center text-5xl mb-2">🦩</div>
+            <h1 class="auth-title text-2xl font-black text-white text-center mb-1">Welcome back!</h1>
+            <p class="auth-subtitle text-slate-400 text-sm font-semibold text-center mb-5">Log in to keep your streak alive.</p>
 
             {% if form.non_field_errors %}
-                <ul class="errorlist">
+                <ul class="errorlist mb-4">
                     {% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}
                 </ul>
             {% endif %}
 
-            <div class="auth-card">
+            <div class="auth-card bg-slate-800 border border-slate-600 rounded-3xl p-6 shadow-xl">
                 <form method="post" action="{% url 'login' %}">
                     {% csrf_token %}
-                    <p>
-                        <label for="id_username">Username</label>
-                        <input type="text" name="username" id="id_username" autocomplete="username" required>
+                    <p class="mb-4">
+                        <label for="id_username" class="block font-extrabold text-slate-200 text-sm mb-1.5">Username</label>
+                        <input type="text" name="username" id="id_username" autocomplete="username" required
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
                     </p>
-                    <p>
-                        <label for="id_password">Password</label>
-                        <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+                    <p class="mb-5">
+                        <label for="id_password" class="block font-extrabold text-slate-200 text-sm mb-1.5">Password</label>
+                        <input type="password" name="password" id="id_password" autocomplete="current-password" required
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
                     </p>
-                    <button class="btn-flamingo" type="submit" style="margin-top: 6px;">Log In</button>
+                    <button class="btn-flamingo w-full bg-flamingo text-white font-black py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" type="submit">Log In</button>
                     <input type="hidden" name="next" value="{{ next }}">
                 </form>
             </div>
 
-            <p class="auth-link">New here? <a href="{% url 'signup' %}">Create an account</a></p>
+            <p class="auth-link text-center text-slate-400 text-sm font-bold mt-5">New here? <a href="{% url 'signup' %}" class="text-flamingo font-black hover:underline">Create an account</a></p>
         </div>
     </div>
 </body>

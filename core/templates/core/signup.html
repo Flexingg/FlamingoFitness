@@ -1,55 +1,76 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Create account · Flamingo Fitness</title>
     <meta name="theme-color" content="#FF5E9A">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
     <link rel="stylesheet" href="{% static 'core/css/auth.css' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        flamingo: '#FF5E9A',
+                        'flamingo-dark': '#D83A73',
+                    },
+                    fontFamily: { sans: ['Nunito', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-    <div class="app-container">
-        <div style="margin: auto; width: 100%; padding: 24px;">
-            <div style="text-align:center; font-size: 3rem; margin-bottom: 4px;">🦩</div>
-            <h1 class="auth-title">Join the flock</h1>
-            <p class="auth-subtitle">Create your fitness gamification account.</p>
+<body class="bg-black text-slate-100 font-sans antialiased h-screen w-screen overflow-hidden flex justify-center">
+    <div class="app-container w-full max-w-md h-full bg-slate-900 flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto">
+        <div class="m-auto w-full p-6">
+            <div class="text-center text-5xl mb-2">🦩</div>
+            <h1 class="auth-title text-2xl font-black text-white text-center mb-1">Join the flock</h1>
+            <p class="auth-subtitle text-slate-400 text-sm font-semibold text-center mb-5">Create your fitness gamification account.</p>
 
-            <div class="auth-card">
+            <div class="auth-card bg-slate-800 border border-slate-600 rounded-3xl p-6 shadow-xl">
                 <form method="post" action="{% url 'signup' %}">
                     {% csrf_token %}
                     {% if form.non_field_errors %}
-                        <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+                        <ul class="errorlist mb-4">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
                     {% endif %}
-                    <p>
-                        <label for="id_username">Username</label>
-                        <input type="text" name="username" id="id_username" value="{{ form.username.value|default_if_none:'' }}" autocomplete="username" required>
-                        {% if form.username.errors %}<ul class="errorlist">{% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    <p class="mb-4">
+                        <label for="id_username" class="block font-extrabold text-slate-200 text-sm mb-1.5">Username</label>
+                        <input type="text" name="username" id="id_username" value="{{ form.username.value|default_if_none:'' }}" autocomplete="username" required
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
+                        {% if form.username.errors %}<ul class="errorlist mt-2">{% for e in form.username.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
                     </p>
-                    <p>
-                        <label for="id_email">Email (optional)</label>
-                        <input type="email" name="email" id="id_email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email">
-                        {% if form.email.errors %}<ul class="errorlist">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    <p class="mb-4">
+                        <label for="id_email" class="block font-extrabold text-slate-200 text-sm mb-1.5">Email (optional)</label>
+                        <input type="email" name="email" id="id_email" value="{{ form.email.value|default_if_none:'' }}" autocomplete="email"
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
+                        {% if form.email.errors %}<ul class="errorlist mt-2">{% for e in form.email.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
                     </p>
-                    <p>
-                        <label for="id_password1">Password</label>
-                        <input type="password" name="password1" id="id_password1" autocomplete="new-password" required>
-                        {% if form.password1.errors %}<ul class="errorlist">{% for e in form.password1.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
-                        {% if form.password1.help_text %}<div class="help-text">{{ form.password1.help_text|safe }}</div>{% endif %}
+                    <p class="mb-4">
+                        <label for="id_password1" class="block font-extrabold text-slate-200 text-sm mb-1.5">Password</label>
+                        <input type="password" name="password1" id="id_password1" autocomplete="new-password" required
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
+                        {% if form.password1.errors %}<ul class="errorlist mt-2">{% for e in form.password1.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                        {% if form.password1.help_text %}<div class="text-xs text-slate-400 font-semibold mt-1">{{ form.password1.help_text|safe }}</div>{% endif %}
                     </p>
-                    <p>
-                        <label for="id_password2">Confirm password</label>
-                        <input type="password" name="password2" id="id_password2" autocomplete="new-password" required>
-                        {% if form.password2.errors %}<ul class="errorlist">{% for e in form.password2.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+                    <p class="mb-5">
+                        <label for="id_password2" class="block font-extrabold text-slate-200 text-sm mb-1.5">Confirm password</label>
+                        <input type="password" name="password2" id="id_password2" autocomplete="new-password" required
+                               class="w-full px-4 py-3 bg-slate-900 border border-slate-600 rounded-xl text-white font-bold focus:outline-none focus:border-flamingo">
+                        {% if form.password2.errors %}<ul class="errorlist mt-2">{% for e in form.password2.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
                     </p>
-                    <button class="btn-flamingo" type="submit" style="margin-top: 6px;">Create Account</button>
+                    <button class="btn-flamingo w-full bg-flamingo text-white font-black py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" type="submit">Create Account</button>
                 </form>
             </div>
 
-            <p class="auth-link">Already have an account? <a href="{% url 'login' %}">Log in</a></p>
+            <p class="auth-link text-center text-slate-400 text-sm font-bold mt-5">Already have an account? <a href="{% url 'login' %}" class="text-flamingo font-black hover:underline">Log in</a></p>
         </div>
     </div>
 </body>

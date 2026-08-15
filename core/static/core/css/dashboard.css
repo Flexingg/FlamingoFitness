@@ -20,12 +20,12 @@
     --primary-red: #FF4D4D;
     --dark-red: #D83A3A;
 
-    --bg-light: #FFFFFF;
-    --bg-app: #FDF4F7;
-    --text-main: #2B2B2B;
-    --text-muted: #8E8E8E;
-    --border-color: #E5E5E5;
-    --bg-sky: #87CEEB;
+    --bg-light: #1e293b;
+    --bg-app: #0f172a;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --bg-sky: #0f172a;
     --neon-color: #FF5E9A;
     --neon-glow: 0 0 12px var(--neon-color);
 }
@@ -46,7 +46,8 @@ body.theme-night {
 }
 
 body {
-    background-color: #EFEFEF;
+    background-color: #000000;
+    color: var(--text-main);
     display: flex;
     justify-content: center;
 }
@@ -54,14 +55,14 @@ body {
 /* Mobile app shell: max-width keeps the app feel on desktop */
 .app-container {
     width: 100%;
-    max-width: 420px;
+    max-width: 448px;
     height: 100vh;
     background-color: var(--bg-app);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
 }
 
 /* Top Navigation */
@@ -201,35 +202,24 @@ body {
 .node-row.left { justify-content: flex-start; padding-left: 20%; }
 .node-row.right { justify-content: flex-end; padding-right: 20%; }
 
-.node-btn {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2rem;
-    color: white;
+.node-btn,
+.node-strength,
+.node-endurance,
+.node-recovery,
+.node-nutrition,
+.node-hydration,
+.node-boss {
+    background-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
     cursor: pointer;
     position: relative;
-    transition: transform 0.1s, box-shadow 0.1s;
-}
-.node-strength { background-color: var(--primary-purple); box-shadow: 0 8px 0 var(--dark-purple); }
-.node-endurance { background-color: var(--primary-blue); box-shadow: 0 8px 0 var(--dark-blue); }
-.node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
-.node-nutrition { background-color: var(--primary-pink); box-shadow: 0 8px 0 var(--dark-pink); }
-.node-hydration { background-color: var(--primary-cyan); box-shadow: 0 8px 0 var(--dark-cyan); }
-.node-recovery { background-color: var(--primary-green); box-shadow: 0 8px 0 var(--dark-green); }
-.node-boss { background-color: #f6b11b; box-shadow: 0 8px 0 #c8850a; }
-.node-locked {
-    background-color: #E5E5E5;
-    box-shadow: 0 8px 0 #CCCCCC;
-    color: #A0A0A0;
+    outline: none;
 }
 .node-btn:active:not(.node-locked) {
-    transform: translateY(8px);
-    box-shadow: 0 0px 0 transparent;
+    transform: none;
+    box-shadow: none;
 }
 
 .node-active::before {

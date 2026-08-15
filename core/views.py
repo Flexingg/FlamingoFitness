@@ -895,6 +895,14 @@ def dashboard_state(request):
     today = timezone.localdate()
     readiness = compute_readiness(user, on_date=today)
 
+    # Calculate today's XP per modality from XPLedger
+    today_xp_qs = (
+        XPLedger.objects.filter(user=user, created_at__date=today)
+        .values("modality")
+        .annotate(today_xp=Sum("amount"))
+    )
+    today_xp_map = {row["modality"]: (row["today_xp"] or 0) for row in today_xp_qs}
+
     skill_trees = {}
     for tree in SkillTree.objects.filter(user=user):
         skill_trees[tree.modality] = {
@@ -902,6 +910,7 @@ def dashboard_state(request):
             "progress_pct": tree.progress_pct,
             "xp": tree.xp,
             "total_xp": tree.total_xp,
+            "today_xp": today_xp_map.get(tree.modality, 0),
         }
 
     return JsonResponse(

@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,262 +11,507 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <!-- PWA manifest (Step 20) -->
     <link rel="manifest" href="{% static 'core/manifest.json' %}">
-    <!-- Miami/Duolingo bubbly look -->
+    <!-- Fonts and Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Existing dashboard.css styles the JS-injected dynamic content
+         (nutrition/base/badges/leagues/stat-history/friend-picker etc.).
+         Left untouched so no backend behaviour changes. -->
     <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
+
+    <!-- Tailwind CSS: bubbly dark-slate look (matches example_html/dashboard.html) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        flamingo: '#FF5E9A',
+                        'flamingo-dark': '#D83A73',
+                        slate: { 850: '#151e2e', 900: '#0f172a' }
+                    },
+                    fontFamily: { sans: ['Nunito', 'sans-serif'] },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'bounce-slight': 'bounceSlight 2s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        bounceSlight: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-5px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .hidden { display: none !important; }
+
+        /* Dark mode palette variables for JS-injected components */
+        :root {
+            --bg-light: #1e293b;
+            --bg-app: #0f172a;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --bg-sky: #0f172a;
+        }
+
+        .stat-clickable { cursor: pointer; }
+        .readiness-card { background-color: rgb(30 41 59); }
+        .readiness-card.rest-day { background-color: rgb(51 65 85); }
+        .nav-item { color: #94a3b8; }
+        .nav-item:hover { color: #e2e8f0; }
+        .nav-item.active { color: #FF5E9A; }
+
+        /* Leagues sub-tabs */
+        .leagues-tabs { background: #1e293b !important; border: 1px solid #334155 !important; }
+        .leagues-tab { color: #94a3b8 !important; background: transparent !important; border: none !important; transition: all 0.15s ease; }
+        .leagues-tab:hover { color: #e2e8f0 !important; }
+        .leagues-tab.active { background: #334155 !important; color: #ffffff !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important; }
+
+        /* Modals & explainer popups */
+        .modal-overlay { display: none; opacity: 0; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.show-modal { display: flex; opacity: 1; }
+        .modal-content { background-color: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important; }
+        .modal-title, .modal-desc { color: #f8fafc !important; }
+
+        /* 1. Streak / Materials / Energy modal & dropdown cards */
+        .stat-modal-content { background: #1e293b !important; color: #f8fafc !important; border: 1px solid #334155 !important; }
+        .stat-modal-title { color: #ffffff !important; }
+        .stat-modal-desc { color: #cbd5e1 !important; }
+        .stat-acc { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 14px !important; margin-bottom: 8px !important; }
+        .stat-acc-head { color: #f8fafc !important; font-weight: 700 !important; }
+        .stat-acc-head:hover { background: rgba(255, 255, 255, 0.05) !important; }
+        .stat-acc-count { background: #334155 !important; color: #94a3b8 !important; border-radius: 9999px !important; }
+        .stat-acc-body { background: #0f172a !important; color: #cbd5e1 !important; }
+        .stat-fact-row { border-color: #334155 !important; color: #cbd5e1 !important; }
+        .stat-fact-value { color: #f8fafc !important; font-weight: 800 !important; }
+        .stat-howto { color: #cbd5e1 !important; }
+        .stat-history-row { border-color: #334155 !important; }
+        .stat-history-label { color: #f8fafc !important; font-weight: 700 !important; }
+        .stat-history-detail, .stat-history-date { color: #94a3b8 !important; }
+        .stat-show-more { color: #FF5E9A !important; background: transparent !important; }
+        .stat-modal-empty { color: #94a3b8 !important; }
+
+        /* 2 & 3. Skill tree cards & history text */
+        .nutrition-skill-section, .nutrition-day-card,
+        .hydration-skill-section, .hydration-day-card,
+        .endurance-skill-section, .endurance-day-card,
+        .strength-skill-section, .strength-day-card,
+        .boss-section, .boss-card,
+        .recovery-skill-section, .recovery-day-card,
+        .card, .detail-card, .xp-card, .today-card, .history-card {
+            background: #1e293b !important;
+            border: 1px solid #334155 !important;
+            color: #f8fafc !important;
+            border-radius: 20px !important;
+        }
+        .nutrition-skill-header, .day-date, .history-title, .base-section-title, .stat-section-title { color: #f8fafc !important; }
+        .nutrition-skill-info, .nutrition-xp-to-next, .nutrition-guidance, .food-list-title { color: #94a3b8 !important; }
+        .nutrition-xp-bar-wrap, .nutrition-xp-bar, .macro-bar { background: #0f172a !important; border: 1px solid #334155 !important; }
+        .food-list { border-color: #334155 !important; }
+        .food-item, .food-name { color: #f8fafc !important; }
+        .food-cals, .macro-label, .macro-val { color: #cbd5e1 !important; }
+        .history-item { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
+        .history-item:hover { background: #1e293b !important; }
+        .history-item.perfect { background: rgba(255, 94, 154, 0.12) !important; border-color: rgba(255, 94, 154, 0.3) !important; }
+        .hist-macros, .hist-date, .history-item .hist-macros { color: #cbd5e1 !important; }
+        .hist-reward { color: #FF5E9A !important; font-weight: 800 !important; }
+        .exercise-item, .set-row, .workout-item, .boss-history-item, .sleep-stage-card { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
+        .exercise-name, .set-detail, .boss-name, .boss-desc { color: #f8fafc !important; }
+
+        /* 4. Leagues page cards and buttons */
+        .league-week-card { background: linear-gradient(135deg, #1e1b4b, #831843) !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
+        .league-board { background: #1e293b !important; border: 1px solid #334155 !important; border-radius: 20px !important; overflow: hidden !important; }
+        .league-row { border-color: #334155 !important; color: #f8fafc !important; }
+        .league-row.row-you { background: rgba(255, 94, 154, 0.15) !important; }
+        .league-name, .league-xp { color: #f8fafc !important; }
+        .league-history-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
+        .league-history-week, .league-history-rank, .league-history-xp { color: #f8fafc !important; }
+        .challenge-card, .flock-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
+        .challenge-title, .challenge-desc, .challenge-meta, .challenge-target { color: #f8fafc !important; }
+        .challenge-sub, .flock-invite-text, .flock-total { color: #cbd5e1 !important; }
+        .friend-row { border-color: #334155 !important; color: #f8fafc !important; }
+        .friend-row.row-you { background: rgba(255, 94, 154, 0.15) !important; }
+        .friend-name { color: #f8fafc !important; }
+        .social-search input { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; }
+        .btn-flamingo { background-color: var(--primary-pink) !important; color: #ffffff !important; border-bottom: 4px solid var(--dark-pink) !important; }
+        .btn-flamingo.btn-purple { background-color: var(--primary-purple) !important; border-bottom-color: var(--dark-purple) !important; }
+        .btn-flamingo.btn-orange { background-color: var(--primary-orange) !important; border-bottom-color: var(--dark-orange) !important; }
+        .btn-flamingo.btn-teal { background-color: var(--primary-cyan) !important; border-bottom-color: var(--dark-cyan) !important; }
+
+        /* 5. Badges detail pop ups & grid */
+        .badge-grid { background: transparent !important; }
+        .badge-tile { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
+        .badge-tile.earned { background: linear-gradient(135deg, #1e293b, #334155) !important; border-color: var(--primary-orange) !important; box-shadow: 0 0 15px rgba(255, 153, 51, 0.2) !important; }
+        .badge-tile.locked { background: #0f172a !important; border-color: #1e293b !important; opacity: 0.5 !important; }
+        .badge-name { color: #f8fafc !important; }
+        .badge-cat { color: #94a3b8 !important; }
+        .badge-detail { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
+        .badge-detail.earned { border-color: var(--primary-orange) !important; }
+        .badge-detail-name { color: #f8fafc !important; }
+        .badge-detail-desc { color: #cbd5e1 !important; }
+        .badge-detail-meta { color: #94a3b8 !important; }
+        .badge-detail-icon { background: #0f172a !important; border: 1px solid #334155 !important; border-radius: 16px !important; }
+        .badges-summary { color: #f8fafc !important; }
+        .badges-new { background: rgba(255, 94, 154, 0.15) !important; border: 1px solid rgba(255, 94, 154, 0.3) !important; color: #f8fafc !important; border-radius: 14px !important; }
+
+        /* 6. Base shop cards and purchased cards */
+        .building-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
+        .building-card.building-locked { background: #0f172a !important; opacity: 0.6 !important; }
+        .building-card.building-built { border-color: var(--primary-green) !important; }
+        .building-card.building-constructing { border-color: var(--primary-orange) !important; }
+        .building-name { color: #f8fafc !important; }
+        .building-desc, .building-status, .building-cost { color: #94a3b8 !important; }
+        .building-level { color: #cbd5e1 !important; }
+        .base-wallet { color: #f8fafc !important; }
+        .base-resource-pill { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
+        .shop-card, .branch-choice { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
+        .friend-picker-content { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; }
+        .friend-picker-row { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 14px !important; }
+        .friend-picker-row:hover { border-color: var(--primary-pink) !important; background: #151e2e !important; }
+        .milestone-toast { opacity: 0; }
+        .milestone-toast.show { opacity: 1; }
+    </style>
 </head>
-<body>
-    <div class="app-container">
-        <!-- Top Nav (Stats) - badges are clickable: they explain the stat
-             and show recent history of earning it (stat_info.js). -->
-        <header class="top-nav">
-            <div class="stat-badge stat-streak stat-clickable" id="stat-streak"
-                 data-stat="streak" role="button" tabindex="0" title="About your streak">
-                <i class="fa-solid fa-fire"></i> <span>-</span>
+
+<body class="bg-black text-slate-100 font-sans antialiased h-screen w-screen overflow-hidden flex justify-center">
+
+    <!-- Mobile App Container (constrained width on desktop, full-width on mobile) -->
+    <div class="w-full max-w-md h-full bg-slate-900 flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+
+        <!-- Top Nav (Stats) - badges are clickable: they explain the stat and show
+             recent history of earning it (stat_info.js). -->
+        <header class="flex items-center justify-between p-4 bg-slate-900/95 backdrop-blur-md z-40 sticky top-0 border-b border-slate-700 shadow-sm">
+            <div class="flex gap-2">
+                <div class="stat-clickable stat-streak flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
+                     id="stat-streak" data-stat="streak" role="button" tabindex="0" title="About your streak">
+                    <i class="fa-solid fa-fire text-orange-400"></i> <span class="font-bold text-slate-100">-</span>
+                </div>
+                <div class="stat-clickable stat-resources flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
+                     id="stat-materials" data-stat="materials" role="button" tabindex="0" title="About materials (gems)">
+                    <i class="fa-solid fa-gem text-blue-400"></i> <span class="font-bold text-slate-100">-</span>
+                </div>
+                <div class="stat-clickable stat-energy flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
+                     id="stat-energy" data-stat="energy" role="button" tabindex="0" title="About energy">
+                    <i class="fa-solid fa-bolt text-yellow-400"></i> <span class="font-bold text-slate-100">-</span>
+                </div>
             </div>
-            <div class="stat-badge stat-resources stat-clickable" id="stat-materials"
-                 data-stat="materials" role="button" tabindex="0" title="About materials (gems)">
-                <i class="fa-solid fa-gem"></i> <span>-</span>
+            <div class="flex items-center gap-3">
+                <a href="{% url 'profile' %}" class="w-10 h-10 rounded-full bg-slate-700 border-2 border-slate-500 overflow-hidden active:scale-95 transition-transform shadow-sm inline-block" title="Edit profile picture">
+                    <img class="w-full h-full object-cover rounded-full" id="avatar-img" alt="Avatar">
+                </a>
+                <form method="post" action="{% url 'logout' %}" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center justify-center hover:bg-red-500/20 active:scale-95 transition-colors" title="Log out">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </form>
             </div>
-            <div class="stat-badge stat-energy stat-clickable" id="stat-energy"
-                 data-stat="energy" role="button" tabindex="0" title="About energy">
-                <i class="fa-solid fa-bolt"></i> <span>-</span>
-            </div>
-            <a href="{% url 'profile' %}" class="avatar-wrap avatar-nav" title="Edit profile picture">
-                <img class="avatar-img" id="avatar-img" alt="Avatar">
-            </a>
-            <form method="post" action="{% url 'logout' %}" class="logout-form">
-                {% csrf_token %}
-                <button type="submit" class="stat-badge" title="Log out"
-                        style="color: var(--primary-red); background: rgba(216,58,115,0.08);">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </button>
-            </form>
         </header>
 
         <!-- Main Scrolling Content -->
-        <main class="main-scroll">
-            <div class="loading-hint" id="loading-hint">
-                <i class="fa-solid fa-spinner fa-spin"></i> Syncing your flock...
+        <main class="flex-1 overflow-y-auto no-scrollbar pb-24 relative">
+
+            <div class="flex justify-center items-center py-2 text-slate-300 text-sm font-bold" id="loading-hint">
+                <i class="fa-solid fa-spinner fa-spin mr-2 text-flamingo"></i> Syncing your flock...
             </div>
-            <div class="error-hint hidden" id="error-hint"></div>
+            <div class="hidden mx-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-bold text-center" id="error-hint"></div>
 
             <!-- Dynamic Readiness Card -->
-            <section class="readiness-card hidden" id="readiness-card">
-                <div class="readiness-header">
-                    <h2 class="readiness-title">Garmin<br>Readiness</h2>
-                    <div class="readiness-score"><i class="fa-solid fa-battery-three-quarters"></i> <span id="readiness-score">-</span></div>
+            <section class="readiness-card m-4 p-5 rounded-3xl border border-slate-600 shadow-[0_8px_30px_rgb(0,0,0,0.35)]" id="readiness-card">
+                <div class="flex justify-between items-start mb-3">
+                    <h2 class="text-xl font-black text-white leading-tight drop-shadow-sm">Garmin<br>Readiness</h2>
+                    <div class="flex items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-xl text-green-400 font-bold border border-slate-700 shadow-inner">
+                        <i class="fa-solid fa-battery-three-quarters"></i> <span id="readiness-score">-</span>
+                    </div>
                 </div>
-                <p class="readiness-desc" id="readiness-desc">-</p>
-                <button class="btn-flamingo" id="readiness-action">Start 5/3/1 Workout</button>
+                <p class="text-slate-300 text-sm font-semibold mb-5 leading-relaxed" id="readiness-desc">-</p>
+                <button class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg shadow-flamingo/20" id="readiness-action">Start 5/3/1 Workout</button>
             </section>
 
             <!-- Skill Tree -->
-            <section class="skill-tree hidden" id="skill-tree">
-                <div class="path-line"></div>
+            <section class="relative py-8 px-4 flex flex-col gap-8 min-h-[480px] hidden" id="skill-tree">
+                <div class="absolute left-1/2 top-4 bottom-4 w-3 bg-slate-800 -translate-x-1/2 rounded-full border border-slate-700 z-0"></div>
 
-                <div class="node-row right">
-                    <button class="node-btn node-nutrition" id="node-nutrition" onclick="loadNutrition()">
-                        <i class="fa-solid fa-apple-whole"></i>
-                        <span class="node-label">Nutrition</span>
+                <!-- Row: Nutrition (Right) -->
+                <div class="relative z-10 w-full flex justify-end pr-8">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-nutrition" onclick="loadNutrition()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-green-500 border-b-[6px] border-green-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-apple-whole drop-shadow-md"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Nutrition</span>
                     </button>
                 </div>
 
-                <div class="node-row center">
-                    <button class="node-btn node-hydration node-locked" id="node-hydration" onclick="loadHydration()">
-                        <i class="fa-solid fa-glass-water"></i>
-                        <span class="node-label">Hydration</span>
+                <!-- Row: Hydration (Center - Locked) -->
+                <div class="relative z-10 w-full flex justify-center">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0 opacity-70" id="node-hydration" onclick="loadHydration()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-cyan-500 border-b-[6px] border-cyan-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-lock absolute text-xs -top-2 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-600 text-slate-300"></i>
+                            <i class="fa-solid fa-glass-water"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-400 tracking-wide">Hydration</span>
                     </button>
                 </div>
 
-                <div class="node-row left">
-                    <button class="node-btn node-endurance" id="node-endurance" onclick="loadEndurance()">
-                        <i class="fa-solid fa-bicycle"></i>
-                        <span class="node-label">Endurance</span>
+                <!-- Row: Endurance (Left) -->
+                <div class="relative z-10 w-full flex justify-start pl-8">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-endurance" onclick="loadEndurance()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-blue-500 border-b-[6px] border-blue-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-bicycle drop-shadow-md"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Endurance</span>
                     </button>
                 </div>
 
-                <div class="node-row center">
-                    <button class="node-btn node-strength node-active" id="node-strength" onclick="loadStrength()">
-                        <i class="fa-solid fa-dumbbell"></i>
-                        <span class="node-label">Strength</span>
+                <!-- Row: Strength (Center) -->
+                <div class="relative z-10 w-full flex justify-center">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-strength" onclick="loadStrength()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-flamingo border-b-[6px] border-flamingo-dark text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-dumbbell drop-shadow-lg"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Strength</span>
                     </button>
                 </div>
 
-                <div class="node-row right">
-                    <button class="node-btn node-boss" id="node-boss" onclick="loadBoss()">
-                        <i class="fa-solid fa-crown boss-crown"></i>
-                        <i class="fa-solid fa-skull"></i>
-                        <span class="node-label">PR Boss</span>
+                <!-- Row: Boss (Right) -->
+                <div class="relative z-10 w-full flex justify-end pr-8">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-boss" onclick="loadBoss()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-purple-600 border-b-[6px] border-purple-800 text-white flex items-center justify-center text-3xl shadow-lg relative hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-crown text-yellow-300 absolute -top-4 -right-2 text-2xl rotate-12 drop-shadow-lg"></i>
+                            <i class="fa-solid fa-skull drop-shadow-md"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">PR Boss</span>
                     </button>
                 </div>
 
-                <div class="node-row center">
-                    <button class="node-btn node-locked" id="node-recovery" onclick="loadRecovery()">
-                        <i class="fa-solid fa-bed"></i>
-                        <span class="node-label">Recovery</span>
+                <!-- Row: Recovery (Center - Locked) -->
+                <div class="relative z-10 w-full flex justify-center">
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0 opacity-70" id="node-recovery" onclick="loadRecovery()">
+                        <div class="node-circle w-20 h-20 rounded-full bg-emerald-500 border-b-[6px] border-emerald-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-lock absolute text-xs -top-2 bg-slate-800 px-2.5 py-1 rounded-full border border-slate-600 text-slate-300"></i>
+                            <i class="fa-solid fa-bed"></i>
+                        </div>
+                        <span class="mt-2 text-sm font-black text-slate-400 tracking-wide">Recovery</span>
                     </button>
                 </div>
-                        </section>
+            </section>
 
             <!-- Nutrition Detail Panel (opened from the Nutrition node) -->
-            <section class="nutrition-view hidden" id="nutrition-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="nutrition-back" onclick="backToNutritionPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="nutrition-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="nutrition-back" onclick="backToNutritionPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-apple-whole"></i> Nutrition</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-apple-whole text-green-400"></i> Nutrition
+                    </h2>
                 </div>
 
                 <div id="nutrition-content"></div>
 
                 <!-- Empty state / Link-Sparky CTA -->
-                <div id="nutrition-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-apple-whole"></i></div>
-                    <p class="empty-title">No nutrition data yet.</p>
-                    <p class="empty-desc">Link SparkyFitness to start tracking your macros.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                <div id="nutrition-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-green-400/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-apple-whole"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No nutrition data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your macros.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
+                    </div>
                 </div>
             </section>
 
             <!-- Hydration Detail Panel (opened from the Hydration node) -->
-            <section class="hydration-view hidden" id="hydration-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="hydration-back" onclick="backToHydrationPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="hydration-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="hydration-back" onclick="backToHydrationPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-glass-water"></i> Hydration</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-glass-water text-blue-400"></i> Hydration
+                    </h2>
                 </div>
 
                 <div id="hydration-content"></div>
 
                 <!-- Empty state / Link-Sparky CTA -->
-                <div id="hydration-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-glass-water"></i></div>
-                    <p class="empty-title">No hydration data yet.</p>
-                    <p class="empty-desc">Link SparkyFitness to start tracking your water intake.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                <div id="hydration-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-blue-400/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-glass-water"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No hydration data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your water intake.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
+                    </div>
                 </div>
             </section>
 
             <!-- Endurance Detail Panel (opened from the Endurance node) -->
-            <section class="endurance-view hidden" id="endurance-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="endurance-back" onclick="backToEndurancePlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="endurance-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="endurance-back" onclick="backToEndurancePlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-bicycle"></i> Endurance</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-bicycle text-blue-400"></i> Endurance
+                    </h2>
                 </div>
 
                 <div id="endurance-content"></div>
 
                 <!-- Empty state / Link-Sparky CTA -->
-                <div id="endurance-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-bicycle"></i></div>
-                    <p class="empty-title">No endurance data yet.</p>
-                    <p class="empty-desc">Link SparkyFitness to start tracking your workouts.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                <div id="endurance-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-blue-400/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-bicycle"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No endurance data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your workouts.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
+                    </div>
                 </div>
             </section>
 
             <!-- Strength Detail Panel (opened from the Strength node) -->
-            <section class="strength-view hidden" id="strength-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="strength-back" onclick="backToStrengthPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="strength-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="strength-back" onclick="backToStrengthPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-dumbbell"></i> Strength</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-dumbbell text-flamingo"></i> Strength
+                    </h2>
                 </div>
 
                 <div id="strength-content"></div>
 
                 <!-- Empty state / Link-Liftosaur CTA -->
-                <div id="strength-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-dumbbell"></i></div>
-                    <p class="empty-title">No strength data yet.</p>
-                    <p class="empty-desc">Link Liftosaur to track your lifting volume. PRs live in the PR Boss panel.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link Liftosaur</a>
+                <div id="strength-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-flamingo/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-dumbbell"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No strength data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link Liftosaur to track your lifting volume. PRs live in the PR Boss panel.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link Liftosaur</a>
+                    </div>
                 </div>
             </section>
 
             <!-- PR Boss Detail Panel (opened from the PR Boss node) -->
-            <section class="boss-view hidden" id="boss-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="boss-back" onclick="backToBossPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="boss-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="boss-back" onclick="backToBossPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-crown"></i> PR Boss</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-crown text-yellow-400"></i> PR Boss
+                    </h2>
                 </div>
 
                 <div id="boss-content"></div>
 
                 <!-- Empty state / Link CTA -->
-                <div id="boss-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-crown"></i></div>
-                    <p class="empty-title">No boss data yet.</p>
-                    <p class="empty-desc">Link Liftosaur and track your bodyweight in SparkyFitness to challenge the bosses.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link Providers</a>
+                <div id="boss-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-purple-500/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-skull"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No boss data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link Liftosaur and track your bodyweight in SparkyFitness to challenge the bosses.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl border-b-4 border-purple-800 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link Providers</a>
+                    </div>
                 </div>
             </section>
 
             <!-- Recovery Detail Panel (opened from the green Recovery node) -->
-            <section class="recovery-view hidden" id="recovery-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="recovery-back" onclick="backToRecoveryPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="recovery-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="recovery-back" onclick="backToRecoveryPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-bed"></i> Recovery</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-bed text-indigo-400"></i> Recovery
+                    </h2>
                 </div>
 
                 <div id="recovery-content"></div>
 
                 <!-- Empty state / Link-Sparky CTA -->
-                <div id="recovery-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-bed"></i></div>
-                    <p class="empty-title">No recovery data yet.</p>
-                    <p class="empty-desc">Link SparkyFitness to track your sleep and readiness.</p>
-                    <a href="{% url 'profile' %}" class="btn-flamingo">Link SparkyFitness</a>
+                <div id="recovery-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-indigo-400/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-bed"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No recovery data yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to track your sleep and readiness.</p>
+                        <a href="{% url 'profile' %}" class="w-full bg-indigo-500 text-white font-bold py-4 rounded-2xl border-b-4 border-indigo-700 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
+                    </div>
                 </div>
             </section>
 
             <!-- Base-building detail panel (Flamingo Club) -->
-            <section class="base-view hidden" id="base-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="base-back" onclick="backToBasePlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="base-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="base-back" onclick="backToBasePlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-umbrella-beach"></i> Flamingo Club</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-umbrella-beach text-orange-400"></i> Flamingo Club
+                    </h2>
                 </div>
 
                 <div id="base-content"></div>
 
-                <div id="base-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-umbrella-beach"></i></div>
-                    <p class="empty-title">Build your Flamingo Club</p>
-                                    <p class="empty-desc">Earn materials from workouts and collect daily harvests to expand your base.</p>
+                <div id="base-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-32 h-32 bg-slate-700 rounded-full flex items-center justify-center text-6xl text-orange-400/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-umbrella-beach"></i>
+                        </div>
+                        <p class="text-2xl font-bold text-white mb-3">Build your Flamingo Club</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Earn materials from workouts and collect daily harvests to expand your base.</p>
+                    </div>
                 </div>
             </section>
 
             <!-- Leagues / Challenges / Flock panel (Phase 8, docs/13) -->
-            <section class="base-view hidden" id="leagues-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="leagues-back" onclick="backToLeaguesPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="leagues-view">
+                <div class="flex items-center gap-4 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="leagues-back" onclick="backToLeaguesPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-shield-halved"></i> Leagues</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-blue-400"></i> Leagues
+                    </h2>
                 </div>
 
-                <!-- Sub-tabs: Leaderboard / Challenges / Flock -->
-                <div class="leagues-tabs" id="leagues-tabs">
-                    <button class="leagues-tab active" data-tab="leaderboard" onclick="switchLeaguesTab('leaderboard')">
-                        <i class="fa-solid fa-ranking-star"></i> Board
+                <!-- Sub-tabs: Leaderboard / Challenges / Flock (leagues.js toggles .active) -->
+                <div class="leagues-tabs flex bg-slate-800 rounded-2xl p-1.5 mb-6 border border-slate-600 shadow-inner" id="leagues-tabs">
+                    <button class="leagues-tab active flex-1 py-2.5 text-sm font-bold text-white rounded-xl transition-all" data-tab="leaderboard" onclick="switchLeaguesTab('leaderboard')">
+                        <i class="fa-solid fa-ranking-star mr-1"></i> Board
                     </button>
-                    <button class="leagues-tab" data-tab="challenges" onclick="switchLeaguesTab('challenges')">
-                        <i class="fa-solid fa-fire-flame-curved"></i> Challenge
+                    <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="challenges" onclick="switchLeaguesTab('challenges')">
+                        <i class="fa-solid fa-fire-flame-curved mr-1"></i> Challenge
                     </button>
-                    <button class="leagues-tab" data-tab="flock" onclick="switchLeaguesTab('flock')">
-                        <i class="fa-solid fa-dove"></i> Flock
+                    <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="flock" onclick="switchLeaguesTab('flock')">
+                        <i class="fa-solid fa-dove mr-1"></i> Flock
                     </button>
                 </div>
 
@@ -274,67 +519,94 @@
             </section>
 
             <!-- Achievement Badges panel (Roadmap idea #5) -->
-            <section class="base-view hidden" id="badges-view">
-                <div class="nutrition-view-header">
-                    <button class="btn-back" id="badges-back" onclick="backToBadgesPlan()">
-                        <i class="fa-solid fa-arrow-left"></i>
+            <section class="hidden p-4 min-h-full bg-slate-900" id="badges-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="badges-back" onclick="backToBadgesPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
-                    <h2 class="nutrition-view-title"><i class="fa-solid fa-medal"></i> Badges</h2>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-medal text-yellow-400"></i> Badges
+                    </h2>
                 </div>
 
                 <div id="badges-content"></div>
 
                 <!-- Empty / Link-Provider CTA -->
-                <div id="badges-empty" class="nutrition-empty hidden">
-                    <div class="empty-icon"><i class="fa-solid fa-medal"></i></div>
-                    <p class="empty-title">No badges yet.</p>
-                    <p class="empty-desc">Keep logging activities and leveling up - earned badges appear here.</p>
+                <div id="badges-empty" class="hidden">
+                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-yellow-500/50 mb-6 border-4 border-slate-800 shadow-inner">
+                            <i class="fa-solid fa-medal"></i>
+                        </div>
+                        <p class="text-xl font-bold text-white mb-3">No badges yet.</p>
+                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Keep logging activities and leveling up - earned badges appear here.</p>
+                    </div>
                 </div>
             </section>
         </main>
 
         <!-- Bottom Tab Nav -->
-        <nav class="bottom-nav">
-            <a href="#" class="nav-item active" id="nav-path" onclick="showPath(); return false;"><i class="fa-solid fa-map-location-dot"></i><span>Path</span></a>
-            <a href="#" class="nav-item" id="nav-leagues" onclick="loadLeagues(); return false;"><i class="fa-solid fa-shield-halved"></i><span>Leagues</span></a>
-                        <a href="#" class="nav-item" id="nav-badges" onclick="loadBadges(); return false;"><i class="fa-solid fa-medal"></i><span>Badges</span></a>
-            <a href="#" class="nav-item" id="nav-base" onclick="loadBase(); return false;"><i class="fa-solid fa-umbrella-beach"></i><span>Base</span></a>
-            <a href="{% url 'profile' %}" class="nav-item"><i class="fa-solid fa-user"></i><span>Profile</span></a>
+        <nav class="bottom-nav absolute bottom-0 w-full bg-slate-900 border-t border-slate-700 pb-safe z-50 rounded-t-3xl shadow-[0_-10px_30px_rgba(0,0,0,0.6)]">
+            <div class="flex justify-around items-center p-2.5">
+                <a href="#" class="nav-item active flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-path" onclick="showPath(); return false;">
+                    <i class="fa-solid fa-map-location-dot text-xl mb-1.5 drop-shadow-sm"></i>
+                    <span class="text-[11px] tracking-wide">Path</span>
+                </a>
+                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-leagues" onclick="loadLeagues(); return false;">
+                    <i class="fa-solid fa-shield-halved text-xl mb-1.5 drop-shadow-sm"></i>
+                    <span class="text-[11px] tracking-wide">Leagues</span>
+                </a>
+                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-badges" onclick="loadBadges(); return false;">
+                    <i class="fa-solid fa-medal text-xl mb-1.5 drop-shadow-sm"></i>
+                    <span class="text-[11px] tracking-wide">Badges</span>
+                </a>
+                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-base" onclick="loadBase(); return false;">
+                    <i class="fa-solid fa-umbrella-beach text-xl mb-1.5 drop-shadow-sm"></i>
+                    <span class="text-[11px] tracking-wide">Base</span>
+                </a>
+                <a href="{% url 'profile' %}" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16">
+                    <i class="fa-solid fa-user text-xl mb-1.5 drop-shadow-sm"></i>
+                    <span class="text-[11px] tracking-wide">Profile</span>
+                </a>
+            </div>
         </nav>
     </div>
 
-    <!-- Interactive Modal -->
+    <div class="milestone-toast fixed top-4 left-1/2 -translate-x-1/2 bg-flamingo text-white px-4 py-2.5 rounded-2xl font-bold shadow-[0_8px_30px_rgba(255,94,154,0.4)] z-[999] pointer-events-none" id="milestone-toast">Base Level Up!</div>
+
+    <!-- Action modal (dashboard.js uses #actionModal / #modal-title / #modal-desc / #modal-action) -->
     <div class="modal-overlay" id="actionModal">
-        <div class="modal-content">
-            <div class="modal-icon"><i class="fa-solid fa-dumbbell"></i></div>
-            <h2 class="modal-title" id="modal-title">Heavy Squat Day</h2>
-            <p class="modal-desc" id="modal-desc">Your Garmin body battery is high. Time to tackle your programming.</p>
-            <button class="btn-flamingo btn-purple" id="modal-action">Log via Liftosaur</button>
+        <div class="modal-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <div class="flex flex-col items-center text-center">
+                <div class="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center text-4xl text-flamingo mb-5 border-4 border-slate-800 shadow-inner">
+                    <i class="fa-solid fa-dumbbell drop-shadow-md"></i>
+                </div>
+                <h2 class="text-2xl font-black text-white mb-3 leading-tight drop-shadow-sm" id="modal-title">Title</h2>
+                <p class="text-slate-300 font-semibold mb-8 leading-relaxed" id="modal-desc">Description goes here.</p>
+                <button class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" id="modal-action" type="button">Log via Liftosaur</button>
+            </div>
         </div>
     </div>
 
-    <div class="milestone-toast" id="milestone-toast">Base Level Up!</div>
-
     <!-- Stat explainer modal (opened by clicking a top-nav stat badge) -->
     <div class="modal-overlay" id="statModal">
-        <div class="modal-content stat-modal-content">
-            <div class="modal-icon stat-modal-icon" id="stat-modal-icon">
+        <div class="modal-content stat-modal-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <div class="modal-icon stat-modal-icon flex items-center justify-center w-20 h-20 mx-auto bg-slate-700 rounded-full text-4xl mb-4 border-4 border-slate-800 shadow-inner" id="stat-modal-icon">
                 <i class="fa-solid fa-fire"></i>
             </div>
-            <h2 class="modal-title" id="stat-modal-title">Streak</h2>
-            <div class="stat-modal-value" id="stat-modal-value">-</div>
-            <p class="modal-desc stat-modal-desc" id="stat-modal-desc">-</p>
+            <h2 class="modal-title text-2xl font-black text-white text-center mb-2" id="stat-modal-title">Streak</h2>
+            <div class="stat-modal-value text-3xl font-black text-center mb-3" id="stat-modal-value">-</div>
+            <p class="modal-desc stat-modal-desc text-slate-300 font-semibold text-center mb-4" id="stat-modal-desc">-</p>
             <div class="stat-modal-body" id="stat-modal-body"></div>
-            <button class="btn-flamingo stat-modal-close" onclick="closeStatModal()">Got it!</button>
+            <button class="btn-flamingo stat-modal-close w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" onclick="closeStatModal()" type="button">Got it!</button>
         </div>
     </div>
 
     <!-- Generic friend picker modal (Phase 8: base staffing + flock invites) -->
     <div class="modal-overlay" id="friendPickerModal">
-        <div class="modal-content friend-picker-content">
-            <h2 class="modal-title" id="friend-picker-title">Pick a friend</h2>
+        <div class="modal-content friend-picker-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <h2 class="text-2xl font-black text-white mb-3" id="friend-picker-title">Pick a friend</h2>
             <div class="friend-picker-list" id="friend-picker-list"></div>
-            <button class="btn-flamingo stat-modal-close" onclick="closeFriendPicker()">Cancel</button>
+            <button class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" onclick="closeFriendPicker()" type="button">Cancel</button>
         </div>
     </div>
 
@@ -347,7 +619,7 @@
     <script src="{% static 'core/js/strength.js' %}"></script>
     <script src="{% static 'core/js/boss.js' %}"></script>
     <script src="{% static 'core/js/recovery.js' %}"></script>
-        <script src="{% static 'core/js/base.js' %}"></script>
+    <script src="{% static 'core/js/base.js' %}"></script>
     <script src="{% static 'core/js/badges.js' %}"></script>
     <script src="{% static 'core/js/leagues.js' %}"></script>
     <script src="{% static 'core/js/stat_info.js' %}"></script>
@@ -361,3 +633,11 @@
     </script>
 </body>
 </html>
+
+
+
+
+
+
+
+

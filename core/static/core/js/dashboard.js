@@ -118,7 +118,16 @@
                 var btn = document.getElementById(meta.node);
                 if (btn) {
                     btn.classList.add(meta.cls);
-                    btn.classList.remove('node-locked');
+                    btn.classList.remove('node-locked', 'opacity-70');
+                    var lockIcon = btn.querySelector('.fa-lock');
+                    if (lockIcon) lockIcon.remove();
+
+                    // Clean up any old injected badges/bars before re-adding
+                    var oldBadge = btn.querySelector('.node-level');
+                    if (oldBadge) oldBadge.remove();
+                    var oldXpWrap = btn.querySelector('.node-xp-wrap');
+                    if (oldXpWrap) oldXpWrap.remove();
+
                     if (tree && tree.level !== undefined) {
                         var badge = document.createElement('span');
                         badge.className = 'node-level';
@@ -152,6 +161,48 @@
         if (boss && bossUnlocked) {
             boss.classList.add('node-strength');
             boss.classList.remove('node-locked');
+        }
+
+        // Determine which node is worst today (lowest XP today).
+        // Tiebreaker priority: Recovery 1st, Strength 2nd, Endurance 3rd, Hydration 4th, Nutrition 5th, PR Boss last.
+        var PRIORITY = ['recovery', 'strength', 'endurance', 'hydration', 'nutrition', 'boss'];
+        var lowestKey = 'recovery';
+        var lowestXP = Infinity;
+
+        for (var p = 0; p < PRIORITY.length; p++) {
+            var currKey = PRIORITY[p];
+            var xpToday = 0;
+            if (currKey === 'boss') {
+                xpToday = (data.skill_trees && data.skill_trees['boss']) ? (data.skill_trees['boss'].today_xp || 0) : 0;
+            } else {
+                xpToday = (data.skill_trees && data.skill_trees[currKey]) ? (data.skill_trees[currKey].today_xp || 0) : 0;
+            }
+            if (xpToday < lowestXP) {
+                lowestXP = xpToday;
+                lowestKey = currKey;
+            }
+        }
+
+        // Reset pulse/bounce classes from all nodes
+        PRIORITY.forEach(function (k) {
+            var b = document.getElementById('node-' + k);
+            if (b) {
+                b.classList.remove('animate-bounce-slight');
+                var circle = b.querySelector('.node-circle') || b.querySelector('div');
+                if (circle) {
+                    circle.classList.remove('ring-4', 'ring-flamingo/30', 'shadow-[0_0_25px_rgba(255,94,154,0.5)]');
+                }
+            }
+        });
+
+        // Apply pulse to the lowest XP node
+        var targetNode = document.getElementById('node-' + lowestKey);
+        if (targetNode) {
+            targetNode.classList.add('animate-bounce-slight');
+            var targetCircle = targetNode.querySelector('.node-circle') || targetNode.querySelector('div');
+            if (targetCircle) {
+                targetCircle.classList.add('ring-4', 'ring-flamingo/30', 'shadow-[0_0_25px_rgba(255,94,154,0.5)]');
+            }
         }
 
         document.getElementById('loading-hint').classList.add('hidden');
