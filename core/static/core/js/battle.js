@@ -38,6 +38,7 @@
     }
 
     window.backToBattlePlan = function () {
+        if (window.goBack) { window.goBack(); return; }
         var view = document.getElementById('battle-view');
         if (view) view.classList.add('hidden');
         window.ensureSinglePanelVisible('skill-tree');
@@ -69,7 +70,7 @@
     window.renderBattle = function (data) {
         var content = document.getElementById('battle-content');
         if (!content) return;
-        var html = '<p class="text-xs text-slate-400 font-semibold mb-4">Tap a campaign to engage its boss. Buy gear in the Shop and equip it in the Loadout to hit harder.</p>';
+        var html = '<p class="text-xs text-slate-400 font-semibold mb-4">Tap a campaign to engage its boss. <button type="button" onclick="window.loadShop && window.loadShop(); return false;" class="text-indigo-300 underline">Buy gear in the Shop</button> and <button type="button" onclick="window.loadLoadout && window.loadLoadout(); return false;" class="text-indigo-300 underline">equip it in the Loadout</button> to hit harder.</p>';
 
         html += '<div class="grid grid-cols-1 gap-3">';
         (data.campaigns || []).forEach(function (c) {

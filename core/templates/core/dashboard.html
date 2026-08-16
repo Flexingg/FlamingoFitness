@@ -7,8 +7,14 @@
     <title>Flamingo Fitness</title>
     <meta name="csrf-token" content="{{ csrf_token }}">
     <meta name="theme-color" content="#FF5E9A">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Flamingo">
+    <meta name="description" content="A Duolingo-style fitness app: streaks, skill trees, and a Miami beach-club base.">
+    <link rel="icon" href="{% static 'core/icons/icon-192.svg' %}" type="image/svg+xml">
+    <!-- iOS home-screen icon (180x180 PNG; add to /static/core/icons/apple-touch-icon.png) -->
+    <link rel="apple-touch-icon" href="{% static 'core/icons/apple-touch-icon.png' %}">
     <!-- Theme controller: resolves light/dark/device/time BEFORE first paint -->
     <script src="{% static 'core/js/theme.js' %}"></script>
     <!-- PWA manifest (Step 20) -->
@@ -89,15 +95,15 @@
            short row on mobile instead of two stacked rows). */
         .nav-game-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; color: #94a3b8; }
         .nav-game-btn:hover { color: #e2e8f0; }
-        .nav-game-btn .nav-game-fab { width: 44px; height: 44px; margin-top: 0; border-radius: 50%;
+        .nav-game-btn .nav-game-fab { width: 32px; height: 32px; margin-top: 0; border-radius: 50%;
             background: linear-gradient(135deg, #FF5E9A, #D83A73); color: #fff;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 16px rgba(255, 94, 154, 0.5); border: 3px solid #0f172a;
+            box-shadow: 0 6px 16px rgba(255, 94, 154, 0.5); border: 2px solid #0f172a;
             transition: transform 0.18s ease; }
-        .nav-game-btn .nav-game-fab i { font-size: 17px; }
+        .nav-game-btn .nav-game-fab i { font-size: 13px; }
         .nav-game-btn.active { color: #FF5E9A; }
         .nav-game-btn.open .nav-game-fab { transform: rotate(135deg); }
-        #game-menu { position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%);
+        #game-menu { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
             z-index: 70; display: flex; gap: 6px; padding: 8px;
             background: #1e293b; border: 1px solid #334155; border-radius: 18px;
             box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6); }
@@ -256,7 +262,7 @@
         </header>
 
         <!-- Main Scrolling Content -->
-        <main class="flex-1 overflow-y-auto no-scrollbar pb-24 relative">
+        <main class="flex-1 overflow-y-auto no-scrollbar pb-10 relative">
 
             <div class="flex justify-center items-center py-2 text-slate-300 text-sm font-bold" id="loading-hint">
                 <i class="fa-solid fa-spinner fa-spin mr-2 text-flamingo"></i> Syncing your flock...
@@ -591,20 +597,24 @@
         </main>
 
         <!-- Bottom Tab Nav -->
-        <nav class="bottom-nav absolute bottom-0 w-full bg-slate-900 border-t border-slate-700 pb-safe z-50 rounded-t-3xl shadow-[0_-10px_30px_rgba(0,0,0,0.6)]">
-            <div class="flex justify-around items-center p-2.5">
-                <a href="#" class="nav-item active flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-path" onclick="showPath(); return false;">
-                    <i class="fa-solid fa-map-location-dot text-xl mb-1.5 drop-shadow-sm"></i>
-                    <span class="text-[11px] tracking-wide">Path</span>
+        <nav class="bottom-nav w-full bg-slate-900 border-t border-slate-700 pb-safe z-50 rounded-t-3xl shadow-[0_-10px_30px_rgba(0,0,0,0.6)]">
+            <div class="flex justify-around items-center gap-1 px-2 py-1">
+                <a href="#/" class="nav-item active flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-path" onclick="showPath(); return false;">
+                    <i class="fa-solid fa-map-location-dot text-base mb-0.5 drop-shadow-sm"></i>
+                    <span class="text-[10px] tracking-wide">Path</span>
                 </a>
-                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-leagues" onclick="loadLeagues(); return false;">
-                    <i class="fa-solid fa-shield-halved text-xl mb-1.5 drop-shadow-sm"></i>
-                    <span class="text-[11px] tracking-wide">Leagues</span>
+                <a href="#/leagues" class="nav-item flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-leagues" onclick="loadLeagues(); return false;">
+                    <i class="fa-solid fa-shield-halved text-base mb-0.5 drop-shadow-sm"></i>
+                    <span class="text-[10px] tracking-wide">Leagues</span>
                 </a>
-                <div class="relative w-16 h-16 flex items-center justify-center" id="game-btn-wrap">
+                <a href="#/badges" class="nav-item flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-badges" onclick="loadBadges(); return false;">
+                    <i class="fa-solid fa-medal text-base mb-0.5 drop-shadow-sm"></i>
+                    <span class="text-[10px] tracking-wide">Badges</span>
+                </a>
+                <div class="relative w-12 h-11 flex items-center justify-center" id="game-btn-wrap">
                     <button class="nav-game-btn" id="nav-game" onclick="toggleGameMenu(event); return false;" aria-haspopup="true" aria-expanded="false" aria-label="Game menu" title="Shop, Inventory, Battle, PvP">
                         <span class="nav-game-fab"><i class="fa-solid fa-dice-d6"></i></span>
-                        <span class="text-[11px] tracking-wide">Game</span>
+                        <span class="text-[10px] tracking-wide">Game</span>
                     </button>
                     <div id="game-menu" class="game-menu hidden" role="menu" aria-label="Game menu">
                         <button role="menuitem" onclick="gotoGame('loadShop'); return false;"><i class="fa-solid fa-box-open"></i><span>Shop</span></button>
@@ -613,10 +623,6 @@
                         <button role="menuitem" onclick="gotoGame('loadPvP'); return false;"><i class="fa-solid fa-fist-raised"></i><span>PvP</span></button>
                     </div>
                 </div>
-                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-badges" onclick="loadBadges(); return false;">
-                    <i class="fa-solid fa-medal text-xl mb-1.5 drop-shadow-sm"></i>
-                    <span class="text-[11px] tracking-wide">Badges</span>
-                </a>
             </div>
         </nav>
     </div>
@@ -662,6 +668,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
+    <script src="{% static 'core/js/router.js' %}"></script>
     <script src="{% static 'core/js/dashboard.js' %}"></script>
     <script src="{% static 'core/js/nutrition.js' %}"></script>
     <script src="{% static 'core/js/hydration.js' %}"></script>

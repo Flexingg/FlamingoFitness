@@ -46,6 +46,7 @@
     }
 
     window.backToPvPPlan = function () {
+        if (window.goBack) { window.goBack(); return; }
         var view = document.getElementById('pvp-view');
         if (view) view.classList.add('hidden');
         window.ensureSinglePanelVisible('skill-tree');

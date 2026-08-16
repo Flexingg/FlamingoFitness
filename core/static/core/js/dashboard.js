@@ -21,6 +21,20 @@
         'shop-view', 'loadout-view', 'battle-view', 'pvp-view',
         'badges-view', 'leagues-view'];
 
+    // Maps each panel to the bottom-nav tab it belongs to (used when restoring
+    // a previous view so the active nav highlight stays in sync).
+    var PANEL_NAV = {
+        'skill-tree': 'nav-path',
+        'nutrition-view': 'nav-path', 'hydration-view': 'nav-path',
+        'endurance-view': 'nav-path', 'strength-view': 'nav-path',
+        'boss-view': 'nav-path', 'recovery-view': 'nav-path',
+        'shop-view': 'nav-shop', 'loadout-view': 'nav-loadout',
+        'battle-view': 'nav-battle', 'pvp-view': 'nav-pvp',
+        'badges-view': 'nav-badges', 'leagues-view': 'nav-leagues'
+    };
+
+    // Panel history is tracked by the browser via AppRouter (router.js), which
+    // records the active panel in the URL fragment so back/forward work naturally.
     // Hide ALL panels so opening a new one REPLACES the current view instead
     // of stacking underneath it (Phase 8 bug-fix).
     window.hideAllPanels = function () {
@@ -92,26 +106,37 @@
     }
     document.addEventListener('click', onDocClick);
 
-    // Path tab: return to the skill tree from anywhere.
+    // Path tab: return to the skill tree from anywhere. Because this is an
+    // explicit "go home", clear the URL so a later back press doesn't
+    // resurrect a deep page the user had already left.
     window.showPath = function () {
         if (window.closeModal) window.closeModal();
         window.hideAllPanels();
         var tree = document.getElementById('skill-tree');
         if (tree) tree.classList.remove('hidden');
         window.setActiveNav('nav-path');
+        if (window.AppRouter) window.AppRouter.navigate('skill-tree');
     };
 
-    // Phase 8: Ensure only one panel is visible at a time when navigating.
-    // This replaces the stacking behavior where multiple panels could be visible
-    // if back/next navigation doesn't fully clear previous panels.
-    window.ensureSinglePanelVisible = function(visiblePanelId) {
-        // Hide ALL panels first (this is the key fix - hide everything before showing new one)
+    // Go back through the browser/app history. Falls back to the skill tree
+    // when there is no history to walk (e.g. the view was opened directly).
+    window.goBack = function () {
+        if (window.closeModal) window.closeModal();
+        if (window.AppRouter) { window.AppRouter.back(); return; }
+        window.setActiveNav('nav-path');
+    };
+
+    // Ensure only one panel is visible at a time when navigating. This
+    // replaces the stacking behavior where multiple panels could be visible.
+    // Also records the switch in the browser history via the router so the
+    // back button can return to the previous panel.
+    window.ensureSinglePanelVisible = function (visiblePanelId) {
         window.hideAllPanels();
-        // Then show only the specified panel if it exists
         var panel = document.getElementById(visiblePanelId);
         if (panel) {
             panel.classList.remove('hidden');
         }
+        if (window.AppRouter) window.AppRouter.navigate(visiblePanelId);
     };
 
     function showError(message) {

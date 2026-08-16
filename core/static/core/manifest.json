@@ -2,18 +2,92 @@
   "name": "Flamingo Fitness",
   "short_name": "Flamingo",
   "description": "A Duolingo-style fitness app: streaks, skill trees, and a Miami beach-club base.",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FDF4F7",
   "theme_color": "#FF5E9A",
+  "categories": ["health", "fitness", "games"],
   "icons": [
+    {
+      "src": "/static/core/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/core/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/core/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/static/core/icons/icon-192.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Go to the Shop",
+      "short_name": "Shop",
+      "description": "Open the Gacha Shop",
+      "url": "/#/shop",
+      "icons": [
+        {
+          "src": "/static/core/icons/shortcut-shop.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Go to Battle",
+      "short_name": "Battle",
+      "description": "Begin a campaign siege",
+      "url": "/#/battle",
+      "icons": [
+        {
+          "src": "/static/core/icons/shortcut-battle.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Go to PvP",
+      "short_name": "PvP",
+      "description": "Attack a rival gym",
+      "url": "/#/pvp",
+      "icons": [
+        {
+          "src": "/static/core/icons/shortcut-pvp.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Open Leagues",
+      "short_name": "Leagues",
+      "description": "See the weekly leaderboard and challenges",
+      "url": "/#/leagues",
+      "icons": [
+        {
+          "src": "/static/core/icons/shortcut-leagues.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ]
 }

@@ -40,6 +40,7 @@
     }
 
     window.backToShopPlan = function () {
+        if (window.goBack) { window.goBack(); return; }
         var view = document.getElementById('shop-view');
         if (view) view.classList.add('hidden');
         window.ensureSinglePanelVisible('skill-tree');

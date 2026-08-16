@@ -2336,3 +2336,45 @@ class Phase9CleanupTests(TestCase):
         self.assertIn("equipped", body)
         self.assertTrue(any(c["slug"] == "candidate_item" for c in body["candidates"]))
 
+    def test_loadout_state_carries_item_detail_fields(self):
+        """The Inventory page's item popups need description + when/how acquired."""
+        gear = GearItemDef.objects.create(
+            slug="detail_item", name="Detail Item", slot="legs", rarity="epic",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.3, pack=self.pack,
+            description="Sturdy greaves that help you squat deeper and stronger.",
+        )
+        ug = UserGear.objects.create(
+            user=self.user, gear_def=gear, rarity="epic",
+            equipped_slot="legs", quantity=1,
+        )
+
+        resp = self.client.get("/loadout/state")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+
+        owned_item = next(o for o in body["owned"] if o["slug"] == "detail_item")
+        self.assertEqual(owned_item["description"], "Sturdy greaves that help you squat deeper and stronger.")
+        self.assertEqual(owned_item["pack_name"], "Bulk Pack")
+        self.assertEqual(owned_item["quantity"], 1)
+        self.assertTrue(owned_item["obtained_at"])
+        self.assertTrue(owned_item["equipped"])
+
+        equipped_item = body["equipped"]["legs"]
+        self.assertEqual(equipped_item["description"], "Sturdy greaves that help you squat deeper and stronger.")
+        self.assertEqual(equipped_item["pack_name"], "Bulk Pack")
+        self.assertTrue(equipped_item["obtained_at"])
+
+        # Items without a pack report a null origin (front-end shows a default note).
+        loose = GearItemDef.objects.create(
+            slug="loose_item", name="Loose Item", slot="head", rarity="common",
+            effect_type="domain_multiplier", effect_domain="hydration",
+            effect_value=1.0, pack=None, description="A no-pack drop.",
+        )
+        UserGear.objects.create(user=self.user, gear_def=loose, rarity="common")
+        resp = self.client.get("/loadout/state")
+        loose_item = next(o for o in resp.json()["owned"] if o["slug"] == "loose_item")
+        self.assertIsNone(loose_item["pack_name"])
+        self.assertEqual(loose_item["description"], "A no-pack drop.")
+
+

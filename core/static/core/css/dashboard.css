@@ -272,14 +272,14 @@ body {
 
 /* Bottom navigation */
 .bottom-nav {
-    position: absolute;
-    bottom: 0;
+    position: relative;
     left: 0;
     width: 100%;
     display: flex;
     justify-content: space-around;
-    padding: 16px 10px;
-    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    flex-shrink: 0;
+    padding: 6px 10px;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
     background-color: var(--bg-light);
     border-top: 2px solid var(--border-color);
     z-index: 10;

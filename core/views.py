@@ -758,6 +758,10 @@ def loadout_state(request):
             "effect_type": ug.gear_def.effect_type,
             "effect_domain": ug.gear_def.effect_domain,
             "effect_value": ug.gear_def.effect_value,
+            "description": ug.gear_def.description,
+            "obtained_at": ug.obtained_at.isoformat(),
+            "pack_name": ug.gear_def.pack.name if ug.gear_def.pack else None,
+            "quantity": ug.quantity,
         } if ug else None
     owned = [
         {
@@ -766,6 +770,10 @@ def loadout_state(request):
             "effect_type": ug.gear_def.effect_type,
             "effect_domain": ug.gear_def.effect_domain,
             "effect_value": ug.gear_def.effect_value,
+            "description": ug.gear_def.description,
+            "obtained_at": ug.obtained_at.isoformat(),
+            "pack_name": ug.gear_def.pack.name if ug.gear_def.pack else None,
+            "quantity": ug.quantity,
             "equipped": bool(ug.equipped_slot),
         }
         for ug in UserGear.objects.filter(

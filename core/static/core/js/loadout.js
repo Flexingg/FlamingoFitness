@@ -42,6 +42,7 @@
     }
 
     window.backToLoadoutPlan = function () {
+        if (window.goBack) { window.goBack(); return; }
         var view = document.getElementById('loadout-view');
         if (view) view.classList.add('hidden');
         window.ensureSinglePanelVisible('skill-tree');
@@ -73,6 +74,65 @@
             '<div class="text-xs text-slate-400 font-semibold mt-1">' + esc(item.effect_type.replace('_', ' ')) +
             (item.effect_domain ? ' &middot; ' + esc(item.effect_domain) : '') + ' +' + esc(item.effect_value) + 'x</div>';
     }
+    // ---- Item detail popup ----
+    // Any inventory card can be tapped to explain what the item does and when /
+    // how it was acquired.
+    function normalizeItemDetail(item) {
+        if (!item) return null;
+        return {
+            id: item.id, name: item.name, rarity: item.rarity, icon: item.icon,
+            effect_type: (item.effect_type || '').replace(/_/g, ' '),
+            effect_domain: item.effect_domain || null,
+            effect_value: item.effect_value,
+            quantity: item.quantity,
+            description: item.description || 'No description on file for this item yet.',
+            obtained_at: item.obtained_at || null,
+            pack_name: item.pack_name || null,
+            equipped: !!item.equipped
+        };
+    }
+
+    window.showItemDetail = function (item) {
+        var d = normalizeItemDetail(item);
+        if (!d) return;
+        haptic(15);
+        var color = RARITY_COLOR[d.rarity] || '#94a3b8';
+        var when = d.obtained_at ? new Date(d.obtained_at).toLocaleString() : 'Earlier today';
+        var how = d.pack_name ? ('Won from the <b>' + esc(d.pack_name) + '</b> pack in the Shop') : 'From the gear catalog / default loadout';
+        var badge = d.equipped ? '<span class="text-emerald-400 font-black text-xs uppercase">In Use</span>' : '';
+        var overlay = document.getElementById('loadout-item-detail');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'loadout-item-detail';
+            document.body.appendChild(overlay);
+        }
+        overlay.innerHTML = '<div class="modal-overlay show-modal" role="dialog" aria-modal="true">' +
+            '<div class="modal-content stat-modal-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">' +
+            '<div class="w-16 h-16 mx-auto rounded-2xl bg-slate-700 flex items-center justify-center text-3xl mb-3 shadow-inner" style="border:3px solid ' + color + '\"><i class="fa-solid ' + esc(d.icon || 'fa-shield') + '" style="color:' + color + '\"></i></div>' +
+            '<h2 class="text-2xl font-black text-white text-center mb-1">' + esc(d.name) + '</h2>' +
+            '<div class="flex items-center justify-center gap-2 mb-4">' +
+            '<span class="text-center text-sm font-black" style="color:' + color + '\">' + esc(d.rarity).toUpperCase() + '</span>' +
+            (badge || '') + '</div>' +
+            '<div class="text-sm text-slate-200 font-semibold space-y-3">' +
+            '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">What it does</div>' +
+            esc(d.effect_type || 'Passive gear bonus') +
+            (d.effect_domain ? ' &middot; ' + esc(d.effect_domain) : '') +
+            ' +' + esc(d.effect_value) + 'x' +
+            (d.quantity ? ' &middot; x' + d.quantity + ' owned' : '') + '</div>' +
+            '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">Description</div>' + esc(d.description) + '</div>' +
+            '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">How you got it</div>' + how + '</div>' +
+            '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">When</div>' + esc(when) + '</div>' +
+            '</div>' +
+            '<button type="button" onclick="window.closeLoadoutItemDetail && window.closeLoadoutItemDetail();" class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg mt-4">Got it</button>' +
+            '</div></div>';
+    };
+
+    window.closeLoadoutItemDetail = function () {
+        var overlay = document.getElementById('loadout-item-detail');
+        if (overlay) overlay.innerHTML = '';
+    };
+
+
 
     window.renderLoadout = function (data) {
         var content = document.getElementById('loadout-content');
@@ -80,18 +140,32 @@
         var equipped = data.equipped || {};
         var owned = data.owned || [];
 
+        // Look-up so a tapped card can resolve which item it belongs to.
+        var itemById = {};
+        (owned || []).forEach(function (o) { itemById[o.id] = o; });
+        for (var k in equipped) {
+            if (equipped[k]) itemById[equipped[k].id] = equipped[k];
+        }
+
         // Equipment slots panel.
-        var html = '<h3 class="text-white font-black mb-3"><i class="fa-solid fa-vest text-indigo-400"></i> Equipment Slots</h3>';
+        var html = '<h3 class="text-white font-black mb-3"><i class="fa-solid fa-vest text-indigo-400"></i> Equipment Slots</h3>' +
+            '<p class="text-xs text-slate-500 font-semibold mb-3">Tap any item to see what it does and how you got it.</p>';
         html += '<div class="flex flex-col gap-3">';
         SLOT_ORDER.forEach(function (slot) {
             var meta = SLOT_META[slot];
             var item = equipped[slot];
             html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 flex items-center gap-4 shadow-lg">' +
                 '<div class="w-12 h-12 rounded-2xl bg-slate-700 flex items-center justify-center text-xl"><i class="fa-solid ' + meta.icon + ' text-indigo-300"></i></div>' +
-                '<div class="flex-1"><div class="text-xs font-black text-slate-400 uppercase tracking-wide">' + meta.label + '</div>' +
-                itemCardLabel(item) +
-                (item ? '<button class="mt-2 text-xs font-bold text-slate-400 underline hover:text-slate-200" data-unequip="' + esc(item.id) + '">Unequip</button>' : '') +
-                '</div></div>';
+                (item
+                    ? '<div class="flex-1 cursor-pointer" data-detail-id="' + esc(item.id) + '" role="button" tabindex="0" aria-label="Item details for ' + esc(item.name) + '">' +
+                        '<div class="flex items-center justify-between"><div class="text-xs font-black text-slate-400 uppercase tracking-wide">' + meta.label + '</div>' +
+                        '<i class="fa-solid fa-circle-info text-slate-500 text-xs"></i></div>' +
+                        itemCardLabel(item) +
+                        '<button class="mt-2 text-xs font-bold text-slate-400 underline hover:text-slate-200" data-unequip="' + esc(item.id) + '">Unequip</button>' +
+                        '</div>'
+                    : '<div class="flex-1"><div class="text-xs font-black text-slate-400 uppercase tracking-wide">' + meta.label + '</div>' +
+                        '<div class="text-slate-500 font-semibold text-sm">Empty slot - equip from below</div></div>') +
+                '</div>';
         });
         html += '</div>';
 
@@ -104,7 +178,7 @@
         if (!itemCount) {
             html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 text-sm text-slate-300 font-semibold">' +
                 '<p class="mb-1"><i class="fa-solid fa-circle-info text-indigo-400"></i> Your inventory is empty.</p>' +
-                '<p class="text-slate-400">Head to <b>Shop</b> (the Game button) and pull a pack to haul in new gear, then come back here to equip it.</p></div>';
+                '<p class="text-slate-400">Head to the <button type="button" onclick="window.loadShop && window.loadShop(); return false;" class="text-indigo-400 font-black underline hover:text-indigo-300">Shop (the Game button)</button> and pull a pack to haul in new gear, then come back here to equip it.</p></div>';
         } else {
             html += '<div class="flex flex-col gap-3">';
             SLOT_ORDER.forEach(function (slot) {
@@ -112,11 +186,12 @@
                 if (!list.length) return;
                 list.forEach(function (c) {
                     var meta = SLOT_META[slot];
-                    html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 flex items-center gap-4 shadow-lg">' +
+                    html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 flex items-center gap-4 shadow-lg cursor-pointer" data-detail-id="' + esc(c.id) + '" role="button" tabindex="0" aria-label="Item details for ' + esc(c.name) + '">' +
                         '<div class="w-11 h-11 rounded-2xl bg-slate-700 flex items-center justify-center"><i class="fa-solid ' + esc(c.icon || 'fa-shield') + '"></i></div>' +
-                        '<div class="flex-1"><div class="font-black text-white">' + esc(c.name) + '</div>' +
+                        '<div class="flex-1"><div class="flex items-center justify-between"><div class="font-black text-white">' + esc(c.name) + '</div>' +
+                        '<i class="fa-solid fa-circle-info text-slate-600 text-xs"></i></div>' +
                         '<div class="text-xs font-bold" style="color:' + (RARITY_COLOR[c.rarity] || '#94a3b8') + '">' + esc(c.rarity).toUpperCase() + ' &middot; ' + meta.label + '</div>' +
-                        '<div class="text-xs text-slate-500 font-semibold">' + esc(c.effect_type.replace('_', ' ')) +
+                        '<div class="text-xs text-slate-500 font-semibold">' + esc((c.effect_type || '').replace(/_/g, ' ')) +
                         (c.effect_domain ? ' &middot; ' + esc(c.effect_domain) : '') + ' +' + esc(c.effect_value) + 'x</div></div>' +
                         (c.equipped
                             ? '<span class="text-emerald-400 font-black text-xs uppercase">Equipped</span>'
@@ -125,19 +200,33 @@
                 });
             });
             html += '</div>';
-            html += '<p class="text-xs text-slate-500 font-semibold mt-3">Consumables (potions) are kept and used from the Shop.</p>';
+            html += '<p class="text-xs text-slate-500 font-semibold mt-3">Consumables (potions) are kept and used from the <button type="button" onclick="window.loadShop && window.loadShop(); return false;" class="text-indigo-400 font-black underline hover:text-indigo-300">Shop</button>.</p>';
         }
 
         content.innerHTML = html;
 
         content.querySelectorAll('button[data-equip]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
                 equip(btn.getAttribute('data-equip'));
             });
         });
         content.querySelectorAll('button[data-unequip]').forEach(function (btn) {
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
                 unequip(btn.getAttribute('data-unequip'));
+            });
+        });
+        // Make every item (equipped + inventory) open its detail popup on tap.
+        content.querySelectorAll('[data-detail-id]').forEach(function (card) {
+            var id = card.getAttribute('data-detail-id');
+            if (!id || !itemById[id]) return;
+            var openDetail = function () {
+                window.showItemDetail(itemById[id]);
+            };
+            card.addEventListener('click', openDetail);
+            card.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(); }
             });
         });
     };
