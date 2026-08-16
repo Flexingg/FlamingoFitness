@@ -281,12 +281,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.tasks.compute_readiness_for_all",
         "schedule": crontab(minute=15, hour=6),
     },
-    # Daily base-building economy tick (docs/09 §9): energy refill, XP->materials
-    # harvest, expired buff cleanup, lazy construction completion, auto-collect.
+    # Daily combat/token maintenance (docs/15 §9): token dividend, stamina
+    # refill, buff cleanup, and passive Gym token yields.
     # Idempotent, safe to run twice.
-    "tick-base-economy-daily": {
-        "task": "core.tasks.tick_base_economy_daily",
-        "schedule": crontab(minute=5, hour=0),
+    "tick-combat-daily": {
+        "task": "core.tasks.tick_combat_daily",
+        "schedule": crontab(minute=10, hour=0),
     },
     # Phase 8 (docs/13 §9): close the finished league week (snapshot ranks,
     # pay top-3 rewards) and open the new one. Monday just after midnight.

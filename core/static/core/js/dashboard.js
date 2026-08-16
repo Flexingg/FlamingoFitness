@@ -18,7 +18,8 @@
     // Every panel that can be opened from the bottom nav / skill-tree nodes.
     var PANEL_IDS = ['skill-tree', 'nutrition-view', 'hydration-view',
         'endurance-view', 'strength-view', 'boss-view', 'recovery-view',
-        'base-view', 'badges-view', 'leagues-view'];
+        'shop-view', 'loadout-view', 'battle-view', 'pvp-view',
+        'badges-view', 'leagues-view'];
 
     // Hide ALL panels so opening a new one REPLACES the current view instead
     // of stacking underneath it (Phase 8 bug-fix).
@@ -33,13 +34,63 @@
         if (err) err.classList.add('hidden');
     };
 
-    // Bottom-nav active-tab management.
+    // Bottom-nav active-tab management. The four combat views (Shop/Loadout/
+    // Battle/PvP) live behind the center "Game" FAB, so opening any of them
+    // highlights the Game button instead of a (now removed) standalone tab.
     window.setActiveNav = function (id) {
+        var remap = {
+            'nav-shop': 'nav-game', 'nav-loadout': 'nav-game',
+            'nav-battle': 'nav-game', 'nav-pvp': 'nav-game'
+        };
+        var target = remap[id] || id;
         var items = document.querySelectorAll('.bottom-nav .nav-item');
         for (var i = 0; i < items.length; i++) {
-            items[i].classList.toggle('active', items[i].id === id);
+            items[i].classList.toggle('active', items[i].id === target);
+        }
+        var gameBtn = document.getElementById('nav-game');
+        if (gameBtn) gameBtn.classList.toggle('active', target === 'nav-game');
+        var menu = document.getElementById('game-menu');
+        if (menu) menu.classList.add('hidden');
+        if (gameBtn) gameBtn.classList.remove('open');
+    };
+
+    function closeGameMenu() {
+        var menu = document.getElementById('game-menu');
+        if (menu) menu.classList.add('hidden');
+        var btn = document.getElementById('nav-game');
+        if (btn) { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+    }
+
+    // Center FAB: open/close the radial Game menu (keeps the bottom bar a single
+    // short row instead of two stacked rows of tabs).
+    window.toggleGameMenu = function (event) {
+        if (event) event.stopPropagation();
+        var menu = document.getElementById('game-menu');
+        if (!menu) return;
+        if (menu.classList.contains('hidden')) {
+            menu.classList.remove('hidden');
+            var btn = document.getElementById('nav-game');
+            if (btn) { btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); }
+        } else {
+            closeGameMenu();
         }
     };
+
+    window.gotoGame = function (fnName) {
+        closeGameMenu();
+        var fn = window[fnName];
+        if (typeof fn === 'function') fn();
+    };
+
+    // Close the Game menu when tapping anywhere outside it.
+    function onDocClick(ev) {
+        var menu = document.getElementById('game-menu');
+        var wrap = document.getElementById('game-btn-wrap');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (wrap && wrap.contains(ev.target)) return;
+        closeGameMenu();
+    }
+    document.addEventListener('click', onDocClick);
 
     // Path tab: return to the skill tree from anywhere.
     window.showPath = function () {
@@ -76,8 +127,8 @@
     function renderState(data) {
         // Top nav stats
         document.querySelector('#stat-streak span').textContent = data.user.streak;
-        document.querySelector('#stat-materials span').textContent = data.resources.materials;
-        document.querySelector('#stat-energy span').textContent = data.resources.energy;
+        document.querySelector('#stat-tokens span').textContent = data.resources.tokens;
+        document.querySelector('#stat-stamina span').textContent = data.resources.stamina;
         document.getElementById('avatar-img').src = data.user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
         // Add onerror fallback so broken uploaded images revert to the cartoon default.
         document.getElementById('avatar-img').onerror = function () {
@@ -233,21 +284,27 @@
         }
     });
 
+    // Refresh the top-nav shell (streak / tokens / stamina) after any mutation
+    // in the Shop / Battle / PvP controllers. Always returns the parsed state.
+    window.refreshDashboardState = function () {
+        return fetch('/api/v1/dashboard/state', { credentials: 'same-origin' })
+            .then(function (res) {
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error('not-authenticated');
+                }
+                return res.ok ? res.json() : Promise.reject(res.status);
+            })
+            .then(renderState)
+            .catch(function (err) {
+                if (err && err.message === 'not-authenticated') {
+                    showError('Please log in via the admin panel to view your dashboard.');
+                } else {
+                    showError('Could not load your dashboard. Is the API running? (Error ' + err + ')');
+                }
+            });
+    };
+
     // ---- Boot: fetch dashboard state on page load ----
-    fetch('/api/v1/dashboard/state', { credentials: 'same-origin' })
-        .then(function (res) {
-            if (res.status === 401 || res.status === 403) {
-                throw new Error('not-authenticated');
-            }
-            return res.ok ? res.json() : Promise.reject(res.status);
-        })
-        .then(renderState)
-        .catch(function (err) {
-            if (err && err.message === 'not-authenticated') {
-                showError('Please log in via the admin panel to view your dashboard.');
-            } else {
-                showError('Could not load your dashboard. Is the API running? (Error ' + err + ')');
-            }
-        });
+    window.refreshDashboardState();
 })();
 

@@ -19,16 +19,16 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import (
-    BaseResource,
     Modality,
     RawActivityLog,
     SkillTree,
     XPLedger,
 )
-from .base_economy import (
-    base_xp_bonus_pct,
-    maybe_drop_blueprint,
-    log_modality_workout,
+from .combat import (
+    TOKEN_BOSS_PR,
+    TOKEN_PERFECT_HYDRATION,
+    TOKEN_PERFECT_MACRO,
+    award_tokens,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,10 +38,6 @@ XP_PER_LEVEL = 100
 
 # Readiness threshold below which a rest day is mandated (Step 15).
 REST_DAY_THRESHOLD = 50
-
-# Resource rewards for certain events.
-PERFECT_MACRO_MATERIALS = 10
-BOSS_TIME_SPEEDUPS = 5
 
 
 # ---------------------------------------------------------------------------
@@ -88,18 +84,6 @@ def nutrition_xp(perfect_macros):
     """Perfect macros (protein hit + under calorie) = +50 Nutrition XP."""
     return 50 if perfect_macros else 0
 
-# ---------------------------------------------------------------------------
-# Resource helpers
-# ---------------------------------------------------------------------------
-def award_resources(user, materials=0, energy=0, time_speedups=0):
-    """Increment the user's base-building resources."""
-    resources, _ = BaseResource.objects.get_or_create(user=user)
-    resources.materials = max(0, resources.materials + materials)
-    resources.energy = max(0, resources.energy + energy)
-    resources.time_speedups = max(0, resources.time_speedups + time_speedups)
-    resources.save(update_fields=["materials", "energy", "time_speedups"])
-    return resources
-
 
 # ---------------------------------------------------------------------------
 # Skill tree progression (Step 14)
@@ -123,21 +107,6 @@ def apply_to_skill_tree(user, modality, amount):
     return tree
 
 
-def _apply_modality_buff(user, modality):
-    """Phase 7 (docs/09 §5.7): grant a 24h production buff for a logged workout.
-
-    ``"strength"`` handler -> ``"strength"``; ``cardio``/``endurance`` handlers
-    -> ``"cardio"``. Non-fatal so an economy error never loses the XP award.
-    """
-    try:
-        resources, _ = BaseResource.objects.get_or_create(user=user)
-        log_modality_workout(resources, modality)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "Failed to set %s modality buff; XP already awarded.", modality
-        )
-
-
 # ---------------------------------------------------------------------------
 # Payload -> XP dispatch
 # ---------------------------------------------------------------------------
@@ -158,8 +127,6 @@ def _handle_cardio(raw_log):
     xp = endurance_xp(payload.get("minutes", 0), payload.get("intensity", ""))
     if xp <= 0:
         return []
-    # Phase 7 (docs/09 §5.7): cardio workouts set a 24h cardio production buff.
-    _apply_modality_buff(raw_log.user, "cardio")
     return [
         XPLedger(
             user=raw_log.user,
@@ -182,16 +149,8 @@ def _handle_endurance(raw_log):
     if total_calories <= 0:
         return []
 
-    # Phase 7 (docs/09 section 5.7): exercise (endurance/cardio) sets a 24h cardio buff.
-    _apply_modality_buff(raw_log.user, "cardio")
-
     # 1 XP per 10 calories burned, minimum 10 XP
     xp = max(10, int(total_calories / 10))
-
-    # Bonus materials for high calorie burns (500+ cal = +5 materials)
-    materials = 5 if total_calories >= 500 else 0
-    if materials:
-        award_resources(raw_log.user, materials=materials)
 
     entry_count = len(payload.get("exercise_entries", []))
     total_min = payload.get("total_duration_minutes", 0)
@@ -236,14 +195,7 @@ def _handle_strength(raw_log):
                 description="Boss fight: weekly PR! (2x multiplier)",
             )
         )
-        award_resources(raw_log.user, time_speedups=BOSS_TIME_SPEEDUPS)
-        # Phase 7 (docs/09 section 5.7): a PR boss fight rolls a rare blueprint.
-        try:
-            maybe_drop_blueprint(raw_log.user)
-        except Exception:  # noqa: BLE001
-            logger.exception('Blueprint drop roll failed; strength XP already awarded.')
-    # Phase 7 (docs/09 section 5.7): strength workouts set a 24h strength production buff.
-    _apply_modality_buff(raw_log.user, 'strength')
+        award_tokens(raw_log.user, TOKEN_BOSS_PR)
     return entries
 
 
@@ -284,7 +236,7 @@ def _handle_macro(raw_log):
     xp = nutrition_xp(perfect)
     if xp <= 0:
         return []
-    award_resources(raw_log.user, materials=PERFECT_MACRO_MATERIALS)
+    award_tokens(raw_log.user, TOKEN_PERFECT_MACRO)
     return [
         XPLedger(
             user=raw_log.user,
@@ -316,7 +268,7 @@ def _handle_hydration(raw_log):
     if not perfect:
         return []
 
-    award_resources(raw_log.user, materials=5)
+    award_tokens(raw_log.user, TOKEN_PERFECT_HYDRATION)
     return [
         XPLedger(
             user=raw_log.user,
@@ -346,7 +298,7 @@ def summarize_hydration(raw_log):
 
     perfect = bool(water_goal_f is not None and total_water >= water_goal_f)
     xp = 30 if perfect else 0
-    materials = 5 if perfect else 0
+    tokens = TOKEN_PERFECT_HYDRATION if perfect else 0
 
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
@@ -359,7 +311,7 @@ def summarize_hydration(raw_log):
         "water_pct": water_pct,
         "perfect": perfect,
         "xp": xp,
-        "materials": materials,
+        "tokens": tokens,
         "water_intake_entries": [
             {
                 "time": e.get("time") or e.get("logged_at") or "",
@@ -382,8 +334,6 @@ def summarize_endurance(raw_log):
 
     # XP from the rulebook: 1 XP per 10 cal, min 10 XP
     xp = max(10, int(total_calories / 10)) if total_calories > 0 else 0
-    # Materials for 500+ cal burns
-    materials = 5 if total_calories >= 500 else 0
 
     return {
         "date": date_str,
@@ -391,7 +341,7 @@ def summarize_endurance(raw_log):
         "total_duration_minutes": round(total_minutes, 1),
         "exercise_count": len(entries),
         "xp": xp,
-        "materials": materials,
+        "tokens": 0,
         "exercise_entries": [
             {
                 "name": e.get("name", "Exercise"),
@@ -418,7 +368,7 @@ def summarize_strength(raw_log):
     xp = strength_xp(volume, payload.get("completed", False))
     xp += session_time_xp(duration)
     pr = bool(payload.get("pr"))
-    materials = 5 if pr else 0
+    tokens = TOKEN_BOSS_PR if pr else 0
 
     return {
         "date": date_str,
@@ -429,7 +379,7 @@ def summarize_strength(raw_log):
         "total_sets": int(payload.get("total_sets", payload.get("sets", 0)) or 0),
         "exercise_count": len(exercises),
         "xp": xp,
-        "materials": materials,
+        "tokens": tokens,
         "pr": pr,
         "completed": bool(payload.get("completed", True)),
         "exercises": [
@@ -490,7 +440,7 @@ def _handle_nutrition(raw_log):
     if not perfect:
         return []
 
-    award_resources(raw_log.user, materials=PERFECT_MACRO_MATERIALS)
+    award_tokens(raw_log.user, TOKEN_PERFECT_MACRO)
     return [
         XPLedger(
             user=raw_log.user,
@@ -529,7 +479,7 @@ def summarize_nutrition(raw_log):
         and total_cals <= cal_goal_f
     )
     xp = nutrition_xp(perfect)
-    materials = PERFECT_MACRO_MATERIALS if perfect else 0
+    tokens = TOKEN_PERFECT_MACRO if perfect else 0
 
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
@@ -546,7 +496,7 @@ def summarize_nutrition(raw_log):
         "calorie_pct": calorie_pct,
         "perfect": perfect,
         "xp": xp,
-        "materials": materials,
+        "tokens": tokens,
         "food_entries": [
             {
                 # The API returns "food_name" (GAS: entry.food_name).
@@ -589,21 +539,6 @@ def process_payload(user, source, event_type, payload, raw_log=None):
         holder.save()
 
     entries = _HANDLERS[event_type](holder)
-
-    # Phase 7 (docs/09 §5.9): buildings that grant XP% boost the effort XP
-    # awarded by this log. Scaled before the rows are persisted so skill trees
-    # see the same (capped) amount. Non-fatal - a scaling error never loses XP.
-    if entries:
-        try:
-            bonus = base_xp_bonus_pct(entries[0].user)
-            if bonus:
-                for entry in entries:
-                    if entry.amount > 0:
-                        entry.amount = max(
-                            1, int(round(entry.amount * (1 + bonus / 100.0)))
-                        )
-        except Exception:  # noqa: BLE001
-            logger.exception("base_xp_bonus_pct scaling failed; awarding unscaled XP")
 
     # Record which raw log produced each entry.
     for entry in entries:

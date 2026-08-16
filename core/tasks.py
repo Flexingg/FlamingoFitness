@@ -19,7 +19,6 @@ from .services import (
     compute_readiness,
     get_client,
     process_log,
-    tick_base_economy,
 )
 
 logger = logging.getLogger(__name__)
@@ -203,16 +202,16 @@ def compute_readiness_for_all():
 
 
 @shared_task
-def tick_base_economy_daily():
-    """Daily base-building economy maintenance (docs/09 §9, Step 28).
+def tick_combat_daily():
+    """Daily token economy + PvE/PvP maintenance (docs/15 §9).
 
-    Idempotent (every action is stamped by date/timestamp), so it is safe to
-    run more than once. Delegates to the pure ``tick_base_economy`` helper:
-    energy refill, daily XP->materials harvest, expired buff cleanup, lazy
-    construction completion, and whole-day auto-collection (no crits in the
-    background - crits stay a manual-collect thrill).
+    Idempotent (stamped by date/timestamp): mints the daily token dividend,
+    refills siege stamina, clears expired buffs, and pays Gym holders their
+    passive token yield. Replaces the Phase 7 ``tick_base_economy_daily``.
     """
-    return tick_base_economy()
+    from .services import tick_combat_daily as _tick
+
+    return _tick()
 
 
 @shared_task

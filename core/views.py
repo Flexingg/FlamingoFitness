@@ -25,49 +25,53 @@ from django.views.decorators.http import require_POST
 
 from .forms import LiftosaurLinkForm, SignupForm, SparkyLinkForm, ThemeForm
 from .models import (
-    BaseBuilding,
-    BaseBuildingDef,
-    BaseResource,
     BossConfig,
+    CampaignBoss,
+    CampaignProgress,
+    GearItemDef,
+    GearPackDef,
+    Gym,
     Modality,
     Provider,
     RawActivityLog,
     SkillTree,
     Theme,
     User,
+    UserGear,
     UserIntegration,
     XPLedger,
 )
 from .services import (
     STAT_KEYS,
+    attack_boss as combat_attack_boss,
+    attack_gym as combat_attack_gym,
     avatar_url,
-    base_level,
+    battle_state as combat_battle_state,
     challenge_state,
-    collect_building,
-    complete_or_pending,
     compute_readiness,
+    consume_consumable,
     create_flock,
-    evaluate_synergies,
-    evolve_building,
+    daily_token_harvest,
+    engage_boss as combat_engage_boss,
     explain_stat,
     friends_of,
     invite_to_flock,
     league_state,
     leave_flock,
-    maybe_drop_blueprint,
+    open_pack as combat_open_pack,
+    open_pack_bulk as combat_open_pack_bulk,
     process_log,
-    production_plan,
-    refresh_resources,
+    profile as combat_profile,
+    pvp_state as combat_pvp_state,
     remove_friend,
     reset_avatar,
-    resource_dump,
     respond_flock_invite,
     respond_friend_request,
     save_avatar,
     send_friend_request,
+    set_defense as combat_set_defense,
     social_state,
-    spend_speedups,
-    start_construction,
+    wallet_dump,
 )
 
 
@@ -577,330 +581,295 @@ def recovery_state(request):
     )
 
 
-def _load_base_post_body(request):
+# ---------------------------------------------------------------------------
+# Phase 9 (docs/15): Token, Gacha & Battle
+# ---------------------------------------------------------------------------
+def _load_combat_post_body(request):
     try:
         return json.loads(request.body or b"{}") or {}
     except json.JSONDecodeError:
         return {}
 
 
-def _serialize_building(instance, now=None):
-    now = now or timezone.now()
-    status = complete_or_pending(instance, now=now)
-    if status == "idle" and instance.level == 0:
-        status = "not_started"
-    def_obj = instance.building_def
-    active_buffs = {}
-    resources = getattr(instance.user, "base_resource", None)
-    if resources is not None:
-        active_buffs = resources.active_buffs or {}
-    accrued = 0
-    if instance.level > 0 and not instance.is_constructing(now):
-        accrued = round(
-            production_plan(
-                instance,
-                instance.user.streak,
-                active_buffs,
-                synergies=evaluate_synergies(instance.user),
-                now=now,
-            ),
-            2,
-        )
-    return {
-        "id": instance.pk,
-        "slug": def_obj.slug,
-        "name": def_obj.name,
-        "level": instance.level,
-        "target_level": instance.target_level,
-        "status": status,
-        "is_constructing": instance.is_constructing(now),
-        "construction_started_at": instance.construction_started_at.isoformat()
-        if instance.construction_started_at
-        else None,
-        "construction_duration_hours": instance.construction_duration_hours,
-        "custom_color": instance.custom_color,
-        "staff_friend_id": instance.staff_friend_id,
-        "accrued_materials": accrued,
-        "materials_per_day": def_obj.materials_per_day * instance.level
-        if instance.level > 0
-        else 0,
-        "xp_bonus_pct": def_obj.xp_bonus_pct * instance.level,
-        "max_level": def_obj.max_level,
-        "branch_choices": def_obj.branch_choices
-        if instance.level >= 3 and def_obj.branch_choices
-        else {},
-        "base_cost_materials": def_obj.base_cost_materials,
-        "base_cost_energy": def_obj.base_cost_energy,
-        "base_duration_hours": def_obj.base_duration_hours,
-        "requires_base_level": def_obj.requires_base_level,
-        "requires_blueprint": def_obj.requires_blueprint,
-        "modality_affinity": def_obj.modality_affinity,
-        "sort_order": def_obj.sort_order,
-    }
+@login_required
+def battle_state(request):
+    """GET /battle/state - campaigns, sieges, stamina, loadout summary."""
+    return JsonResponse(combat_battle_state(request.user))
 
 
-def _base_payload(user, now=None):
-    now = now or timezone.now()
-    resources, _ = BaseResource.objects.get_or_create(user=user)
-    resources = refresh_resources(resources, user, now=now)
+@login_required
+def battle_campaign(request, campaign):
+    """GET /battle/campaign/<campaign> - boss detail + today's damage preview."""
+    from .services import base_damage_for, total_gear_multiplier
 
-    instances = list(
-        BaseBuilding.objects.filter(user=user).select_related("building_def")
-    )
-    buildings = [_serialize_building(b, now=now) for b in instances]
+    prog = CampaignProgress.objects.filter(
+        user=request.user, campaign=campaign
+    ).select_related("boss").first()
+    boss = CampaignBoss.objects.filter(campaign=campaign, is_active=True).order_by("sort_order").first()
+    profile_obj = combat_profile(request.user)
+    base = base_damage_for(campaign, request.user)
+    gear_mult = total_gear_multiplier(profile_obj, request.user, campaign)
+    ref = (prog.boss if prog and prog.boss else boss)
+    return JsonResponse({
+        "campaign": campaign,
+        "boss": {
+            "slug": ref.slug if ref else None,
+            "name": ref.name if ref else None,
+            "icon": ref.icon if ref else None,
+            "hp_total": (prog.total_hp if prog else (boss.hp_total if boss else 0)),
+            "damage_dealt": prog.damage_dealt if prog else 0,
+            "conquered": prog.conquered if prog else False,
+            "weaknesses": ref.weaknesses if ref else [],
+            "resistances": ref.resistances if ref else [],
+            "mechanics": ref.mechanics if ref else {},
+        },
+        "today_base_damage": base,
+        "gear_multiplier": round(gear_mult, 2),
+        "wallet": wallet_dump(profile_obj),
+    })
 
-    owned_slugs = {
-        b["building_def__slug"]
-        for b in BaseBuilding.objects.filter(user=user).values("building_def__slug")
-    }
 
-    unlockable = []
-    for def_obj in BaseBuildingDef.objects.filter(is_active=True).order_by("sort_order", "id"):
-        if def_obj.slug in owned_slugs:
-            continue
-        bl = base_level(user)
-        locked_reasons = []
-        if bl < def_obj.requires_base_level:
-            locked_reasons.append("Base level")
-        if def_obj.requires_blueprint:
-            blueprints = dict(resources.blueprints or {})
-            if int(blueprints.get(def_obj.requires_blueprint, 0)) <= 0:
-                locked_reasons.append("Requires blueprint")
-        unlockable.append({
-            "slug": def_obj.slug,
-            "name": def_obj.name,
-            "locked": bool(locked_reasons),
-            "locked_reason": locked_reasons[0] if locked_reasons else None,
-            "base_cost_materials": def_obj.base_cost_materials,
-            "base_cost_energy": def_obj.base_cost_energy,
-            "base_duration_hours": def_obj.base_duration_hours,
-            "requires_base_level": def_obj.requires_base_level,
-            "requires_blueprint": def_obj.requires_blueprint,
-            "modality_affinity": def_obj.modality_affinity,
-            "sort_order": def_obj.sort_order,
+@login_required
+@require_POST
+def battle_engage(request):
+    """POST /battle/engage {"campaign"} - engage a boss in a campaign."""
+    data = _load_combat_post_body(request)
+    campaign = str(data.get("campaign", "") or "").strip()
+    valid = [c for c, _ in CampaignBoss._meta.get_field("campaign").choices]
+    if campaign not in valid:
+        return _json_error("Invalid campaign.", 400)
+    prog, err = combat_engage_boss(request.user, campaign)
+    if err:
+        return _json_error(err, 400)
+    return JsonResponse({"ok": True, "campaign": campaign, "boss": prog.boss.slug if prog.boss else None})
+
+
+@login_required
+@require_POST
+def battle_attack(request):
+    """POST /battle/attack {"campaign"} - spend 1 stamina on a siege attack."""
+    data = _load_combat_post_body(request)
+    campaign = str(data.get("campaign", "") or "").strip()
+    valid = [c for c, _ in CampaignBoss._meta.get_field("campaign").choices]
+    if campaign not in valid:
+        return _json_error("Invalid campaign.", 400)
+    result, err = combat_attack_boss(request.user, campaign)
+    if err:
+        return _json_error(err, 400)
+    return JsonResponse({"ok": True, **result, "wallet": wallet_dump(combat_profile(request.user))})
+
+
+@login_required
+def shop_state(request):
+    """GET /shop/state - packs + owned gear buckets + wallet."""
+    profile_obj = combat_profile(request.user)
+    packs = [
+        {
+            "slug": p.slug, "name": p.name, "description": p.description,
+            "icon": p.icon, "price_tokens": p.price_tokens, "draws": p.draws,
+            "domains": p.domains, "guaranteed_min_rarity": p.guaranteed_min_rarity,
+        }
+        for p in GearPackDef.objects.filter(is_active=True)
+    ]
+    owned = {}
+    for ug in UserGear.objects.filter(user=request.user).select_related("gear_def"):
+        slot = ug.gear_def.slot or ("consumable" if ug.gear_def.is_consumable else "gear")
+        owned.setdefault(slot, []).append({
+            "id": ug.pk, "slug": ug.gear_def.slug, "name": ug.gear_def.name,
+            "rarity": ug.rarity, "quantity": ug.quantity,
+            "icon": ug.gear_def.icon, "equipped_slot": ug.equipped_slot,
+            "effect_type": ug.gear_def.effect_type,
+            "effect_domain": ug.gear_def.effect_domain,
+            "effect_value": ug.gear_def.effect_value,
         })
-
-    return {
-        "user": {"username": user.username, "streak": user.streak},
-        "resources": resource_dump(resources),
-        "base_level": base_level(user),
-        "buildings": buildings,
-        "unlockable": unlockable,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Base-building endpoints (Step 25)
-# ---------------------------------------------------------------------------
-
-@login_required
-def base_state(request):
-    """GET /base/ — full Flamingo Club state."""
-    return JsonResponse(_base_payload(request.user))
+    return JsonResponse({"wallet": wallet_dump(profile_obj), "packs": packs, "owned": owned})
 
 
 @login_required
 @require_POST
-def base_start(request):
-    """POST /base/start — start a build or upgrade."""
-    data = _load_base_post_body(request)
-    slug = str(data.get("slug", "") or "").strip()
-    if not slug:
-        return _json_error("slug is required.", 400)
-
-    with transaction.atomic():
-        resources, _ = BaseResource.objects.select_for_update().get_or_create(
-            user=request.user
-        )
-        refresh_resources(resources, request.user)
-        ok, error = start_construction(request.user, slug)
-    if not ok:
-        return _json_error(error, 400)
-    return JsonResponse({"ok": True, **_base_payload(request.user)})
-
-
-@login_required
-@require_POST
-def base_speedup(request):
-    """POST /base/speedup — spend speedups to finish construction."""
-    data = _load_base_post_body(request)
-    pk = data.get("id")
-    hours = data.get("hours", 1)
+def shop_open(request):
+    """POST /shop/open {"pack_slug", "quantity"} - spend tokens, pull a pack (or
+    several at once; bulk tiers discount the price)."""
+    data = _load_combat_post_body(request)
+    slug = str(data.get("pack_slug", "") or "").strip()
+    pack = GearPackDef.objects.filter(slug=slug, is_active=True).first()
+    if pack is None:
+        return _json_error("Unknown pack.", 404)
     try:
-        pk = int(pk)
-        hours = int(hours)
+        quantity = max(1, int(data.get("quantity", 1)))
     except (TypeError, ValueError):
-        return _json_error("id and hours must be integers.", 400)
-
-    instance = (
-        BaseBuilding.objects.filter(pk=pk, user=request.user)
-        .select_related("building_def")
-        .first()
-    )
-    if instance is None:
-        return _json_error("Building not found.", 404)
-
-    with transaction.atomic():
-        resources, _ = BaseResource.objects.select_for_update().get_or_create(
-            user=request.user
-        )
-        refresh_resources(resources, request.user)
-        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
-        ok, spent, error, completed = spend_speedups(building, hours=hours)
+        quantity = 1
+    if quantity <= 10:
+        ok, err, payload = combat_open_pack_bulk(request.user, pack, quantity)
+    else:
+        # > 10 copies: just repeat single pulls (keeps the math simple & caps cost).
+        ok = True
+        err = None
+        manifest = []
+        for _ in range(quantity):
+            ok2, err2, m2 = combat_open_pack(request.user, pack)
+            if not ok2:
+                ok, err = False, err2
+                break
+            manifest.extend(m2)
+        payload = {"quantity": quantity, "cost": pack.price_tokens * quantity,
+                   "discount_pct": 0, "manifest": manifest}
     if not ok:
-        return _json_error(error, 400)
-    return JsonResponse(
+        return _json_error(err, 400)
+    return JsonResponse({
+        "ok": True,
+        "quantity": payload["quantity"],
+        "cost": payload["cost"],
+        "discount_pct": payload["discount_pct"],
+        "manifest": payload["manifest"],
+        "wallet": wallet_dump(combat_profile(request.user)),
+    })
+
+
+@login_required
+@require_POST
+def shop_consume(request):
+    """POST /shop/consume {"gear_id"} - use a consumable."""
+    data = _load_combat_post_body(request)
+    try:
+        gear_id = int(data.get("gear_id"))
+    except (TypeError, ValueError):
+        return _json_error("gear_id must be an integer.", 400)
+    profile_obj = combat_profile(request.user)
+    ok, err = consume_consumable(profile_obj, request.user, gear_id)
+    if not ok:
+        return _json_error(err, 404 if "not found" in err else 400)
+    return JsonResponse({"ok": True, "wallet": wallet_dump(profile_obj)})
+
+
+
+@login_required
+def loadout_state(request):
+    """GET /loadout/state - equipped slots + the full owned inventory."""
+    from core.services import SLOT_ORDER
+
+    profile_obj = combat_profile(request.user)
+    equipped = {}
+    for slot in SLOT_ORDER:
+        ug = UserGear.objects.filter(user=request.user, equipped_slot=slot).select_related("gear_def").first()
+        equipped[slot] = {
+            "id": ug.pk, "slug": ug.gear_def.slug, "name": ug.gear_def.name,
+            "rarity": ug.rarity, "icon": ug.gear_def.icon,
+            "effect_type": ug.gear_def.effect_type,
+            "effect_domain": ug.gear_def.effect_domain,
+            "effect_value": ug.gear_def.effect_value,
+        } if ug else None
+    owned = [
         {
-            "ok": True,
-            "speedups_spent": spent,
-            "completed": completed,
-            **_base_payload(request.user),
+            "id": ug.pk, "slug": ug.gear_def.slug, "name": ug.gear_def.name,
+            "slot": ug.gear_def.slot or "accessory", "rarity": ug.rarity, "icon": ug.gear_def.icon,
+            "effect_type": ug.gear_def.effect_type,
+            "effect_domain": ug.gear_def.effect_domain,
+            "effect_value": ug.gear_def.effect_value,
+            "equipped": bool(ug.equipped_slot),
         }
-    )
+        for ug in UserGear.objects.filter(
+            user=request.user, gear_def__is_consumable=False
+        ).select_related("gear_def").order_by("gear_def__sort_order", "gear_def__slug", "-obtained_at")
+    ]
+    candidates = [o for o in owned if not o["equipped"]]
+    return JsonResponse({
+        "wallet": wallet_dump(profile_obj),
+        "equipped": equipped,
+        "candidates": candidates,
+        "owned": owned,
+    })
 
 
 @login_required
 @require_POST
-def base_collect(request):
-    """POST /base/collect — claim accrued materials."""
-    data = _load_base_post_body(request)
-    pk = data.get("id")
+def loadout_equip(request):
+    """POST /loadout/equip {"gear_id"} - equip (replaces the prior item in that slot)."""
+    data = _load_combat_post_body(request)
     try:
-        pk = int(pk)
+        gear_id = int(data.get("gear_id"))
     except (TypeError, ValueError):
-        return _json_error("id must be an integer.", 400)
-
-    instance = (
-        BaseBuilding.objects.filter(pk=pk, user=request.user)
-        .select_related("building_def")
-        .first()
-    )
-    if instance is None:
-        return _json_error("Building not found.", 404)
-
+        return _json_error("gear_id must be an integer.", 400)
+    ug = UserGear.objects.filter(pk=gear_id, user=request.user).select_related("gear_def").first()
+    if ug is None:
+        return _json_error("Item not found.", 404)
+    if ug.gear_def.is_consumable:
+        return _json_error("Consumables cannot be equipped.", 400)
+    slot = ug.gear_def.slot or "accessory"
     with transaction.atomic():
-        res, _ = BaseResource.objects.select_for_update().get_or_create(
-            user=request.user
-        )
-        refresh_resources(res, request.user)
-        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
-        collected, was_crit = collect_building(building)
-    return JsonResponse(
-        {
-            "ok": True,
-            "collected": collected,
-            "was_crit": was_crit,
-            "resources": resource_dump(res),
-        }
-    )
+        UserGear.objects.filter(user=request.user, equipped_slot=slot).update(equipped_slot=None)
+        ug.equipped_slot = slot
+        ug.save(update_fields=["equipped_slot"])
+    return JsonResponse({"ok": True, "slot": slot, "wallet": wallet_dump(combat_profile(request.user))})
 
 
 @login_required
 @require_POST
-def base_customize(request):
-    """POST /base/customize — set a building's neon color."""
-    data = _load_base_post_body(request)
-    pk = data.get("id")
-    color = str(data.get("color", "") or "").strip()
+def loadout_unequip(request):
+    """POST /loadout/unequip {"gear_id"} - stop using an item (returns it to the
+    unequipped candidate pool)."""
+    data = _load_combat_post_body(request)
     try:
-        pk = int(pk)
+        gear_id = int(data.get("gear_id"))
     except (TypeError, ValueError):
-        return _json_error("id must be an integer.", 400)
-    if not color or not color.startswith("#") or len(color) != 7:
-        try:
-            int(color.lstrip("#"), 16)
-        except (TypeError, ValueError):
-            return _json_error("color must be a 7-char #RRGGBB hex.", 400)
+        return _json_error("gear_id must be an integer.", 400)
+    ug = UserGear.objects.filter(pk=gear_id, user=request.user).select_related("gear_def").first()
+    if ug is None:
+        return _json_error("Item not found.", 404)
+    if ug.gear_def.is_consumable:
+        return _json_error("Consumables cannot be equipped.", 400)
+    if not ug.equipped_slot:
+        return _json_error("Item is not equipped.", 400)
+    ug.equipped_slot = None
+    ug.save(update_fields=["equipped_slot"])
+    return JsonResponse({"ok": True, "slot": ug.gear_def.slot, "wallet": wallet_dump(combat_profile(request.user))})
 
-    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
-    if instance is None:
-        return _json_error("Building not found.", 404)
 
-    instance.custom_color = color
-    instance.save(update_fields=["custom_color"])
-    return JsonResponse({"ok": True, **_base_payload(request.user)})
+@login_required
+def pvp_state(request):
+    """GET /pvp/state - my gym/turf, attackable gyms, match history."""
+    return JsonResponse(combat_pvp_state(request.user))
 
 
 @login_required
 @require_POST
-def base_staff(request):
-    """POST /base/staff — assign or clear a staff friend."""
-    data = _load_base_post_body(request)
-    pk = data.get("id")
-    friend_id = data.get("friend_id")
+def pvp_defend(request):
+    """POST /pvp/defend {"terrain", "name"} - set defensive loadout snapshot."""
+    data = _load_combat_post_body(request)
+    terrain = str(data.get("terrain", "") or "").strip()
+    name = str(data.get("name", "") or "").strip() or None
+    gym = combat_set_defense(request.user, terrain=terrain or None, name=name)
+    return JsonResponse({"ok": True, "gym": {"id": gym.pk, "name": gym.name, "terrain": gym.terrain}})
+
+
+@login_required
+@require_POST
+def pvp_attack(request):
+    """POST /pvp/attack {"gym_id"} - instant async gym battle."""
+    data = _load_combat_post_body(request)
     try:
-        pk = int(pk)
-        if friend_id is not None and friend_id != "":
-            friend_id = int(friend_id)
-        else:
-            friend_id = None
+        gym_id = int(data.get("gym_id"))
     except (TypeError, ValueError):
-        return _json_error(
-            "id must be an integer and friend_id must be an integer or null.", 400
-        )
-
-    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
-    if instance is None:
-        return _json_error("Building not found.", 404)
-
-    # Phase 8 (docs/13 §5.3): staff must be a real, accepted friend (the
-    # Phase 7 mocked id list is retired). null still un-staffs.
-    if friend_id is not None:
-        friend_ids = {friend.pk for friend in friends_of(request.user)}
-        if friend_id not in friend_ids:
-            return _json_error("You can only staff with a friend.", 400)
-
-    instance.staff_friend_id = friend_id
-    instance.save(update_fields=["staff_friend_id"])
-    return JsonResponse({"ok": True, **_base_payload(request.user)})
-
-
-@login_required
-@require_POST
-def base_evolve(request):
-    """POST /base/evolve — swap a Lv3 building to a branch def."""
-    data = _load_base_post_body(request)
-    pk = data.get("id")
-    chosen_slug = str(data.get("chosen_slug", "") or "").strip()
-    try:
-        pk = int(pk)
-    except (TypeError, ValueError):
-        return _json_error("id must be an integer.", 400)
-    if not chosen_slug:
-        return _json_error("chosen_slug is required.", 400)
-
-    instance = BaseBuilding.objects.filter(pk=pk, user=request.user).first()
-    if instance is None:
-        return _json_error("Building not found.", 404)
-
-    with transaction.atomic():
-        building = BaseBuilding.objects.select_for_update().get(pk=instance.pk)
-        ok, error = evolve_building(building, chosen_slug)
-    if not ok:
-        return _json_error(error, 400)
-    return JsonResponse({"ok": True, **_base_payload(request.user)})
-
-
-@login_required
-@require_POST
-def base_milestone(request):
-    """POST /base/milestone — ack a base-level milestone (idempotent)."""
-    resources, _ = BaseResource.objects.get_or_create(user=request.user)
-    bl = base_level(request.user)
-    celebrated = False
-    if bl >= 5 and bl % 5 == 0 and getattr(resources, "last_milestone_celebrated", 0) < bl:
-        resources.last_milestone_celebrated = bl
-        resources.save(update_fields=["last_milestone_celebrated"])
-        celebrated = True
-    return JsonResponse({"ok": True, "celebrated": celebrated})
+        return _json_error("gym_id must be an integer.", 400)
+    gym = Gym.objects.filter(pk=gym_id, is_active=True).first()
+    if gym is None:
+        return _json_error("Gym not found.", 404)
+    if gym.owner == request.user:
+        return _json_error("You cannot attack your own Gym.", 400)
+    result, err = combat_attack_gym(request.user, gym)
+    if err:
+        return _json_error(err, 400)
+    return JsonResponse({"ok": True, **result, "wallet": wallet_dump(combat_profile(request.user))})
 
 
 @login_required
 def dashboard_state(request):
     """GET /api/v1/dashboard/state (Step 16)."""
+
     user = request.user
 
-    resources, _ = BaseResource.objects.get_or_create(user=user)
+    profile_obj = combat_profile(user)
+    daily_token_harvest(user, on_date=timezone.localdate())
 
     # Readiness for today. Always recompute so a fresh value is shown even if
     # the daily Celery beat hasn't run yet (compute is idempotent + cheap).
@@ -932,11 +901,7 @@ def dashboard_state(request):
                 "streak": user.streak,
                 "avatar": avatar_url(user),
             },
-            "resources": {
-                "materials": resources.materials,
-                "energy": resources.energy,
-                "time_speedups": resources.time_speedups,
-            },
+            "resources": wallet_dump(profile_obj),
             "readiness": {
                 "score": readiness.score,
                 "streak_requirement": readiness.streak_requirement,
@@ -1014,7 +979,7 @@ def social_state_view(request):
 @require_POST
 def friends_request(request):
     """POST /friends/request {"username"} - send (or auto-accept) a request."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     ok, result = send_friend_request(request.user, data.get("username"))
     if not ok:
         return _json_error(result["message"], result["status"])
@@ -1025,7 +990,7 @@ def friends_request(request):
 @require_POST
 def friends_respond(request):
     """POST /friends/respond {"user_id", "action": accept|decline}."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     action = str(data.get("action", "") or "").strip().lower()
     if action not in ("accept", "decline"):
         return _json_error("action must be 'accept' or 'decline'.", 400)
@@ -1043,7 +1008,7 @@ def friends_respond(request):
 @require_POST
 def friends_remove(request):
     """POST /friends/remove {"user_id"} - end a friendship."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     try:
         user_id = int(data.get("user_id"))
     except (TypeError, ValueError):
@@ -1058,7 +1023,7 @@ def friends_remove(request):
 @require_POST
 def flocks_create(request):
     """POST /flocks/create {"name"} - form a new flock (owner role)."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     ok, result = create_flock(request.user, data.get("name"))
     if not ok:
         return _json_error(result["message"], result["status"])
@@ -1069,7 +1034,7 @@ def flocks_create(request):
 @require_POST
 def flocks_invite(request):
     """POST /flocks/invite {"user_id"} - owner invites a flockless friend."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     try:
         user_id = int(data.get("user_id"))
     except (TypeError, ValueError):
@@ -1084,7 +1049,7 @@ def flocks_invite(request):
 @require_POST
 def flocks_respond(request):
     """POST /flocks/respond {"flock_id", "action": accept|decline}."""
-    data = _load_base_post_body(request)
+    data = _load_combat_post_body(request)
     action = str(data.get("action", "") or "").strip().lower()
     if action not in ("accept", "decline"):
         return _json_error("action must be 'accept' or 'decline'.", 400)
@@ -1126,16 +1091,12 @@ def badges_state(request):
 def stat_info(request, stat):
     """GET /api/v1/stats/<stat>/ - explain a top-nav stat + earning history.
 
-    Opened by clicking the streak / materials / energy badges in the top nav.
-    Returns what the stat means, how to earn it, and recent history derived
-    from data we already store (core/services/stat_explainers.py).
+    Opened by clicking the streak / tokens / stamina badges in the top nav.
     """
     if stat not in STAT_KEYS:
         return _json_error(f"Unknown stat '{stat}'.", 404)
 
-    resources, _ = BaseResource.objects.get_or_create(user=request.user)
-    resources = refresh_resources(resources, request.user)
-    return JsonResponse(explain_stat(request.user, resources, stat))
+    return JsonResponse(explain_stat(request.user, stat))
 
 
 @csrf_exempt

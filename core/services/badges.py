@@ -26,13 +26,11 @@ from django.utils import timezone
 
 from ..models import (
     BadgeDef,
-    BaseResource,
     Modality,
     RawActivityLog,
     SkillTree,
     UserBadge,
 )
-from .base_economy import base_level
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +55,6 @@ def _logged_days_in_last(user, days):
 
 def _modality_levels(user):
     return {tree.modality: tree.level for tree in SkillTree.objects.filter(user=user)}
-
-
-def _blueprint_count(user):
-    resources, _ = BaseResource.objects.get_or_create(user=user)
-    return sum(int(v) for v in (resources.blueprints or {}).values())
 
 
 def _logs_in_window(user, before_hour=None, after_hour=None):
@@ -207,12 +200,6 @@ def evaluate_rule(user, rule):
         if rtype == "streak":
             target = int(rule.get("minimum", 1))
             value = int(user.streak or 0)
-        elif rtype == "base_level":
-            target = int(rule.get("minimum", 1))
-            value = base_level(user)
-        elif rtype == "blueprints":
-            target = int(rule.get("minimum", 1))
-            value = _blueprint_count(user)
         elif rtype == "activity_logs":
             target = int(rule.get("minimum", 1))
             value = _activity_count(user)
@@ -300,10 +287,6 @@ def progress_text(rule, value, target):
     rtype = rule.get("type")
     if rtype == "streak":
         return "Current streak: %d of %d days." % (value, target)
-    if rtype == "base_level":
-        return "Base level %d of %d." % (value, target)
-    if rtype == "blueprints":
-        return "%d of %d blueprints collected." % (value, target)
     if rtype == "activity_logs":
         return "%d of %d activities logged." % (value, target)
     if rtype == "perfect_days":
@@ -393,26 +376,6 @@ BADGE_CATALOG = [
         "sort_order": 3,
         "points": 50,
         "rule": {"type": "perfect_days", "days": 7},
-    },
-    {
-        "key": "blueprint_hunter",
-        "name": "Blueprint Hunter",
-        "description": "Collect 5 blueprints.",
-        "icon": "fa-scroll",
-        "category": "Base",
-        "sort_order": 4,
-        "points": 50,
-        "rule": {"type": "blueprints", "minimum": 5},
-    },
-    {
-        "key": "base_tycoon",
-        "name": "Base Tycoon",
-        "description": "Reach base level 25 in your Flamingo Club.",
-        "icon": "fa-umbrella-beach",
-        "category": "Base",
-        "sort_order": 5,
-        "points": 100,
-        "rule": {"type": "base_level", "minimum": 25},
     },
     {
         "key": "all_modality_master",

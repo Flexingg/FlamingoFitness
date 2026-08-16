@@ -37,11 +37,13 @@ LEAGUE_TIERS = [
     {"tier": LeagueTier.BRONZE, "label": "Bronze", "min_xp": 0},
 ]
 
-# Rewards paid when a week closes (docs/13 §3.2) - additive to existing sinks.
+# Rewards paid when a week closes (docs/15 §3.1) - converted to Tokens from
+# the Phase 8 time_speedups + materials payouts (1 token / 10 speedups,
+# 1 token / 20 materials). Additive to the token economy.
 WEEKLY_REWARDS = {
-    1: {"time_speedups": 5, "materials": 25},
-    2: {"time_speedups": 3, "materials": 15},
-    3: {"time_speedups": 1, "materials": 10},
+    1: {"tokens": 5},
+    2: {"tokens": 3},
+    3: {"tokens": 1},
 }
 LEAGUE_TOP_N_REWARDED = 3
 
@@ -96,7 +98,7 @@ def close_league_week(week, now=None):
     Idempotent: already-closed weeks are left untouched. Returns the list of
     created ``LeagueResult`` rows.
     """
-    from .gamification import award_resources  # local import: avoid cycles
+    from .combat import award_tokens  # local import: avoid cycles
 
     now = now or timezone.now()
     if week.status == LeagueWeek.Status.CLOSED:
@@ -115,11 +117,7 @@ def close_league_week(week, now=None):
             reward = dict(WEEKLY_REWARDS.get(rank, {}))
             user = get_user_model().objects.get(pk=row["user_id"])
             if reward:
-                award_resources(
-                    user,
-                    materials=reward.get("materials", 0),
-                    time_speedups=reward.get("time_speedups", 0),
-                )
+                award_tokens(user, reward.get("tokens", 0))
             results.append(
                 LeagueResult.objects.create(
                     week=week,

@@ -11,9 +11,9 @@
 
     // Display metadata used before (and if) the fetch resolves.
     var STAT_META = {
-        streak: { name: 'Streak', icon: 'fa-fire', color: 'var(--primary-orange)' },
-        materials: { name: 'Materials', icon: 'fa-gem', color: 'var(--primary-blue)' },
-        energy: { name: 'Energy', icon: 'fa-bolt', color: 'var(--primary-purple)' }
+        streak: { name: 'Streak', icon: 'fa-fire', color: '#f97316' },
+        tokens: { name: 'Tokens', icon: 'fa-coins', color: '#fbbf24' },
+        stamina: { name: 'Stamina', icon: 'fa-bolt', color: '#facc15' }
     };
 
     function esc(s) {

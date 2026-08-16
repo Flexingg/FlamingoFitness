@@ -85,6 +85,29 @@
         .nav-item:hover { color: #e2e8f0; }
         .nav-item.active { color: #FF5E9A; }
 
+        /* Center "Game" FAB + menu (docs/15 cleanup: keep the bottom bar a single
+           short row on mobile instead of two stacked rows). */
+        .nav-game-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; color: #94a3b8; }
+        .nav-game-btn:hover { color: #e2e8f0; }
+        .nav-game-btn .nav-game-fab { width: 44px; height: 44px; margin-top: 0; border-radius: 50%;
+            background: linear-gradient(135deg, #FF5E9A, #D83A73); color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 6px 16px rgba(255, 94, 154, 0.5); border: 3px solid #0f172a;
+            transition: transform 0.18s ease; }
+        .nav-game-btn .nav-game-fab i { font-size: 17px; }
+        .nav-game-btn.active { color: #FF5E9A; }
+        .nav-game-btn.open .nav-game-fab { transform: rotate(135deg); }
+        #game-menu { position: absolute; left: 50%; bottom: 108px; transform: translateX(-50%);
+            z-index: 70; display: flex; gap: 6px; padding: 8px;
+            background: #1e293b; border: 1px solid #334155; border-radius: 18px;
+            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6); }
+        #game-menu button { width: 58px; height: 58px; border-radius: 14px; display: flex;
+            flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+            font-size: 10.5px; font-weight: 800; color: #e2e8f0; background: #0f172a;
+            border: 1px solid #334155; transition: all 0.12s ease; }
+        #game-menu button:hover { color: #FF5E9A; transform: translateY(-2px); }
+        #game-menu button i { font-size: 18px; }
+
         /* Leagues sub-tabs */
         .leagues-tabs { background: #1e293b !important; border: 1px solid #334155 !important; }
         .leagues-tab { color: #94a3b8 !important; background: transparent !important; border: none !important; transition: all 0.15s ease; }
@@ -210,12 +233,12 @@
                      id="stat-streak" data-stat="streak" role="button" tabindex="0" title="About your streak">
                     <i class="fa-solid fa-fire text-orange-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
-                <div class="stat-clickable stat-resources flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
-                     id="stat-materials" data-stat="materials" role="button" tabindex="0" title="About materials (gems)">
-                    <i class="fa-solid fa-gem text-blue-400"></i> <span class="font-bold text-slate-100">-</span>
+                <div class="stat-clickable stat-tokens flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
+                     id="stat-tokens" data-stat="tokens" role="button" tabindex="0" title="About tokens">
+                    <i class="fa-solid fa-coins text-yellow-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
-                <div class="stat-clickable stat-energy flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
-                     id="stat-energy" data-stat="energy" role="button" tabindex="0" title="About energy">
+                <div class="stat-clickable stat-stamina flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
+                     id="stat-stamina" data-stat="stamina" role="button" tabindex="0" title="About stamina">
                     <i class="fa-solid fa-bolt text-yellow-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
             </div>
@@ -462,28 +485,56 @@
                 </div>
             </section>
 
-            <!-- Base-building detail panel (Flamingo Club) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="base-view">
+            <!-- Shop (Gacha) panel (Phase 9, docs/15) -->
+            <section class="hidden p-4 min-h-full bg-slate-900" id="shop-view">
                 <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="base-back" onclick="backToBasePlan()">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="shop-back" onclick="backToShopPlan()">
                         <i class="fa-solid fa-arrow-left text-xl"></i>
                     </button>
                     <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-umbrella-beach text-orange-400"></i> Flamingo Club
+                        <i class="fa-solid fa-box-open text-yellow-400"></i> Shop
                     </h2>
                 </div>
+                <div id="shop-content"></div>
+            </section>
 
-                <div id="base-content"></div>
-
-                <div id="base-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-32 h-32 bg-slate-700 rounded-full flex items-center justify-center text-6xl text-orange-400/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-umbrella-beach"></i>
-                        </div>
-                        <p class="text-2xl font-bold text-white mb-3">Build your Flamingo Club</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Earn materials from workouts and collect daily harvests to expand your base.</p>
-                    </div>
+            <!-- Loadout panel (Phase 9, docs/15) -->
+            <section class="hidden p-4 min-h-full bg-slate-900" id="loadout-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="loadout-back" onclick="backToLoadoutPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
+                    </button>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shirt text-indigo-400"></i> Inventory
+                    </h2>
                 </div>
+                <div id="loadout-content"></div>
+            </section>
+
+            <!-- Battle (PvE sieges) panel (Phase 9, docs/15) -->
+            <section class="hidden p-4 min-h-full bg-slate-900" id="battle-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="battle-back" onclick="backToBattlePlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
+                    </button>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-dragon text-red-400"></i> Battle
+                    </h2>
+                </div>
+                <div id="battle-content"></div>
+            </section>
+
+            <!-- PvP Gym panel (Phase 9, docs/15) -->
+            <section class="hidden p-4 min-h-full bg-slate-900" id="pvp-view">
+                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="pvp-back" onclick="backToPvPPlan()">
+                        <i class="fa-solid fa-arrow-left text-xl"></i>
+                    </button>
+                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
+                        <i class="fa-solid fa-fist-raised text-green-400"></i> PvP
+                    </h2>
+                </div>
+                <div id="pvp-content"></div>
             </section>
 
             <!-- Leagues / Challenges / Flock panel (Phase 8, docs/13) -->
@@ -550,17 +601,21 @@
                     <i class="fa-solid fa-shield-halved text-xl mb-1.5 drop-shadow-sm"></i>
                     <span class="text-[11px] tracking-wide">Leagues</span>
                 </a>
+                <div class="relative w-16 h-16 flex items-center justify-center" id="game-btn-wrap">
+                    <button class="nav-game-btn" id="nav-game" onclick="toggleGameMenu(event); return false;" aria-haspopup="true" aria-expanded="false" aria-label="Game menu" title="Shop, Inventory, Battle, PvP">
+                        <span class="nav-game-fab"><i class="fa-solid fa-dice-d6"></i></span>
+                        <span class="text-[11px] tracking-wide">Game</span>
+                    </button>
+                    <div id="game-menu" class="game-menu hidden" role="menu" aria-label="Game menu">
+                        <button role="menuitem" onclick="gotoGame('loadShop'); return false;"><i class="fa-solid fa-box-open"></i><span>Shop</span></button>
+                        <button role="menuitem" onclick="gotoGame('loadLoadout'); return false;"><i class="fa-solid fa-shirt"></i><span>Inventory</span></button>
+                        <button role="menuitem" onclick="gotoGame('loadBattle'); return false;"><i class="fa-solid fa-dragon"></i><span>Battle</span></button>
+                        <button role="menuitem" onclick="gotoGame('loadPvP'); return false;"><i class="fa-solid fa-fist-raised"></i><span>PvP</span></button>
+                    </div>
+                </div>
                 <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-badges" onclick="loadBadges(); return false;">
                     <i class="fa-solid fa-medal text-xl mb-1.5 drop-shadow-sm"></i>
                     <span class="text-[11px] tracking-wide">Badges</span>
-                </a>
-                <a href="#" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-base" onclick="loadBase(); return false;">
-                    <i class="fa-solid fa-umbrella-beach text-xl mb-1.5 drop-shadow-sm"></i>
-                    <span class="text-[11px] tracking-wide">Base</span>
-                </a>
-                <a href="{% url 'profile' %}" class="nav-item flex flex-col items-center p-2 font-bold active:scale-95 transition-all w-16" id="nav-profile">
-                    <i class="fa-solid fa-user text-xl mb-1.5 drop-shadow-sm"></i>
-                    <span class="text-[11px] tracking-wide">Profile</span>
                 </a>
             </div>
         </nav>
@@ -614,7 +669,10 @@
     <script src="{% static 'core/js/strength.js' %}"></script>
     <script src="{% static 'core/js/boss.js' %}"></script>
     <script src="{% static 'core/js/recovery.js' %}"></script>
-    <script src="{% static 'core/js/base.js' %}"></script>
+    <script src="{% static 'core/js/shop.js' %}"></script>
+    <script src="{% static 'core/js/loadout.js' %}"></script>
+    <script src="{% static 'core/js/battle.js' %}"></script>
+    <script src="{% static 'core/js/pvp.js' %}"></script>
     <script src="{% static 'core/js/badges.js' %}"></script>
     <script src="{% static 'core/js/leagues.js' %}"></script>
     <script src="{% static 'core/js/stat_info.js' %}"></script>

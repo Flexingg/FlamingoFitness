@@ -2,23 +2,30 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
-    BaseBuilding,
-    BaseBuildingDef,
-    BaseResource,
     BadgeDef,
+    BattleLog,
     BossConfig,
+    CampaignBoss,
+    CampaignProgress,
     Challenge,
     DailyReadiness,
     Flock,
     FlockInvite,
     FlockMembership,
     Friendship,
+    GearItemDef,
+    GearPackDef,
+    Gym,
+    GymOccupation,
     LeagueResult,
     LeagueWeek,
+    PlayerProfile,
+    PvPMatch,
     RawActivityLog,
     SkillTree,
     User,
     UserBadge,
+    UserGear,
     UserIntegration,
     XPLedger,
 )
@@ -90,12 +97,6 @@ class DailyReadinessAdmin(admin.ModelAdmin):
     search_fields = ("user__username",)
 
 
-@admin.register(BaseResource)
-class BaseResourceAdmin(admin.ModelAdmin):
-    list_display = ("user", "materials", "energy", "time_speedups")
-    search_fields = ("user__username",)
-
-
 @admin.register(BossConfig)
 class BossConfigAdmin(admin.ModelAdmin):
     list_display = (
@@ -139,8 +140,6 @@ class BadgeDefAdmin(admin.ModelAdmin):
                 "description": (
                     "A JSON object evaluated against the user's data. Examples: "
                     '{"type": "streak", "minimum": 30} | '
-                    '{"type": "base_level", "minimum": 10} | '
-                    '{"type": "blueprints", "minimum": 3} | '
                     '{"type": "activity_logs", "minimum": 50} | '
                     '{"type": "skill_level", "modality": "strength", "minimum": 5} | '
                     '{"type": "all_modalities", "minimum": 3} | '
@@ -162,43 +161,6 @@ class UserBadgeAdmin(admin.ModelAdmin):
     list_filter = ("badge",)
     search_fields = ("user__username", "badge__name")
     readonly_fields = ("awarded_at",)
-
-
-@admin.register(BaseBuildingDef)
-class BaseBuildingDefAdmin(admin.ModelAdmin):
-    list_display = (
-        "slug",
-        "name",
-        "base_cost_materials",
-        "base_cost_energy",
-        "base_duration_hours",
-        "materials_per_day",
-        "xp_bonus_pct",
-        "requires_base_level",
-        "modality_affinity",
-        "requires_blueprint",
-        "is_active",
-        "sort_order",
-    )
-    list_filter = ("is_active",)
-    search_fields = ("slug", "name")
-    ordering = ("sort_order", "id")
-
-
-@admin.register(BaseBuilding)
-class BaseBuildingAdmin(admin.ModelAdmin):
-    list_display = (
-        "user",
-        "building_def",
-        "level",
-        "target_level",
-        "construction_started_at",
-        "custom_color",
-        "staff_friend_id",
-        "created_at",
-    )
-    list_filter = ("building_def",)
-    search_fields = ("user__username", "building_def__slug")
 
 
 # ---------------------------------------------------------------------------
@@ -257,3 +219,78 @@ class FlockInviteAdmin(admin.ModelAdmin):
     list_display = ("user", "flock", "invited_by", "status", "created_at")
     list_filter = ("status",)
     search_fields = ("user__username", "flock__name")
+# ---------------------------------------------------------------------------
+# Phase 9 (docs/15): Token, Gacha & Battle
+# ---------------------------------------------------------------------------
+@admin.register(PlayerProfile)
+class PlayerProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "tokens", "stamina", "total_conquests", "pvp_wins", "pvp_losses")
+    search_fields = ("user__username",)
+    readonly_fields = ("created_at",)
+
+
+@admin.register(GearPackDef)
+class GearPackDefAdmin(admin.ModelAdmin):
+    list_display = ("slug", "name", "price_tokens", "draws", "guaranteed_min_rarity", "is_generic", "is_active")
+    list_filter = ("is_active", "is_generic", "guaranteed_min_rarity")
+    search_fields = ("slug", "name")
+
+
+@admin.register(GearItemDef)
+class GearItemDefAdmin(admin.ModelAdmin):
+    list_display = ("slug", "name", "slot", "rarity", "effect_type", "effect_domain",
+                     "effect_value", "is_consumable", "is_active")
+    list_filter = ("rarity", "effect_type", "slot", "is_active")
+    search_fields = ("slug", "name")
+
+
+@admin.register(UserGear)
+class UserGearAdmin(admin.ModelAdmin):
+    list_display = ("user", "gear_def", "rarity", "quantity", "equipped_slot", "obtained_at")
+    list_filter = ("rarity", "equipped_slot")
+    search_fields = ("user__username", "gear_def__slug")
+
+
+@admin.register(CampaignBoss)
+class CampaignBossAdmin(admin.ModelAdmin):
+    list_display = ("slug", "name", "campaign", "element", "hp_total", "is_active", "sort_order")
+    list_filter = ("campaign", "element", "is_active")
+    search_fields = ("slug", "name")
+
+
+@admin.register(CampaignProgress)
+class CampaignProgressAdmin(admin.ModelAdmin):
+    list_display = ("user", "campaign", "boss", "damage_dealt", "total_hp", "conquered")
+    list_filter = ("campaign", "conquered")
+    search_fields = ("user__username",)
+
+
+@admin.register(BattleLog)
+class BattleLogAdmin(admin.ModelAdmin):
+    list_display = ("user", "campaign", "date", "base_damage", "total_damage", "boss_heal", "tokens_won")
+    list_filter = ("campaign",)
+    search_fields = ("user__username",)
+
+
+@admin.register(Gym)
+class GymAdmin(admin.ModelAdmin):
+    list_display = ("owner", "name", "terrain", "defense_set", "is_active")
+    list_filter = ("terrain", "is_active")
+    search_fields = ("owner__username", "name")
+
+    @admin.display(boolean=True, description="Defense set")
+    def defense_set(self, obj):
+        return bool(obj.defense_snapshot)
+
+
+@admin.register(GymOccupation)
+class GymOccupationAdmin(admin.ModelAdmin):
+    list_display = ("gym", "occupant", "held_until", "last_token_paid")
+
+
+@admin.register(PvPMatch)
+class PvPMatchAdmin(admin.ModelAdmin):
+    list_display = ("attacker", "defender", "gym", "attacker_power", "defender_power", "did_win")
+    list_filter = ("did_win",)
+    search_fields = ("attacker__username", "defender__username")
+

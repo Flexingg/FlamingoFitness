@@ -77,7 +77,7 @@
         }
     }
 
-    // ---- Generic friend picker (also used by base.js staffing) ----
+    // ---- Generic friend picker (also used by flock invites) ----
     window.closeFriendPicker = function () {
         var modal = document.getElementById('friendPickerModal');
         if (modal) modal.classList.remove('show-modal');
@@ -217,8 +217,7 @@
             html += '<div class="base-section-title">Past weeks</div>';
             history.forEach(function (h) {
                 var rewardBits = [];
-                if (h.reward && h.reward.time_speedups) rewardBits.push(h.reward.time_speedups + ' \u23e9');
-                if (h.reward && h.reward.materials) rewardBits.push(h.reward.materials + ' \uD83D\uDC8E');
+                if (h.reward && h.reward.tokens) rewardBits.push(h.reward.tokens + ' <i class="fa-solid fa-coins"></i>');
                 html += '<div class="league-history-card">' +
                     '<span class="league-history-week">' + esc(h.week_start) + '</span>' +
                     '<span class="league-history-rank">#' + h.rank + '</span>' +

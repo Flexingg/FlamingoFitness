@@ -10,17 +10,23 @@ from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from core.models import (
-    BaseBuilding,
-    BaseBuildingDef,
     BadgeDef,
-    BaseResource,
+    BattleLog,
     BossConfig,
+    CampaignBoss,
+    CampaignProgress,
     DailyReadiness,
+    GearItemDef,
+    GearPackDef,
+    Gym,
     Modality,
+    PlayerProfile,
     Provider,
+    PvPMatch,
     RawActivityLog,
     SkillTree,
     UserBadge,
+    UserGear,
     UserIntegration,
     XPLedger,
 )
@@ -105,8 +111,8 @@ class GamificationFlowTests(TestCase):
         entries = process_log(log)
         # base (35) + boss fight bonus (35) = 70
         self.assertEqual(sum(e.amount for e in entries), 70)
-        resources = BaseResource.objects.get(user=self.user)
-        self.assertEqual(resources.time_speedups, 5)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 100)  # starter + PR boss reward
 
     def test_skill_tree_level_up(self):
         from core.services.gamification import apply_to_skill_tree
@@ -127,8 +133,8 @@ class GamificationFlowTests(TestCase):
         )
         entries = process_log(log)
         self.assertEqual(entries[0].amount, 50)
-        resources = BaseResource.objects.get(user=self.user)
-        self.assertEqual(resources.materials, 10)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 25)  # starter + perfect macro
 
     def test_duplicate_log_is_idempotent(self):
         log = self._log("cardio", {"minutes": 30, "intensity": "zone3"})
@@ -262,8 +268,8 @@ class SparkyTests(TestCase):
         )
         entries = process_log(log)
         self.assertEqual(sum(e.amount for e in entries), 50)
-        resources = BaseResource.objects.get(user=self.user)
-        self.assertEqual(resources.materials, 10)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 25)  # starter + perfect macro
 
     def test_not_perfect_macros_no_award(self):
         log = RawActivityLog.objects.create(
@@ -519,7 +525,7 @@ class NutritionViewTests(TestCase):
         # Demo day hits protein (185>=180) and is under calories (2290<=2400).
         self.assertTrue(first["perfect"])
         self.assertEqual(first["xp"], 50)
-        self.assertEqual(first["materials"], 10)
+        self.assertEqual(first["tokens"], 25)
         self.assertEqual(first["protein_goal"], 180)
         self.assertEqual(first["calorie_goal"], 2400)
         self.assertEqual(len(first["food_entries"]), 3)
@@ -1034,277 +1040,6 @@ class ProfileLinkTests(TestCase):
             ).exists()
         )
 # ---------------------------------------------------------------------------
-# Base-building economy math (SimpleTestCase)
-# ---------------------------------------------------------------------------
-class BaseEconomyMathTests(SimpleTestCase):
-    def test_streak_multiplier(self):
-        from core.services.base_economy import streak_multiplier
-        self.assertEqual(streak_multiplier(0), 1.0)
-        self.assertEqual(streak_multiplier(5), 1.25)
-        self.assertEqual(streak_multiplier(10), 1.5)
-        self.assertEqual(streak_multiplier(20), 1.5)
-
-    def test_xp_dividend(self):
-        from core.services.base_economy import xp_dividend
-        self.assertEqual(xp_dividend(0), 0)
-        self.assertEqual(xp_dividend(19), 0)
-        self.assertEqual(xp_dividend(20), 1)
-        self.assertEqual(xp_dividend(39), 1)
-        self.assertEqual(xp_dividend(40), 2)
-
-    def test_crit_chance(self):
-        from core.services.base_economy import CRIT_CHANCE
-        self.assertEqual(CRIT_CHANCE, 0.05)
-
-    def test_production_plan_staff_and_modality(self):
-        from core.services.base_economy import production_plan, STAFF_BONUS, MODALITY_BUFF
-        # Use a tiny 0-day elapsed so base is 0, but multipliers still apply
-        # to non-zero base when elapsed > 0. This just sanity-checks the knobs.
-        self.assertEqual(STAFF_BONUS, 1.10)
-        self.assertEqual(MODALITY_BUFF, 1.20)
-
-
-# ---------------------------------------------------------------------------
-# Base-building DB/integration tests
-# ---------------------------------------------------------------------------
-class BaseEconomyFlowTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="baseuser", password="pw", streak=3)
-        self.resources, _ = BaseResource.objects.get_or_create(user=self.user)
-
-    def test_apply_rest_day_bonus_once_per_date(self):
-        from datetime import date
-        from core.services.base_economy import apply_rest_day_bonus
-        on_date = date(2025, 1, 1)
-        DailyReadiness.objects.create(
-            user=self.user, date=on_date, streak_requirement=DailyReadiness.StreakRequirement.REST_DAY,
-            score=0,
-        )
-        first = apply_rest_day_bonus(self.resources, self.user, on_date=on_date)
-        self.assertGreater(first, 0)
-        self.resources.refresh_from_db()
-        second = apply_rest_day_bonus(self.resources, self.user, on_date=on_date)
-        self.assertEqual(second, 0)
-
-    def test_modality_buff_and_production_plan(self):
-        from core.services.base_economy import log_modality_workout, production_plan
-        from django.utils import timezone
-        def_obj = BaseBuildingDef.objects.create(
-            slug="deck", name="Deck", base_cost_materials=10, base_cost_energy=1,
-            base_duration_hours=1, materials_per_day=10, xp_bonus_pct=0,
-            requires_base_level=0, modality_affinity="cardio", is_active=True, sort_order=1,
-        )
-        b = BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=1, last_produced_at=timezone.now())
-        log_modality_workout(self.resources, "cardio")
-        planned = production_plan(b, self.user.streak, self.resources.active_buffs or {}, synergies=[])
-        self.assertGreaterEqual(planned, 0)
-
-    def test_evolve_building_requires_level_3(self):
-        from core.services.base_economy import evolve_building
-        def_obj = BaseBuildingDef.objects.create(
-            slug="cabana", name="Cabana", base_cost_materials=10, base_cost_energy=1,
-            base_duration_hours=1, materials_per_day=5, xp_bonus_pct=0,
-            requires_base_level=0, branch_choices={"Materials": "cabana_mat", "XP": "cabana_xp"},
-            is_active=True, sort_order=2,
-        )
-        b = BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=2)
-        ok, err = evolve_building(b, "cabana_mat")
-        self.assertFalse(ok)
-        b.level = 3
-        b.save(update_fields=["level"])
-        branch_def = BaseBuildingDef.objects.create(
-            slug="cabana_mat", name="Cabana Materials", base_cost_materials=10, base_cost_energy=1,
-            base_duration_hours=1, materials_per_day=8, xp_bonus_pct=0,
-            requires_base_level=0, is_active=True, sort_order=3,
-        )
-        ok, err = evolve_building(b, "cabana_mat")
-        self.assertTrue(ok)
-        b.refresh_from_db()
-        self.assertEqual(b.building_def.slug, "cabana_mat")
-
-    def test_blueprint_drop_on_pr(self):
-        from core.services.gamification import _handle_strength
-        from unittest.mock import patch
-        self.assertEqual(self.resources.blueprints.get("golden_flamingo", 0), 0)
-        log = RawActivityLog.objects.create(
-            user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
-            payload={"sets": 3, "total_volume_lbs": 10000, "exercise": "squat", "pr": True},
-        )
-        with patch("random.random", return_value=0.01):
-            _handle_strength(log)
-        self.resources.refresh_from_db()
-        self.assertEqual(self.resources.blueprints.get("golden_flamingo", 0), 1)
-
-class BaseAPITests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="baseapi", password="pw", streak=2)
-        self.client.login(username="baseapi", password="pw")
-        # Seed a buildable def + a micro-build def.
-        self.lawn = BaseBuildingDef.objects.create(
-            slug="lawn_chairs", name="Lawn Chairs", base_cost_materials=0, base_cost_energy=0,
-            base_duration_hours=0, materials_per_day=5, xp_bonus_pct=0,
-            requires_base_level=0, is_active=True, sort_order=1,
-        )
-        self.cabana = BaseBuildingDef.objects.create(
-            slug="cabana", name="Cabana", base_cost_materials=20, base_cost_energy=5,
-            base_duration_hours=2, materials_per_day=10, xp_bonus_pct=0,
-            requires_base_level=0, branch_choices={"Materials": "cabana_mat", "XP": "cabana_xp"},
-            is_active=True, sort_order=2,
-        )
-
-    def test_base_state_requires_login(self):
-        self.client.logout()
-        resp = self.client.get("/base/")
-        self.assertEqual(resp.status_code, 302)
-
-    def test_base_state_shape(self):
-        resp = self.client.get("/base/")
-        self.assertEqual(resp.status_code, 200)
-        body = resp.json()
-        self.assertIn("resources", body)
-        self.assertIn("buildings", body)
-        self.assertIn("unlockable", body)
-        self.assertEqual(body["base_level"], 0)
-
-    def test_start_micro_builds_immediately(self):
-        resp = self.client.post("/base/start", data={"slug": "lawn_chairs"}, content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
-        body = resp.json()
-        self.assertTrue(body["ok"])
-        self.assertEqual(body["base_level"], 1)
-        self.assertEqual(len(body["buildings"]), 1)
-        self.assertEqual(body["buildings"][0]["level"], 1)
-        self.assertIn(body["buildings"][0]["status"], {"idle", "built"})
-
-    def test_start_400_on_missing_slug(self):
-        resp = self.client.post("/base/start", data={}, content_type="application/json")
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("error", resp.json())
-
-    def test_collect_404_on_bad_id(self):
-        resp = self.client.post("/base/collect", data={"id": 999}, content_type="application/json")
-        self.assertEqual(resp.status_code, 404)
-
-    def test_customize_400_on_bad_color(self):
-        b = BaseBuilding.objects.create(user=self.user, building_def=self.lawn, level=1)
-        resp = self.client.post("/base/customize", data={"id": b.pk, "color": "red"}, content_type="application/json")
-        self.assertEqual(resp.status_code, 400)
-
-    def test_staff_and_unstaff(self):
-        # Phase 8 (docs/13): staffing requires a REAL, accepted friend.
-        friend = User.objects.create_user(username="basefriend", password="pw")
-        send_friend_request(self.user, "basefriend")
-        respond_friend_request(friend, self.user.pk, accept=True)
-
-        b = BaseBuilding.objects.create(user=self.user, building_def=self.lawn, level=1)
-        resp = self.client.post("/base/staff", data={"id": b.pk, "friend_id": friend.pk}, content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
-        b.refresh_from_db()
-        self.assertEqual(b.staff_friend_id, friend.pk)
-        resp = self.client.post("/base/staff", data={"id": b.pk, "friend_id": None}, content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
-        b.refresh_from_db()
-        self.assertIsNone(b.staff_friend_id)
-
-    def test_evolve_requires_level_3(self):
-        b = BaseBuilding.objects.create(user=self.user, building_def=self.cabana, level=2)
-        resp = self.client.post("/base/evolve", data={"id": b.pk, "chosen_slug": "cabana_mat"}, content_type="application/json")
-        self.assertEqual(resp.status_code, 400)
-
-    def test_milestone_idempotent(self):
-        resp = self.client.post("/base/milestone", data={}, content_type="application/json")
-        self.assertEqual(resp.status_code, 200)
-        self.assertFalse(resp.json()["celebrated"])
-
-    def test_csrf_403_without_token(self):
-        # Django's CSRF middleware rejects POSTs without the token before the view runs.
-        from django.test import Client
-        csrf_client = Client(enforce_csrf_checks=True)
-        csrf_client.login(username="baseapi", password="pw")
-        resp = csrf_client.post("/base/start", data={"slug": "lawn_chairs"}, content_type="application/json")
-        self.assertEqual(resp.status_code, 403)
-# ---------------------------------------------------------------------------
-# Phase 7 gamification hooks (docs/09 §10): modality buffs, blueprint drops,
-# XP-bonus scaling from XP buildings.
-# ---------------------------------------------------------------------------
-class BaseGamificationHookTests(TestCase):
-    """Cover the Phase 7 hooks grafted onto gamification.py (Step 23)."""
-
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username="hookuser", password="pw", streak=3
-        )
-        self.resources, _ = BaseResource.objects.get_or_create(user=self.user)
-
-    def test_cardio_log_sets_cardio_buff(self):
-        from core.services import process_log
-
-        raw = RawActivityLog.objects.create(
-            user=self.user, source=Provider.PELOTON, event_type="cardio",
-            payload={"minutes": 45, "intensity": "zone4"},
-        )
-        process_log(raw)
-        self.resources.refresh_from_db()
-        self.assertIn("cardio_buff_expiry", self.resources.active_buffs or {})
-
-    def test_strength_log_sets_strength_buff(self):
-        from core.services import process_log
-
-        raw = RawActivityLog.objects.create(
-            user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
-            payload={"total_volume_lbs": 15000, "completed": True},
-        )
-        process_log(raw)
-        self.resources.refresh_from_db()
-        self.assertIn("strength_buff_expiry", self.resources.active_buffs or {})
-
-    def test_strength_pr_rolls_blueprint_drop(self):
-        from unittest.mock import patch
-
-        from core.services import process_log
-
-        with patch("core.services.base_economy.random.random", return_value=0.01):
-            raw = RawActivityLog.objects.create(
-                user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
-                payload={"total_volume_lbs": 15000, "completed": True, "pr": True},
-            )
-            process_log(raw)
-        self.resources.refresh_from_db()
-        self.assertEqual(self.resources.blueprints.get("golden_flamingo", 0), 1)
-
-    def test_xp_bonus_scales_entries_from_xp_building(self):
-        BaseBuildingDef.objects.create(
-            slug="vip_cabana", name="VIP Cabana", base_cost_materials=10,
-            base_cost_energy=1, base_duration_hours=1, materials_per_day=1,
-            xp_bonus_pct=10, requires_base_level=0, is_active=True, sort_order=1,
-        )
-        def_obj = BaseBuildingDef.objects.get(slug="vip_cabana")
-        # base_xp_bonus_pct = 10 * level 2 = 20%.
-        BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=2)
-
-        from core.services import process_log
-
-        raw = RawActivityLog.objects.create(
-            user=self.user, source=Provider.GARMIN, event_type="cardio",
-            payload={"minutes": 45, "intensity": "zone2"},  # 45 XP before scaling
-        )
-        entries = process_log(raw)
-        self.assertEqual(sum(e.amount for e in entries), int(round(45 * 1.20)))
-
-    def test_xp_bonus_caps_at_25(self):
-        from core.services.base_economy import base_xp_bonus_pct
-
-        BaseBuildingDef.objects.create(
-            slug="gold_statue", name="Gold Statue", base_cost_materials=1,
-            base_cost_energy=1, base_duration_hours=1, materials_per_day=1,
-            xp_bonus_pct=30, requires_base_level=0, is_active=True, sort_order=1,
-        )
-        def_obj = BaseBuildingDef.objects.get(slug="gold_statue")
-        BaseBuilding.objects.create(user=self.user, building_def=def_obj, level=1)
-        self.assertEqual(base_xp_bonus_pct(self.user), 25)
-
-
-# ---------------------------------------------------------------------------
 # Achievement Badges (Roadmap idea #5)
 # ---------------------------------------------------------------------------
 class BadgeTests(TestCase):
@@ -1359,8 +1094,8 @@ class BadgeTests(TestCase):
         self.assertEqual(body["newly_awarded"], [])
         keys = {b["key"] for b in body["badges"]}
         for expected in (
-            "first_steps", "ten_day_flame", "perfect_week", "blueprint_hunter",
-            "base_tycoon", "all_modality_master", "early_bird", "night_owl",
+            "first_steps", "ten_day_flame", "perfect_week",
+            "all_modality_master", "early_bird", "night_owl",
         ):
             self.assertIn(expected, keys)
         first = next(b for b in body["badges"] if b["key"] == "first_steps")
@@ -1403,36 +1138,6 @@ class BadgeTests(TestCase):
             self._grant_one_log(days_ago=d)
         newly = check_badges(self.user)
         self.assertNotIn("perfect_week", newly)
-
-    def test_blueprint_hunter(self):
-        from core.services.badges import check_badges
-
-        resources, _ = BaseResource.objects.get_or_create(user=self.user)
-        resources.blueprints = {"a": 1, "b": 1, "c": 1, "d": 1, "e": 1}
-        resources.save()
-        newly = check_badges(self.user)
-        self.assertIn("blueprint_hunter", newly)
-
-    def test_base_tycoon(self):
-        from core.services.badges import check_badges
-
-        # (user, building_def) is unique per the model, so base level 25 must be
-        # reached with 25 distinct buildings each at level 1.
-        for i in range(25):
-            def_obj = BaseBuildingDef.objects.create(
-                slug="hut_%d" % i, name="Hut %d" % i,
-                base_cost_materials=1, base_cost_energy=1,
-                base_duration_hours=1, materials_per_day=1,
-
-
-                xp_bonus_pct=0, requires_base_level=0,
-                is_active=True, sort_order=i,
-            )
-            BaseBuilding.objects.create(
-                user=self.user, building_def=def_obj, level=1
-            )
-        newly = check_badges(self.user)
-        self.assertIn("base_tycoon", newly)
 
     def test_all_modality_master(self):
         from core.services.badges import check_badges
@@ -1577,13 +1282,9 @@ class StatInfoAPITests(TestCase):
         self.assertEqual(len(body["history"]), 2)
         labels = {h["label"] for h in body["history"]}
         self.assertEqual(labels, {"Training day", "Rest day"})
-        train = next(h for h in body["history"] if h["label"] == "Training day")
-        self.assertEqual(train["amount"], "+1")
-        rest = next(h for h in body["history"] if h["label"] == "Rest day")
-        self.assertEqual(rest["amount"], "frozen")
 
-    def test_materials_history_includes_perfect_macros_and_harvest(self):
-        # Perfect macros grant +10 materials (also +50 Nutrition XP today).
+    def test_tokens_reflect_perfect_macro(self):
+        # Perfect macros award +25 tokens to the PlayerProfile wallet.
         log = RawActivityLog.objects.create(
             user=self.user,
             source=Provider.SPARKYFITNESS,
@@ -1595,45 +1296,21 @@ class StatInfoAPITests(TestCase):
             },
         )
         process_log(log)
-        # Backdate a 40-XP workout so yesterday's harvest row shows up too.
-        entry = XPLedger.objects.create(
-            user=self.user, modality=Modality.STRENGTH,
-            amount=40, description="Test workout",
-        )
-        XPLedger.objects.filter(pk=entry.pk).update(
-            created_at=timezone.now() - timedelta(days=1)
-        )
-
-        resp = self.client.get("/stats/materials/")
+        resp = self.client.get("/stats/tokens/")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(body["stat"], "materials")
-        # +10 macros + 2 minted by today's harvest (50 XP / 20).
-        self.assertEqual(body["value"], 12)
-        macros = next(h for h in body["history"] if h["label"] == "Perfect macros")
-        self.assertEqual(macros["amount"], "+10")
-        harvests = [h for h in body["history"] if h["label"] == "Daily XP harvest"]
-        self.assertEqual(len(harvests), 2)  # yesterday (40 XP) + today (50 XP)
-        self.assertTrue(all(h["amount"] == "+2" for h in harvests))
+        self.assertEqual(body["stat"], "tokens")
+        self.assertEqual(body["value"], 300 + 25)  # starter + perfect macro
 
-    def test_energy_rest_day_bonus_history(self):
-        DailyReadiness.objects.create(
-            user=self.user, date=timezone.localdate(), score=30,
-            streak_requirement=DailyReadiness.StreakRequirement.REST_DAY,
-        )
-        resp = self.client.get("/stats/energy/")
+    def test_stamina_shape(self):
+        resp = self.client.get("/stats/stamina/")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(body["stat"], "energy")
-        # The view refreshes resources, granting the +25 rest-day spike.
-        self.assertEqual(body["value"], 25)
-        bonus = next(
-            h for h in body["history"] if h["label"] == "Rest-day energy bonus"
-        )
-        self.assertEqual(bonus["amount"], "+25")
+        self.assertEqual(body["stat"], "stamina")
+        self.assertEqual(body["value"], 3)
         fact_labels = [f["label"] for f in body["facts"]]
-        self.assertIn("Energy cap", fact_labels)
-        self.assertIn("Passive regen", fact_labels)
+        self.assertIn("Attacks per day", fact_labels)
+        self.assertIn("Rest-day bonus", fact_labels)
 
 
 
@@ -1739,9 +1416,8 @@ class LeagueFlowTests(TestCase):
         self.assertEqual(second.tier, "silver")
         self.assertEqual(second.reward, WEEKLY_REWARDS[2])
 
-        resources = BaseResource.objects.get(user=self.user)
-        self.assertEqual(resources.time_speedups, WEEKLY_REWARDS[1]["time_speedups"])
-        self.assertEqual(resources.materials, WEEKLY_REWARDS[1]["materials"])
+        resources = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(resources.tokens, 300 + WEEKLY_REWARDS[1]["tokens"])
 
     def test_close_week_is_idempotent(self):
         week = ensure_current_week()
@@ -1751,8 +1427,8 @@ class LeagueFlowTests(TestCase):
         self.assertEqual(LeagueResult.objects.filter(week=week).count(), 1)
         # Rank-1 reward paid exactly once - the re-run must not double-pay.
         self.assertEqual(
-            BaseResource.objects.get(user=self.user).time_speedups,
-            WEEKLY_REWARDS[1]["time_speedups"],
+            PlayerProfile.objects.get(user=self.user).tokens,
+            300 + WEEKLY_REWARDS[1]["tokens"],
         )
 
     def test_stale_open_weeks_close_lazily(self):
@@ -2148,39 +1824,6 @@ class Phase8APITests(TestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
-    # ---- Base staff validation (real friends only) ----
-    def test_base_staff_requires_real_friend(self):
-        building_def = BaseBuildingDef.objects.create(
-            slug="hut_staff", name="Hut", base_cost_materials=0,
-            base_cost_energy=0, base_duration_hours=0,
-        )
-        building = BaseBuilding.objects.create(
-            user=self.user, building_def=building_def, level=1
-        )
-        # Non-friend rejected.
-        resp = self.client.post(
-            "/base/staff", data={"id": building.pk, "friend_id": self.other.pk},
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 400)
-        # Real friend accepted.
-        self._make_friends_with_other()
-        resp = self.client.post(
-            "/base/staff", data={"id": building.pk, "friend_id": self.other.pk},
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 200)
-        building.refresh_from_db()
-        self.assertEqual(building.staff_friend_id, self.other.pk)
-        # Null un-staffs.
-        resp = self.client.post(
-            "/base/staff", data={"id": building.pk, "friend_id": None},
-            content_type="application/json",
-        )
-        self.assertEqual(resp.status_code, 200)
-        building.refresh_from_db()
-        self.assertIsNone(building.staff_friend_id)
-
     def _make_friends_with_other(self):
         send_friend_request(self.user, "other8")
         respond_friend_request(self.other, self.user.pk, accept=True)
@@ -2337,4 +1980,359 @@ class AuthCookieSchemeTests(TestCase):
             csrf_cookie["secure"],
             "CSRF cookie must stay Secure over HTTPS (Cloudflare tunnel)",
         )
+# ---------------------------------------------------------------------------
+# Phase 9 (docs/15): Token, Gacha & Battle (replaces the base meta-game)
+# ---------------------------------------------------------------------------
+class CombatEconomyMathTests(SimpleTestCase):
+    def test_rarity_weights_shift_with_streak(self):
+        from core.services.combat import rarity_weights
+
+        base = rarity_weights(0)
+        long = rarity_weights(30)
+        self.assertGreater(long['legendary'], base['legendary'])
+        self.assertGreater(long['epic'], base['epic'])
+        self.assertLess(long['common'], base['common'])
+
+    def test_rarity_weights_total_preserved(self):
+        from core.services.combat import rarity_weights
+
+        for streak in (0, 7, 15, 40):
+            w = rarity_weights(streak)
+            total = sum(w[r] for r in w)
+            self.assertAlmostEqual(total, 100.0, delta=0.001)
+
+    def test_open_pack_dynamic_rarity_pick_obeys_rng(self):
+        from core.services.combat import _pick_rarity
+
+        # rng always rolls near 0 -> picks the lowest (common) bucket.
+        picked = _pick_rarity({'common': 60, 'rare': 28, 'epic': 10, 'legendary': 2}, lambda: 0.01)
+        self.assertEqual(picked, 'common')
+
+
+class TokenEconomyFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="tokenuser", password="pw", streak=5)
+
+    def test_daily_token_harvest_is_idempotent(self):
+        from core.services.combat import daily_token_harvest, profile
+
+        XPLedger.objects.create(user=self.user, modality=Modality.ENDURANCE, amount=120)
+        p = profile(self.user)
+        before = p.tokens
+        minted = daily_token_harvest(self.user, on_date=timezone.localdate())
+        # streak 5 -> multiplier 1.25; 120 XP / 10 = 12 * 1.25 = 15.
+        self.assertEqual(minted, 15)
+        self.assertEqual(profile(self.user).tokens, before + 15)
+        # Same date re-run mints nothing.
+        self.assertEqual(daily_token_harvest(self.user, on_date=timezone.localdate()), 0)
+
+    def test_perfect_macro_awards_tokens(self):
+        from core.services.combat import profile
+
+        user2 = User.objects.create_user(username="tokenuser2", password="pw")
+        log = RawActivityLog.objects.create(
+            user=user2, source=Provider.SPARKYFITNESS, event_type="nutrition",
+            payload={"date": timezone.localdate().isoformat(),
+                     "food_entries": [{"protein": 200, "calories": 100}],
+                     "goals": {"protein": 150, "calories": 2000}},
+        )
+        process_log(log)
+        self.assertEqual(profile(user2).tokens, 300 + 25)
+
+
+class GachaFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="gachauser", password="pw")
+        self.pack = GearPackDef.objects.create(
+            slug="test_pack", name="Test Pack", price_tokens=100, draws=2,
+            domains=[], guaranteed_min_rarity="common",
+        )
+        self.gear = GearItemDef.objects.create(
+            slug="test_sword", name="Test Sword", rarity="common",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.5, pack=self.pack, weight=100,
+        )
+
+    def test_open_pack_spends_tokens_and_grants_draws(self):
+        from core.services.combat import open_pack, profile
+
+        p = profile(self.user)
+        self.assertEqual(p.tokens, 300)
+        ok, err, manifest = open_pack(self.user, self.pack, rng=lambda: 0.01)
+        self.assertTrue(ok, err)
+        self.assertEqual(len(manifest), 2)  # pack.draws
+        p.refresh_from_db()
+        self.assertEqual(p.tokens, 200)  # 300 - 100
+        self.assertEqual(UserGear.objects.filter(user=self.user).count(), 2)
+
+    def test_open_pack_insufficient_tokens(self):
+        from core.services.combat import open_pack, profile
+
+        p = profile(self.user)
+        p.tokens = 50
+        p.save()
+        ok, err, _ = open_pack(self.user, self.pack)
+        self.assertFalse(ok)
+        self.assertIn("tokens", err)
+
+class BattleFlowTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="battler", password="pw")
+        self.boss = CampaignBoss.objects.create(
+            campaign="strength", slug="test_boss", name="Test Boss",
+            hp_total=100000, element="strength", weaknesses=[], resistances=[],
+        )
+
+    def test_engage_and_attack_decrement_stamina_and_log(self):
+        from core.services.combat import attack_boss, engage_boss
+
+        engage_boss(self.user, "strength", on_date=timezone.localdate())
+        result, err = attack_boss(self.user, "strength", on_date=timezone.localdate())
+        self.assertIsNone(err)
+        self.assertEqual(result["stamina_left"], 2)  # 3 - 1
+        self.assertTrue(BattleLog.objects.filter(user=self.user, campaign="strength").exists())
+        prog = CampaignProgress.objects.get(user=self.user, campaign="strength")
+        self.assertFalse(prog.conquered)
+        self.assertLessEqual(prog.damage_dealt, prog.total_hp)
+
+    def test_attack_without_stamina_errors(self):
+        from core.services.combat import attack_boss, engage_boss, profile
+
+        engage_boss(self.user, "strength", on_date=timezone.localdate())
+        p = profile(self.user)
+        # Mark stamina as already-refreshed today so the daily refill is skipped
+        # and the spend guard actually trips for the rest of the day.
+        p.stamina = 0
+        p.stamina_updated_at = timezone.now()
+        p.save()
+        result, err = attack_boss(self.user, "strength", on_date=timezone.localdate())
+        self.assertIsNone(result)
+        self.assertIn("stamina", err)
+
+
+class PvPFlowTests(TestCase):
+    def setUp(self):
+        self.attacker = User.objects.create_user(username="pvpatk", password="pw")
+        self.defender = User.objects.create_user(username="pvpdef", password="pw")
+
+    def test_set_defense_and_attack_resolution(self):
+        from core.services.combat import attack_gym, set_defense
+
+        set_defense(self.defender, terrain="strength", name="Defender Gym")
+        gym = Gym.objects.get(owner=self.defender)
+        self.assertTrue(gym.defense_snapshot)
+
+        result, err = attack_gym(self.attacker, gym)
+        self.assertIsNone(err)
+        self.assertIn("did_win", result)
+        self.assertIn("winner", result)
+        self.assertTrue(PvPMatch.objects.filter(attacker=self.attacker, gym=gym).exists())
+
+class CombatAPITests(TestCase):
+    """Walk the Phase 9 endpoints (docs/15 §6) happy paths + CSRF-403."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="combatapi", password="pw")
+        self.client.login(username="combatapi", password="pw")
+        self.pack = GearPackDef.objects.create(
+            slug="api_pack", name="API Pack", price_tokens=100, draws=1,
+            domains=[], guaranteed_min_rarity="common",
+        )
+        GearItemDef.objects.create(
+            slug="api_blade", name="API Blade", rarity="common",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.5, pack=self.pack, weight=100,
+        )
+        CampaignBoss.objects.create(
+            campaign="strength", slug="api_boss", name="API Boss",
+            hp_total=50000, element="strength", weaknesses=[], resistances=[],
+        )
+
+    def test_state_endpoints_require_login(self):
+        self.client.logout()
+        for url in ("/battle/state", "/shop/state", "/loadout/state", "/pvp/state"):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, 302, url)
+
+    def test_state_endpoint_shapes(self):
+        resp = self.client.get("/battle/state")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("campaigns", resp.json())
+        self.assertIn("wallet", resp.json())
+
+        resp = self.client.get("/shop/state")
+        body = resp.json()
+        self.assertIn("packs", body)
+        self.assertIn("owned", body)
+        self.assertTrue(body["packs"])
+
+        resp = self.client.get("/loadout/state")
+        self.assertIn("equipped", resp.json())
+
+        resp = self.client.get("/pvp/state")
+        self.assertIn("attackable", resp.json())
+
+    def test_shop_open_flow(self):
+        resp = self.client.post(
+            "/shop/open", data={"pack_slug": "api_pack"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(len(body["manifest"]), 1)
+
+    def test_battle_engage_and_attack_flow(self):
+        resp = self.client.post(
+            "/battle/engage", data={"campaign": "strength"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+
+        resp = self.client.post(
+            "/battle/attack", data={"campaign": "strength"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["ok"])
+        self.assertIn("total_damage", body)
+        self.assertIn("stamina_left", body)
+
+    def test_mutations_require_csrf(self):
+        from django.test import Client
+
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.login(username="combatapi", password="pw")
+        resp = csrf_client.post(
+            "/shop/open", data={"pack_slug": "api_pack"},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 403)
+
+class Phase9CleanupTests(TestCase):
+    """Regression tests for the docs/15 cleanup: bulk discounts, generic crates
+    and the loadout equip/unequip round-trip."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="cleanup", password="pw")
+        self.client.login(username="cleanup", password="pw")
+        self.pack = GearPackDef.objects.create(
+            slug="bulk_pack", name="Bulk Pack", price_tokens=100, draws=2,
+            domains=[], guaranteed_min_rarity="common", sort_order=1,
+        )
+        for s in ("bulk_a", "bulk_b"):
+            GearItemDef.objects.create(
+                slug=s, name=s, rarity="common", effect_type="domain_multiplier",
+                effect_domain="strength", effect_value=1.1, pack=self.pack, weight=100,
+            )
+
+    def test_bulk_price_discount_tiers(self):
+        from core.services.combat import bulk_price
+
+        cases = [(1, 100, 0), (3, 270, 10), (5, 425, 15), (10, 800, 20)]
+        for qty, cost, pct in cases:
+            got_cost, got_pct = bulk_price(100, qty)
+            self.assertEqual((got_cost, got_pct), (cost, pct))
+
+    def test_open_pack_bulk_draws_and_spends(self):
+        from core.services.combat import open_pack_bulk, profile
+
+        ok, err, payload = open_pack_bulk(self.user, self.pack, 3, rng=lambda: 0.01)
+        self.assertTrue(ok, err)
+        self.assertEqual(payload["cost"], 270)
+        self.assertEqual(payload["discount_pct"], 10)
+        self.assertEqual(len(payload["manifest"]), 6)  # 3 copies * 2 draws
+        self.assertEqual(profile(self.user).tokens, 300 - 270)
+
+    def test_generic_crate_pulls_whole_catalog_and_guarantees_rarity(self):
+        from core.services.combat import open_pack
+
+        crate = GearPackDef.objects.create(
+            slug="gen_crate", name="Gen Crate", price_tokens=150, draws=1,
+            domains=[], guaranteed_min_rarity="rare", is_generic=True,
+        )
+        GearItemDef.objects.create(
+            slug="other_item", name="Other Item", rarity="common",
+            effect_type="domain_multiplier", effect_domain="hydration",
+            effect_value=1.0, pack=None, weight=100,
+        )
+        ok, err, manifest = open_pack(self.user, crate, rng=lambda: 0.01)
+        self.assertTrue(ok, err)
+        self.assertEqual(len(manifest), 1)
+        self.assertEqual(manifest[0]["rarity"], "rare")  # guaranteed bump
+
+    def test_shop_open_bulk_endpoint(self):
+        resp = self.client.post(
+            "/shop/open", data={"pack_slug": "bulk_pack", "quantity": 3},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["quantity"], 3)
+        self.assertEqual(body["cost"], 270)
+        self.assertEqual(len(body["manifest"]), 6)
+
+    def test_loadout_unequip_endpoint(self):
+        gear = GearItemDef.objects.create(
+            slug="eq_item", name="Eq Item", slot="head", rarity="common",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.0, pack=self.pack,
+        )
+        ug = UserGear.objects.create(user=self.user, gear_def=gear, rarity="common", equipped_slot="head")
+        resp = self.client.post(
+            "/loadout/unequip", data={"gear_id": ug.pk},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["ok"])
+        ug.refresh_from_db()
+        self.assertIsNone(ug.equipped_slot)
+
+        resp = self.client.post(
+            "/loadout/equip", data={"gear_id": ug.pk},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        ug.refresh_from_db()
+        self.assertEqual(ug.equipped_slot, "head")
+
+    def test_pvp_state_includes_power_breakdown_and_new_slots(self):
+        # Equipping into a brand-new slot (chest) works and feeds the PvP power audit.
+        GearItemDef.objects.create(
+            slug="pw", name="Pw", slot="chest", rarity="epic",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.5, pack=self.pack,
+        )
+        ug = UserGear.objects.create(
+            user=self.user, gear_def=GearItemDef.objects.get(slug="pw"),
+            rarity="epic", equipped_slot="chest",
+        )
+        resp = self.client.get("/loadout/state")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["equipped"]["chest"]["name"], "Pw")
+        self.assertTrue(any(o["slug"] == "pw" and o["equipped"] for o in body["owned"]))
+
+        resp = self.client.get("/pvp/state")
+        self.assertEqual(resp.status_code, 200)
+        me = resp.json().get("me") or {}
+        self.assertIn("power", me)
+        self.assertIn("consistency", me)
+        self.assertIn("per_campaign", me)
+        self.assertGreaterEqual(me["power"], 0)
+
+    def test_loadout_state_reveals_unequipped_candidates(self):
+        gear = GearItemDef.objects.create(
+            slug="candidate_item", name="Candidate Item", slot="chest", rarity="rare",
+            effect_type="domain_multiplier", effect_domain="strength",
+            effect_value=1.0, pack=self.pack,
+        )
+        UserGear.objects.create(user=self.user, gear_def=gear, rarity="rare")
+        resp = self.client.get("/loadout/state")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertIn("equipped", body)
+        self.assertTrue(any(c["slug"] == "candidate_item" for c in body["candidates"]))
 

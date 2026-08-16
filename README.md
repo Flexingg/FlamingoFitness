@@ -124,7 +124,9 @@ points total (`earned / overall`). Badge tiles are **clickable**:
 The eight built-in badges (First Steps, 10-Day Flame, Perfect Week, Blueprint
 Hunter, Base Tycoon, All-Modality Master, Early Bird, Night Owl) are just rows
 in the same `BadgeDef` table — edit, re-point or deactivate them like any
-badge you create yourself.
+badge you create yourself. (The base-era `base_level` / `blueprints` badge rules
+and the *Base Tycoon* / *Blueprint Hunter* badges were **retired** when the base
+game was removed in Phase 9.)
 
 
 ---
@@ -177,8 +179,8 @@ To run jobs manually (what Celery would do):
 - `GET /api/v1/badges/` — achievement badges: points, awarded dates, live
   progress and lazy granting (see **Achievement badges** below)
 - `GET /api/v1/stats/<stat>/` — top-nav stat explainers: clicking the
-  streak / materials (gems) / energy badges shows what the stat means, how
-  to earn it, and recent history of earning it (`streak`, `materials`, `energy`)
+  streak / tokens / stamina badges shows what the stat means, how to earn it,
+  and recent history of earning it (`streak`, `tokens`, `stamina`)
 - `POST /api/v1/webhooks/home-assistant`
 - Modality panels: `GET /api/v1/nutrition/`, `/api/v1/hydration/`, `/api/v1/endurance/`, `/api/v1/strength/`, `/api/v1/boss/` (incl. personal records), `/api/v1/recovery/`
 - **Leagues / Challenges / Flocks (Phase 8)**: `GET /api/v1/leagues/`
@@ -189,7 +191,97 @@ To run jobs manually (what Celery would do):
 
 **Phase 6 — Frontend / PWA** (`core/templates`, `core/static`)
 - Django template dashboard ported from `example_html/dashboard.html`
-- Vanilla JS `fetch()` rendering (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`, `recovery.js`) + service worker + `manifest.json` + icons
+- Vanilla JS `fetch()` rendering (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`, `recovery.js`, plus Phase 9: `shop.js`, `loadout.js`, `battle.js`, `pvp.js`) + service worker + `manifest.json` + icons
+
+## 🎮 Phase 9 — Tokens, Gacha, Loadout, Battle & PvP (docs/15)
+
+The old "base" meta-game (materials / energy / buildings) is gone, replaced by a
+token economy + combat RPG loop: **track your habits → earn Tokens → pull packs
+in the Shop → equip a 3-slot Loadout → siege PvE bosses → hold PvP Gyms.** The
+player keeps `tokens` / `stamina` in their `PlayerProfile`.
+
+Everything you add lives in four tables you edit in the Django admin
+(`/admin/`) or seed from `core/management/commands/create_demo_accounts.py`:
+
+| Model | What it is | Walks the player through… |
+|---|---|---|
+| `GearPackDef` | A purchasable Shop pack/crate | Spending tokens; winning items |
+| `GearItemDef` | A single droppable item/consumable | Being found and equipped |
+| `CampaignBoss` | A PvE boss for a domain | Siege HP bar + attack flow |
+| `Gym` | Your PvP home turf | Being attacked / holding territory |
+
+### ➕ Adding a Shop pack or crate
+
+1. **Admin:** `Admin → Gear pack defs → Add gear pack def`, set:
+   - `slug` (unique, URL-safe), `name`, `price_tokens`, `draws` (items per buy),
+     `domains` (JSON list of `cardio|strength|nutrition|hydration|sleep`;
+     empty = "no filter"), `guaranteed_min_rarity`, `sort_order`.
+   - **Crates:** tick **`is_generic`** so the pack draws from the *entire* active
+     gear catalog instead of only its own items (a normal pack only drops gear
+     whose `GearItemDef.pack` points at it).
+   - **Bulk discount** is automatic: buying `3 → 10%`, `5 → 15%`, `10 → 20%`
+     off (`BULK_DISCOUNTS` in `core/services/combat.py`).
+2. **Seeding:** add a dict to `DEFAULT_PACKS` in
+   `core/management/commands/create_demo_accounts.py` (idempotent by `slug`).
+3. **Coding:** no code needed (the Shop reads `GET /api/v1/shop/state` and
+   `POST /api/v1/shop/open {pack_slug, quantity}` automatically).
+
+### ➕ Adding a gear item
+
+1. **Admin:** `Admin → Gear item defs → Add gear item def`, set:
+   - `slug`, `name`, `slot` (`head` / `chest` / `left_hand` / `right_hand` /
+     `legs` / `feet` / `accessory` — or leave blank for a consumable),
+     `rarity`, `icon` (a **free** FontAwesome class, e.g.
+     `fa-shirt`, `fa-helmet-safety`, `fa-hand-fist`; avoid Pro-only names like
+     `fa-helmet-battle` which render invisible), `effect_type`, `effect_domain`,
+     `effect_value`, and `pack` (which pack can drop it).
+   - `effect_type` options: `domain_multiplier` (scales that domain's damage),
+     `double_domain` / `shield_overage` (consumables), `synergy`
+     (set `requires_sleep_efficiency`, e.g. `0.85`).
+   - Consumables: tick `is_consumable`, set `max_stack` (default 9).
+2. **Seeding:** add a dict to `DEFAULT_GEAR` (its `pack` key is the pack `slug`).
+3. **Make it discoverable**: attach it to a pack (or make it part of a generic
+   crate's catalog). Unpacked gear never drops anywhere.
+
+### ➕ Adding a PvE campaign boss
+
+1. **Admin:** `Admin → Campaign bosses → Add campaign boss`, set:
+   - `campaign` (`cardio`, `strength`, `nutrition`, `hydration`, `sleep`),
+     `slug`, `name`, `icon` (free icon), `hp_total`, `element`, `sort_order`.
+   - `weaknesses` / `resistances`: JSON lists of domains that deal **2×** /
+     **0.5×** damage to it (leave both `[]` for a neutral boss).
+   - `mechanics`: JSON dict of optional flags — `{"heal_on_overage": true}`
+     (Nutrition heals when calories exceed goal) or
+     `{"front_load_water_noon": true}` (Hydration takes 2× when ≥50% of water
+     was logged before noon).
+2. **Seeding:** add a tuple `(campaign, slug, name, hp, element, weaknesses,
+   resistances, mechanics)` to `DEFAULT_CAMPAIGN_BOSSES`. The seeder assigns a
+   sequential per-campaign `sort_order` so defeating a boss auto-advances you to
+   the next one (the campaign is "built out" with several bosses, e.g. the three
+   Strength bosses now seeded: *Sir Skip-a-Leg → Iron Couch King → Deadlift
+   Djinn*).
+
+### ➕ Setting up PvP Gyms
+
+- Each user's Gym is created + snapshotted from `POST /api/v1/pvp/defend`
+  (`terrain`, `name`). Attack resolution is instant async and reuses the weekly
+  `XPLedger` consistency in `Gym.defense_snapshot`.
+- To seed a live arena so PvP is populated on boot, the demo command creates a
+  `Gym` for both `player1` and `admin` (see `handle()` in
+  `create_demo_accounts.py`).
+
+### ⚙️ After any of the above
+
+- Model changes (new field/table): `manage.py makemigrations core` then
+  `manage.py migrate`.
+- Seeding-only changes: `manage.py create_demo_accounts` is idempotent via
+  `get_or_create`, so re-run it (or recreate the DB with `docker compose down -v`
+  for a clean slate).
+- Validate: `manage.py check`, the test suite (`Testing` below), and
+  `node --check core/static/core/js/**/*.js` if frontend JS changed.
+- Full design + rulebook math: **`docs/15_Gacha_Battle_Replacing_Base.md`**.
+
+---
 
 ## Testing
 

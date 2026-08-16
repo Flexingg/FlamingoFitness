@@ -240,48 +240,6 @@ class DailyReadiness(models.Model):
         return f"{self.user.username} readiness {self.score} ({self.streak_requirement})"
 
 
-class BaseResource(models.Model):
-    """Base-building meta-game resources owned by a user."""
-
-    user = models.OneToOneField(
-        User, on_delete=models.CASCADE, related_name="base_resources"
-    )
-    materials = models.PositiveIntegerField(default=0)
-    energy = models.PositiveIntegerField(default=0)
-    time_speedups = models.PositiveIntegerField(default=0)
-    # Phase 7 (docs/09): passive-regen + idempotency + state trackers.
-    energy_updated_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Passive energy regen checkpoint (never stored while above the cap).",
-    )
-    last_daily_harvest = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Last date the daily XP -> materials dividend was minted (idempotency).",
-    )
-    last_rest_bonus_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Last date the rest-day energy spike was granted (idempotency).",
-    )
-    blueprints = models.JSONField(
-        default=dict,
-        help_text="Rare blueprint ownership, e.g. {'golden_flamingo': 1} (unlocks prestige defs).",
-    )
-    active_buffs = models.JSONField(
-        default=dict,
-        help_text="Modality production buffs, e.g. {'strength_buff_expiry': 'iso-date'}.",
-    )
-    last_milestone_celebrated = models.IntegerField(
-        default=0,
-        help_text="Base level whose confetti celebration was acknowledged (5, 10, ...).",
-    )
-
-    def __str__(self):
-        return f"{self.user.username} base: {self.materials} mat, {self.energy} en"
-
-
 class BossConfig(models.Model):
     """Admin-configurable PR Boss thresholds.
 
@@ -313,125 +271,294 @@ class BossConfig(models.Model):
         return f"{self.name} ({self.bodyweight_multiplier}x BW)"
 
 
-class BaseBuildingDef(models.Model):
-    """Admin-configurable catalog for the base-building meta-game (Phase 7).
+# ---------------------------------------------------------------------------
+# Phase 9 (docs/15): Token, Gacha & Battle system
+# ---------------------------------------------------------------------------
+class Rarity(models.TextChoices):
+    COMMON = "common", "Common"
+    RARE = "rare", "Rare"
+    EPIC = "epic", "Epic"
+    LEGENDARY = "legendary", "Legendary"
 
-    One row per building type ("The Flamingo Club"): costs, construction
-    duration, daily material production, XP bonus, branch options, modality
-    affinity, blueprint gates and rest-day recovery additions. Tuned in the
-    Django admin (`/admin/`).
+
+class GearSlot(models.TextChoices):
+    HEAD = "head", "Head"
+    CHEST = "chest", "Chest"
+    LEFT_HAND = "left_hand", "Left Hand"
+    RIGHT_HAND = "right_hand", "Right Hand"
+    LEGS = "legs", "Legs"
+    FEET = "feet", "Feet"
+    ACCESSORY = "accessory", "Accessory"
+
+
+class Campaign(models.TextChoices):
+    """PvE campaign tracks (map 1:1 to the existing five modalities).
+
+    ``SLEEP`` maps to ``Modality.RECOVERY`` in the gamification pipeline.
     """
+
+    CARDIO = "cardio", "Cardio"
+    STRENGTH = "strength", "Weightlifting"
+    NUTRITION = "nutrition", "Nutrition"
+    HYDRATION = "hydration", "Hydration"
+    SLEEP = "sleep", "Sleep"
+
+
+class Element(models.TextChoices):
+    """PvP elemental types (the element wheel, docs/15 §3.6)."""
+
+    ENDURANCE = "endurance", "Endurance"
+    STRENGTH = "strength", "Strength"
+    NUTRITION = "nutrition", "Nutrition"
+    HYDRATION = "hydration", "Hydration"
+    RECOVERY = "recovery", "Recovery"
+
+
+class PlayerProfile(models.Model):
+    """Token + stamina wallet (replaces the Phase 7 BaseResource wallet)."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="combat_profile"
+    )
+    tokens = models.PositiveIntegerField(
+        default=300, help_text="Premium currency spent in the Gacha Shop."
+    )
+    stamina = models.PositiveIntegerField(
+        default=3, help_text="Daily siege-attack budget (refills each day)."
+    )
+    stamina_updated_at = models.DateTimeField(null=True, blank=True)
+    last_token_harvest = models.DateField(
+        null=True, blank=True, help_text="Daily token-dividend idempotency stamp."
+    )
+    active_buffs = models.JSONField(
+        default=dict,
+        help_text="Dated combat buffs, e.g. {'cardio_double_date': 'YYYY-MM-DD'.",
+    )
+    total_conquests = models.PositiveIntegerField(default=0)
+    pvp_wins = models.PositiveIntegerField(default=0)
+    pvp_losses = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.username} profile ({self.tokens} tokens)"
+
+
+class GearPackDef(models.Model):
+    """A themed Gacha pack (e.g. Iron Roost, Alchemist's Pack)."""
 
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=80)
     description = models.TextField(blank=True)
-    icon = models.CharField(max_length=40, default="fa-umbrella-beach")
-    base_cost_materials = models.PositiveIntegerField(default=40)
-    base_cost_energy = models.PositiveIntegerField(default=10)
-    base_duration_hours = models.PositiveIntegerField(
-        default=6, help_text="0 = instant micro-build."
+    icon = models.CharField(max_length=60, default="fa-box-open")
+    price_tokens = models.PositiveIntegerField(default=100)
+    draws = models.PositiveIntegerField(default=1)
+    domains = models.JSONField(
+        default=list, blank=True, help_text="Targeted Campaign values."
     )
-    materials_per_day = models.PositiveIntegerField(default=0)
-    xp_bonus_pct = models.PositiveIntegerField(default=0)
-    max_level = models.PositiveIntegerField(default=5)
-    requires_base_level = models.PositiveIntegerField(default=0)
-    requires_blueprint = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True,
-        help_text="e.g. 'golden_flamingo' - must be owned in BaseResource.blueprints.",
+    guaranteed_min_rarity = models.CharField(
+        max_length=20, choices=Rarity.choices, default=Rarity.COMMON
     )
-    modality_affinity = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        help_text="e.g. 'strength' / 'cardio' - matches an active_buffs key for 1.2x production.",
+    is_generic = models.BooleanField(
+        default=False, help_text="Crate-style pack that drops from the whole gear catalog (ignores the pack FK)."
     )
-    branch_choices = models.JSONField(
-        default=dict,
-        help_text="Level-3 evolution menu, e.g. {'Materials': 'cabana_mat', 'XP': 'cabana_xp'}.",
-    )
-    rest_day_bonus_add = models.PositiveIntegerField(
-        default=0,
-        help_text="Extra rest-day energy granted while this building is owned (Recovery Pool).",
-    )
-    sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
 
     class Meta:
-        ordering = ["sort_order", "id"]
-
-    def cost_for_level(self, target_level):
-        """Material + energy cost for building/upgrading TO ``target_level``.
-
-        Both scale +40% per level above 1.
-        """
-        scale = 1 + 0.4 * (target_level - 1)
-        return round(self.base_cost_materials * scale), round(
-            self.base_cost_energy * scale
-        )
-
-    def duration_for_level(self, target_level):
-        return self.base_duration_hours * target_level
-
-    def bonus_pct_for_level(self, target_level):
-        return self.xp_bonus_pct * target_level
+        ordering = ["sort_order", "slug"]
 
     def __str__(self):
-        return f"{self.name} ({self.slug})"
+        return self.name
 
 
-class BaseBuilding(models.Model):
-    """A user's instance of a BaseBuildingDef (per-user level/construction state).
+class GearItemDef(models.Model):
+    """Gear / consumable catalog (admin-configurable, like the old defs)."""
 
-    ``level == 0`` means never built. While constructing, ``target_level`` holds
-    the level under construction and ``construction_started_at`` +
-    ``construction_duration_hours`` describe the timer.
-    """
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=80)
+    slot = models.CharField(
+        max_length=20, choices=GearSlot.choices, blank=True, default=""
+    )
+    rarity = models.CharField(max_length=20, choices=Rarity.choices, default=Rarity.COMMON)
+    effect_type = models.CharField(
+        max_length=30,
+        default="domain_multiplier",
+        help_text=(
+            "domain_multiplier | synergy | double_domain | shield_overage. "
+            "Consumables use double_domain / shield_overage."
+        ),
+    )
+    effect_domain = models.CharField(
+        max_length=20, choices=Campaign.choices, null=True, blank=True
+    )
+    effect_value = models.FloatField(default=1.0)
+    requires_sleep_efficiency = models.FloatField(
+        null=True, blank=True, help_text="e.g. 0.85 gates a synergy item."
+    )
+    pack = models.ForeignKey(
+        GearPackDef, null=True, blank=True, on_delete=models.SET_NULL, related_name="items"
+    )
+    weight = models.PositiveIntegerField(default=100, help_text="Relative drop weight in a pack.")
+    is_consumable = models.BooleanField(default=False)
+    max_stack = models.PositiveIntegerField(default=1)
+    icon = models.CharField(max_length=60, default="fa-shirt")
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
 
-    user = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name="base_buildings"
+    class Meta:
+        ordering = ["sort_order", "slug"]
+
+    def __str__(self):
+        return f"{self.name} ({self.rarity})"
+
+
+class UserGear(models.Model):
+    """A user's owned gear item (or consumable stack)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="gear")
+    gear_def = models.ForeignKey(GearItemDef, on_delete=models.CASCADE, related_name="owned")
+    rarity = models.CharField(max_length=20, choices=Rarity.choices, default=Rarity.COMMON)
+    quantity = models.PositiveIntegerField(default=1)
+    obtained_at = models.DateTimeField(auto_now_add=True)
+    equipped_slot = models.CharField(
+        max_length=20, choices=GearSlot.choices, null=True, blank=True
     )
-    building_def = models.ForeignKey(
-        BaseBuildingDef, on_delete=models.CASCADE, related_name="instances"
+
+    class Meta:
+        ordering = ["-obtained_at"]
+
+    def __str__(self):
+        return f"{self.user.username}: {self.gear_def.slug} x{self.quantity}"
+
+
+class CampaignBoss(models.Model):
+    """A PvE boss definition (docs/15 §4.6)."""
+
+    campaign = models.CharField(max_length=20, choices=Campaign.choices)
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=80)
+    icon = models.CharField(max_length=60, default="fa-dragon")
+    hp_total = models.BigIntegerField(default=100_000)
+    element = models.CharField(max_length=20, choices=Element.choices)
+    weaknesses = models.JSONField(
+        default=list, blank=True, help_text="Campaign domains dealing 2x damage."
     )
-    level = models.PositiveIntegerField(
-        default=0, help_text="Built level (0 = never built)."
+    resistances = models.JSONField(
+        default=list, blank=True, help_text="Campaign domains dealing 0.5x damage."
     )
-    target_level = models.PositiveIntegerField(
-        default=0, help_text="In-construction target level."
+    mechanics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='{"front_load_water_noon": true, "heal_on_overage": true}.',
     )
-    construction_started_at = models.DateTimeField(null=True, blank=True)
-    construction_duration_hours = models.PositiveIntegerField(default=0)
-    last_produced_at = models.DateTimeField(
-        null=True, blank=True, help_text="Idle-accrual checkpoint for production."
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["campaign", "sort_order"]
+
+    def __str__(self):
+        return f"{self.name} ({self.campaign})"
+
+
+class CampaignProgress(models.Model):
+    """One user's multi-day siege state per campaign (docs/15 §4.7)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="sieges")
+    campaign = models.CharField(max_length=20, choices=Campaign.choices)
+    boss = models.ForeignKey(
+        CampaignBoss, null=True, blank=True, on_delete=models.SET_NULL
     )
-    custom_color = models.CharField(
-        max_length=7, default="#FF69B4", help_text="Neon customization (#RRGGBB)."
+    damage_dealt = models.BigIntegerField(default=0)
+    total_hp = models.BigIntegerField(default=0)
+    conquered = models.BooleanField(default=False)
+    engaged_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "campaign"], name="unique_user_campaign")
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} / {self.campaign} siege"
+
+
+class BattleLog(models.Model):
+    """One siege attack result (history + token payout)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="battle_logs")
+    campaign = models.CharField(max_length=20, choices=Campaign.choices)
+    date = models.DateField()
+    base_damage = models.BigIntegerField(default=0)
+    gear_multiplier = models.FloatField(default=1.0)
+    boss_multiplier = models.FloatField(default=1.0)
+    total_damage = models.BigIntegerField(default=0)
+    boss_heal = models.BigIntegerField(default=0)
+    tokens_won = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} {self.campaign} -{self.total_damage}"
+
+
+class Gym(models.Model):
+    """A single-player PvP Gym defenders park their avatar at (docs/15 §4.9)."""
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="gyms")
+    name = models.CharField(max_length=80)
+    terrain = models.CharField(
+        max_length=20, choices=Element.choices, default=Element.STRENGTH
     )
-    staff_friend_id = models.IntegerField(
-        null=True, blank=True, help_text="Social +10% production boost avatar id."
+    defense_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Frozen loadout + 7-day consistency used for async resolution.",
     )
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(
-                fields=["user", "building_def"], name="unique_user_building_def"
-            )
+            models.UniqueConstraint(fields=["owner"], name="unique_gym_owner")
         ]
 
-    def is_constructing(self, now=None):
-        """True while the construction timer is running (lazy - never stored)."""
-        if not self.construction_started_at:
-            return False
-        now = now or timezone.now()
-        return now < self.construction_started_at + timedelta(
-            hours=self.construction_duration_hours
-        )
+    def __str__(self):
+        return f"{self.name} ({self.owner.username})"
+
+
+class GymOccupation(models.Model):
+    """Who currently holds a Gym and until when (passive token yield)."""
+
+    gym = models.ForeignKey(Gym, on_delete=models.CASCADE, related_name="occupations")
+    occupant = models.ForeignKey(User, on_delete=models.CASCADE, related_name="gym_turf")
+    held_until = models.DateTimeField()
+    last_token_paid = models.DateField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.user.username} {self.building_def.slug} Lv{self.level}"
+        return f"{self.occupant.username} holds {self.gym.name}"
+
+
+class PvPMatch(models.Model):
+    """An instant asynchronous gym-battle resolution."""
+
+    attacker = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pvp_attacks")
+    gym = models.ForeignKey(Gym, on_delete=models.CASCADE, related_name="matches")
+    defender = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pvp_defenses")
+    attacker_power = models.FloatField(default=0.0)
+    defender_power = models.FloatField(default=0.0)
+    did_win = models.BooleanField(default=False)
+    token_stake = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.attacker.username} v {self.defender.username} ({'W' if self.did_win else 'L'})"
 
 
 class BadgeDef(models.Model):
@@ -562,7 +689,7 @@ class LeagueResult(models.Model):
     reward = models.JSONField(
         default=dict,
         blank=True,
-        help_text='Rewards paid on close, e.g. {"time_speedups": 5, "materials": 25}.',
+        help_text='Rewards paid on close, e.g. {"tokens": 5}.',
     )
 
     class Meta:
