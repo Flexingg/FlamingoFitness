@@ -281,3 +281,19 @@ html.light .avatar-edit-preview { background: #e2e8f0 !important; }
 .theme-option-radio { position: absolute; opacity: 0; pointer-events: none; }
 .theme-option-icon { font-size: 1.1rem; }
 
+/* ------------------------------------------------------------------
+   Help popover + Path focus bar (light theme)
+   ------------------------------------------------------------------ */
+html.light .help-bubble { background: #ffffff !important; color: #334155 !important; border-color: #cbd5e1 !important; box-shadow: 0 10px 30px rgba(15,23,42,.15) !important; }
+html.light .help-bubble-title { color: #0f172a !important; }
+html.light .help-close { color: #64748b !important; }
+html.light .help-close:hover { background: #f1f5f9 !important; color: #0f172a !important; }
+html.light .help-trigger { color: #64748b !important; }
+html.light .help-trigger:hover { color: #0f172a !important; }
+html.light .path-focus-card { background: #ffffff !important; border-color: #cbd5e1 !important; box-shadow: 0 10px 25px rgba(15,23,42,.12) !important; }
+html.light .path-focus-title { color: #0f172a !important; }
+html.light .path-focus-sub { color: #64748b !important; }
+html.light .path-focus-desc { color: #475569 !important; }
+html.light .path-focus-icon { background: #f1f5f9 !important; border-color: #cbd5e1 !important; }
+html.light .vuln-chip.weak { color: #be123c !important; }
+html.light .vuln-chip.resist { color: #1d4ed8 !important; }

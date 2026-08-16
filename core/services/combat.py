@@ -626,6 +626,18 @@ def battle_state(user, now=None):
         ).first()
         ref = (prog.boss if prog and prog.boss else boss)
         hp = prog.total_hp if prog else (boss.hp_total if boss else 0)
+        base_dmg = base_damage_for(campaign, user, on_date)
+        gear_mult = total_gear_multiplier(p, user, campaign, on_date=on_date)
+        vuln = boss_vulnerability(ref, campaign) if ref else 1.0
+        buff_mult = active_buff_multiplier(p, campaign, on_date)
+        est_damage = int(base_dmg * gear_mult * vuln * buff_mult)
+        dealt = prog.damage_dealt if prog else 0
+        remaining = max(0, hp - dealt)
+        conquered = prog.conquered if prog else False
+        engaged = bool(prog and prog.boss)
+        attacks = None
+        if engaged and not conquered and est_damage > 0:
+            attacks = (remaining + est_damage - 1) // est_damage
         campaigns.append({
             "campaign": campaign,
             "label": Campaign(campaign).label if campaign else campaign,
@@ -634,10 +646,18 @@ def battle_state(user, now=None):
                 "name": ref.name if ref else None,
                 "icon": ref.icon if ref else None,
             },
-            "damage_dealt": prog.damage_dealt if prog else 0,
+            "sort_order": int(prog.boss.sort_order) if prog and prog.boss else 0,
+            "damage_dealt": dealt,
             "total_hp": hp,
-            "conquered": prog.conquered if prog else False,
-            "engaged": bool(prog and prog.boss),
+            "remaining_hp": remaining,
+            "conquered": conquered,
+            "engaged": engaged,
+            "today_base_damage": base_dmg,
+            "gear_multiplier": round(gear_mult, 2),
+            "boss_multiplier": round(buff_mult * vuln, 2),
+            "vulnerability": vuln,
+            "est_damage_per_attack": est_damage,
+            "attacks_to_win": attacks,
         })
     return {
         "wallet": wallet_dump(p),

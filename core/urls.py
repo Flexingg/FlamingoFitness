@@ -46,7 +46,7 @@ urlpatterns = [
     ),
     # Phase 9 (docs/15): Token, Gacha & Battle
     path("battle/state", views.battle_state, name="battle_state"),
-    path("battle/campaign/<str:campaign>", views.battle_campaign, name="battle_campaign"),
+    path("battle/campaign/<str:campaign>/", views.battle_campaign, name="battle_campaign"),
     path("battle/engage", views.battle_engage, name="battle_engage"),
     path("battle/attack", views.battle_attack, name="battle_attack"),
     path("shop/state", views.shop_state, name="shop_state"),

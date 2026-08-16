@@ -600,7 +600,12 @@ def battle_state(request):
 @login_required
 def battle_campaign(request, campaign):
     """GET /battle/campaign/<campaign> - boss detail + today's damage preview."""
-    from .services import base_damage_for, total_gear_multiplier
+    from .services import (
+        active_buff_multiplier,
+        base_damage_for,
+        boss_vulnerability,
+        total_gear_multiplier,
+    )
 
     prog = CampaignProgress.objects.filter(
         user=request.user, campaign=campaign
@@ -610,6 +615,9 @@ def battle_campaign(request, campaign):
     base = base_damage_for(campaign, request.user)
     gear_mult = total_gear_multiplier(profile_obj, request.user, campaign)
     ref = (prog.boss if prog and prog.boss else boss)
+    vuln = boss_vulnerability(ref, campaign) if ref else 1.0
+    buff_mult = active_buff_multiplier(profile_obj, campaign)
+    est_damage = int(base * gear_mult * vuln * buff_mult)
     return JsonResponse({
         "campaign": campaign,
         "boss": {
@@ -625,6 +633,9 @@ def battle_campaign(request, campaign):
         },
         "today_base_damage": base,
         "gear_multiplier": round(gear_mult, 2),
+        "boss_multiplier": round(buff_mult * vuln, 2),
+        "vulnerability": vuln,
+        "est_damage_per_attack": est_damage,
         "wallet": wallet_dump(profile_obj),
     })
 

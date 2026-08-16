@@ -309,6 +309,165 @@
         }
     });
 
+    // ---- Help popovers (tap an info icon for a small explainer) ----
+    function escHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    window.closeHelpBubble = function () {
+        var b = document.getElementById('help-bubble');
+        if (b) b.remove();
+        var bd = document.getElementById('help-backdrop');
+        if (bd) bd.remove();
+    };
+
+    window.showHelpAt = function (anchor, htmlContent) {
+        window.closeHelpBubble();
+        var backdrop = document.createElement('div');
+        backdrop.id = 'help-backdrop';
+        backdrop.className = 'help-backdrop';
+        backdrop.addEventListener('click', function (e) {
+            e.stopPropagation();
+            window.closeHelpBubble();
+        });
+        document.body.appendChild(backdrop);
+
+        var bubble = document.createElement('div');
+        bubble.id = 'help-bubble';
+        bubble.className = 'help-bubble';
+        bubble.setAttribute('role', 'tooltip');
+        bubble.innerHTML = '<div class="help-bubble-head"><span class="help-bubble-title"><i class="fa-solid fa-circle-info mr-1"></i>Tip</span>' +
+            '<button type="button" class="help-close" aria-label="Close help" onclick="window.closeHelpBubble()"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="help-bubble-body">' + htmlContent + '</div>';
+        document.body.appendChild(bubble);
+
+        var rect = anchor.getBoundingClientRect();
+        var vw = document.documentElement.clientWidth || 360;
+        var bw = Math.min(300, vw - 24);
+        bubble.style.maxWidth = bw + 'px';
+        var left = Math.max(12, Math.min(vw - bw - 12, rect.left));
+        var top = rect.bottom + 8;
+        var bh = bubble.offsetHeight || 130;
+        if (top + bh > (window.innerHeight - 12)) top = Math.max(12, rect.top - bh - 8);
+        bubble.style.left = left + 'px';
+        bubble.style.top = Math.max(12, top) + 'px';
+    };
+
+    window.bindHelp = function (root) {
+        if (!root) return;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-help]'), function (el) {
+            el.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.showHelpAt(el, el.getAttribute('data-help'));
+            });
+        });
+    };
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && document.getElementById('help-bubble')) {
+            window.closeHelpBubble();
+        }
+    });
+
+    // ---- Path page: active campaign focus bar ----
+    function focusCampaignIcon(c) {
+        return { cardio: 'fa-heart-pulse', strength: 'fa-dumbbell', nutrition: 'fa-apple-whole',
+            hydration: 'fa-droplet', sleep: 'fa-moon' }[c] || 'fa-dragon';
+    }
+    function fmoney(n) {
+        return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    function vulnChipLite(v) {
+        v = Number(v) || 1;
+        if (v >= 1.99) return '<span class="vuln-chip weak"><i class="fa-solid fa-bullseye"></i>2&times; weak</span>';
+        if (v <= 0.51) return '<span class="vuln-chip resist"><i class="fa-solid fa-shield"></i>&frac12; resists</span>';
+        return '';
+    }
+
+    function renderCampaignFocus(slot, data) {
+        slot.innerHTML = '';
+        if (!data || !data.campaigns) return;
+        var wallet = data.wallet || {};
+        var stamina = (wallet.stamina == null ? 0 : wallet.stamina);
+        var cap = (wallet.stamina_cap == null ? 3 : wallet.stamina_cap);
+        var camps = data.campaigns || [];
+        var active = camps.filter(function (c) { return c.engaged && !c.conquered; });
+        var html;
+
+        if (active.length === 0) {
+            var allDone = camps.length > 0 && camps.every(function (c) { return c.conquered; });
+            if (allDone) {
+                html = '<div class="path-focus-card done">' +
+                    '<div class="path-focus-head" style="justify-content:center"><i class="fa-solid fa-trophy text-yellow-400"></i>' +
+                    '<span class="path-focus-title">All campaigns conquered!</span></div>' +
+                    '<p class="path-focus-desc">You cleared every boss. New battles arrive over time - keep training to stay sharp.</p></div>';
+                slot.innerHTML = html;
+                return;
+            }
+            var best = null;
+            camps.forEach(function (c) {
+                if (c.conquered || !c.boss || !c.boss.slug) return;
+                if (!best || (c.est_damage_per_attack || 0) > (best.est_damage_per_attack || 0)) best = c;
+            });
+            if (!best) return;
+            var bhelp = 'No boss is engaged yet. Best opening: the ' + escHtml(best.label) + ' camp, which deals the most damage from today tracked activity. Tap Fight now, then Engage and Attack (1 stamina each).';
+            html = '<div class="path-focus-card">' +
+                '<div class="path-focus-head">' +
+                    '<i class="fa-solid ' + focusCampaignIcon(best.campaign) + ' path-focus-icon"></i>' +
+                    '<div class="flex-1"><div class="path-focus-title">Ready to start a siege</div>' +
+                    '<div class="path-focus-sub">' + escHtml(best.label) + ' camp</div></div>' +
+                    '<button type="button" class="help-trigger" data-help="' + escHtml(bhelp) + '" aria-label="Help"><i class="fa-solid fa-circle-question"></i></button>' +
+                '</div>' +
+                '<p class="path-focus-desc">Best opening: <b>' + escHtml(best.boss.name) + '</b> in the ' + escHtml(best.label) + ' camp - you deal ~' + fmoney(best.est_damage_per_attack) + ' per attack today.</p>' +
+                '<div class="path-focus-actions"><button type="button" class="path-focus-fight" onclick="window.loadBattle(); return false;"><i class="fa-solid fa-dragon mr-1"></i>Fight now</button></div>' +
+                '</div>';
+            slot.innerHTML = html;
+            window.bindHelp(slot);
+            return;
+        }
+
+        var chosen = active[0];
+        active.forEach(function (c) {
+            var a = (c.attacks_to_win == null ? Infinity : c.attacks_to_win);
+            var b = (chosen.attacks_to_win == null ? Infinity : chosen.attacks_to_win);
+            if (a < b) chosen = c;
+            else if (a === b && (c.est_damage_per_attack || 0) > (chosen.est_damage_per_attack || 0)) chosen = c;
+        });
+        var rem = Math.max(0, (chosen.total_hp || 0) - (chosen.damage_dealt || 0));
+        var progPct = chosen.total_hp ? Math.max(0, Math.min(100, Math.round(((chosen.damage_dealt || 0) / chosen.total_hp) * 100))) : 0;
+        var atkText = (chosen.attacks_to_win == null) ? 'keep attacking' : '~' + chosen.attacks_to_win + ' hits left at this power';
+        var fhelp = 'This is the boss closest to falling. Keep attacking (1 stamina each) to stack damage on its HP. Your damage per hit comes from today tracked ' + escHtml(chosen.label) + ' activity times your gear. Stamina refills each morning (cap ' + cap + ').';
+        html = '<div class="path-focus-card active">' +
+            '<div class="path-focus-head">' +
+                '<i class="fa-solid ' + focusCampaignIcon(chosen.campaign) + ' path-focus-icon"></i>' +
+                '<div class="flex-1"><div class="path-focus-title">Focus: ' + escHtml(chosen.boss.name) + '</div>' +
+                '<div class="path-focus-sub">' + escHtml(chosen.label) + ' campaign &middot; ' + atkText + '</div></div>' +
+                '<button type="button" class="help-trigger" data-help="' + escHtml(fhelp) + '" aria-label="Help"><i class="fa-solid fa-circle-question"></i></button>' +
+            '</div>' +
+            '<div class="mt-3 h-3 bg-slate-700 rounded-full overflow-hidden border border-slate-600">' +
+                '<div class="h-full rounded-full bg-red-500" style="width:' + progPct + '%"></div></div>' +
+            '<div class="flex justify-between text-xs mt-1">' +
+                '<span class="text-slate-400 font-semibold">' + fmoney(rem) + ' / ' + fmoney(chosen.total_hp) + ' HP</span>' +
+                '<span class="text-slate-300 font-bold">' + fmoney(chosen.est_damage_per_attack) + ' dmg/atk</span></div>' +
+            '<p class="path-focus-desc">To beat it: build today ' + escHtml(chosen.label) + ' activity, then Attack with stamina (' + stamina + '/' + cap + ' now). ' + vulnChipLite(chosen.vulnerability) + '</p>' +
+            '<div class="path-focus-actions"><button type="button" class="path-focus-fight" onclick="window.loadBattle(); return false;"><i class="fa-solid fa-bolt mr-1"></i>Fight now</button></div>' +
+            '</div>';
+        slot.innerHTML = html;
+        window.bindHelp(slot);
+    }
+
+    window.refreshCampaignFocus = function () {
+        var slot = document.getElementById('path-campaign-focus');
+        if (!slot) return;
+        fetch('/api/v1/battle/state', { credentials: 'same-origin' })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data) { renderCampaignFocus(slot, data); })
+            .catch(function () { slot.innerHTML = ''; });
+    };
+
     // Refresh the top-nav shell (streak / tokens / stamina) after any mutation
     // in the Shop / Battle / PvP controllers. Always returns the parsed state.
     window.refreshDashboardState = function () {
@@ -329,7 +488,8 @@
             });
     };
 
-    // ---- Boot: fetch dashboard state on page load ----
+    // ---- Boot: fetch dashboard state + campaign focus on page load ----
     window.refreshDashboardState();
+    if (window.refreshCampaignFocus) window.refreshCampaignFocus();
 })();
 
