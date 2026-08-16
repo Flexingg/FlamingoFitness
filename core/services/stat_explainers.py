@@ -10,13 +10,14 @@ from datetime import timedelta
 from django.utils import timezone
 
 from ..models import DailyReadiness
+from .game_config import GAMEPLAY
 
 # Valid stat keys accepted by GET /api/v1/stats/<stat>/.
 STAT_KEYS = ("streak", "tokens", "stamina")
 
-HISTORY_WINDOW_DAYS = 30
-HISTORY_LIMIT = 15
-STREAK_HISTORY_DAYS = 14
+HISTORY_WINDOW_DAYS = int(GAMEPLAY["explainers"]["history_window_days"])
+HISTORY_LIMIT = int(GAMEPLAY["explainers"]["history_limit"])
+STREAK_HISTORY_DAYS = int(GAMEPLAY["explainers"]["streak_history_days"])
 
 
 def _today():

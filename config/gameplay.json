@@ -1,0 +1,80 @@
+{
+  "economy": {
+    "xp_per_token": 10,
+    "streak_token_cap_days": 10,
+    "streak_token_step": 0.05,
+    "token_perfect_macro": 25,
+    "token_perfect_hydration": 10,
+    "token_pve_conquest": 150,
+    "token_boss_pr": 100,
+    "token_time_speedup_rate": 10,
+    "token_material_rate": 20,
+    "token_starter": 300
+  },
+  "shop": {
+    "pack_price_simple": 100,
+    "pack_price_deluxe": 250,
+    "pack_price_legendary": 500
+  },
+  "gacha": {
+    "bulk_discounts": { "1": 0.0, "3": 0.10, "5": 0.15, "10": 0.20 },
+    "bulk_max": 10,
+    "rarity_weights_base": { "common": 60, "rare": 28, "epic": 10, "legendary": 2 },
+    "epic_streak_step": 0.20,
+    "legendary_streak_step": 0.05,
+    "streak_odds_start_day": 7,
+    "consumable_max_stack": 9,
+    "gear_mult_pool": {
+      "common": [1.0, 1.2],
+      "rare": [1.2, 1.5],
+      "epic": [1.5, 2.0],
+      "legendary": [2.0, 2.5]
+    },
+    "synergy_sleep_eff": 0.85,
+    "buff_hours": 24
+  },
+  "combat": {
+    "boss_hp_scale": { "cardio": 10, "strength": 1000, "nutrition": 10, "hydration": 10, "sleep": 8 },
+    "boss_heal_overage": 500,
+    "element_wheel": {
+      "endurance": "strength",
+      "strength": "nutrition",
+      "nutrition": "hydration",
+      "hydration": "recovery",
+      "recovery": "endurance"
+    }
+  },
+  "stamina": {
+    "per_day": 3,
+    "rest_day_bonus": 2
+  },
+  "pvp": {
+    "aggressor_win_edge": 1.10,
+    "gym_token_yield_base": 20,
+    "gym_hold_window_hours": 24,
+    "consistency_window_days": 7
+  },
+  "scrap": {
+    "value_by_rarity": { "common": 5, "rare": 15, "epic": 40, "legendary": 100 }
+  },
+  "league": {
+    "top_n_rewarded": 3,
+    "tiers": [
+      { "tier": "flamingo_legend", "label": "Flamingo Legend", "min_xp": 1000 },
+      { "tier": "diamond", "label": "Diamond", "min_xp": 600 },
+      { "tier": "gold", "label": "Gold", "min_xp": 300 },
+      { "tier": "silver", "label": "Silver", "min_xp": 100 },
+      { "tier": "bronze", "label": "Bronze", "min_xp": 0 }
+    ],
+    "weekly_rewards": { "1": { "tokens": 5 }, "2": { "tokens": 3 }, "3": { "tokens": 1 } }
+  },
+  "progression": {
+    "xp_per_level": 100,
+    "rest_day_threshold": 50
+  },
+  "explainers": {
+    "history_window_days": 30,
+    "history_limit": 15,
+    "streak_history_days": 14
+  }
+}

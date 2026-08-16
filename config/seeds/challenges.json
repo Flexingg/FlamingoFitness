@@ -1,0 +1,12 @@
+[
+  {
+    "slug": "calories_burned_30d",
+    "name": "Calorie Torch",
+    "description": "Most calories burned in the last 30 days. Every workout counts - keep the flame alive!",
+    "icon": "fa-fire-flame-curved",
+    "metric": "calories_burned",
+    "window_days": 30,
+    "is_active": true,
+    "sort_order": 1
+  }
+]

@@ -9,6 +9,7 @@
     var STATE_URL = '/api/v1/loadout/state';
     var EQUIP_URL = '/api/v1/loadout/equip';
     var UNEQUIP_URL = '/api/v1/loadout/unequip';
+    var SCRAP_RECYCLE_URL = '/api/v1/scrap/recycle';
 
     var SLOT_ORDER = ['head', 'chest', 'left_hand', 'right_hand', 'legs', 'feet', 'accessory'];
 
@@ -88,7 +89,9 @@
             description: item.description || 'No description on file for this item yet.',
             obtained_at: item.obtained_at || null,
             pack_name: item.pack_name || null,
-            equipped: !!item.equipped
+            equipped: !!item.equipped,
+            scrap_value: item.scrap_value,
+            total_scraps: item.total_scraps
         };
     }
 
@@ -122,6 +125,10 @@
             '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">Description</div>' + esc(d.description) + '</div>' +
             '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">How you got it</div>' + how + '</div>' +
             '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">When</div>' + esc(when) + '</div>' +
+            (d.scrap_value
+                ? '<div><div class="text-indigo-400 font-black text-xs uppercase tracking-wide">Scrap value</div>' +
+                  'Recycles for <b class="text-white">' + esc(d.total_scraps != null ? d.total_scraps : d.scrap_value) + ' scraps</b> (unequip it in the loadout first).</div>'
+                : '') +
             '</div>' +
             '<button type="button" onclick="window.closeLoadoutItemDetail && window.closeLoadoutItemDetail();" class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg mt-4">Got it</button>' +
             '</div></div>';
@@ -195,7 +202,10 @@
                         (c.effect_domain ? ' &middot; ' + esc(c.effect_domain) : '') + ' +' + esc(c.effect_value) + 'x</div></div>' +
                         (c.equipped
                             ? '<span class="text-emerald-400 font-black text-xs uppercase">Equipped</span>'
-                            : '<button class="bg-indigo-500 text-white font-black px-4 py-2 rounded-xl border-b-4 border-indigo-700 active:scale-95 transition-all" data-equip="' + esc(c.id) + '">Equip</button>') +
+                            : '<div class="flex items-center gap-2 shrink-0">' +
+                                '<button class="bg-indigo-500 text-white font-black px-4 py-2 rounded-xl border-b-4 border-indigo-700 active:scale-95 transition-all" data-equip="' + esc(c.id) + '">Equip</button>' +
+                                '<button class="bg-slate-600 text-white font-black px-3 py-2 rounded-xl border-b-4 border-slate-800 active:scale-95 transition-all whitespace-nowrap" title="Recycle for scraps" data-recycle="' + esc(c.id) + '" data-scraps="' + esc(c.total_scraps || c.scrap_value || 0) + '">Recycle</button>' +
+                              '</div>') +
                         '</div>';
                 });
             });
@@ -215,6 +225,12 @@
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 unequip(btn.getAttribute('data-unequip'));
+            });
+        });
+        content.querySelectorAll('button[data-recycle]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                recycleItem(btn.getAttribute('data-recycle'), btn.getAttribute('data-scraps'));
             });
         });
         // Make every item (equipped + inventory) open its detail popup on tap.
@@ -259,5 +275,22 @@
                 window.loadLoadout();
             })
             .catch(function () { alert('Network error while unequipping.'); });
+    }
+    function recycleItem(gearId, scrapHint) {
+        var hint = Number(scrapHint) || 0;
+        if (!window.confirm('Recycle this item for ' + hint + ' scraps? This cannot be undone.')) { return; }
+        haptic(40);
+        fetch(SCRAP_RECYCLE_URL, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            body: JSON.stringify({ gear_id: gearId })
+        })
+            .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
+            .then(function (res) {
+                if (!res.body.ok) { alert(res.body.error || 'Could not recycle that item.'); return; }
+                if (window.refreshDashboardState) window.refreshDashboardState();
+                window.loadLoadout();
+            })
+            .catch(function () { alert('Network error while recycling.'); });
     }
 })();

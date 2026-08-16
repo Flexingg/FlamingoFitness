@@ -23,6 +23,7 @@ from .models import (
     PvPMatch,
     RawActivityLog,
     SkillTree,
+    ScrapShopItem,
     User,
     UserBadge,
     UserGear,
@@ -224,7 +225,7 @@ class FlockInviteAdmin(admin.ModelAdmin):
 # ---------------------------------------------------------------------------
 @admin.register(PlayerProfile)
 class PlayerProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "tokens", "stamina", "total_conquests", "pvp_wins", "pvp_losses")
+    list_display = ("user", "tokens", "stamina", "scraps", "total_conquests", "pvp_wins", "pvp_losses")
     search_fields = ("user__username",)
     readonly_fields = ("created_at",)
 
@@ -241,6 +242,14 @@ class GearItemDefAdmin(admin.ModelAdmin):
     list_display = ("slug", "name", "slot", "rarity", "effect_type", "effect_domain",
                      "effect_value", "is_consumable", "is_active")
     list_filter = ("rarity", "effect_type", "slot", "is_active")
+    search_fields = ("slug", "name")
+
+
+@admin.register(ScrapShopItem)
+class ScrapShopItemAdmin(admin.ModelAdmin):
+    list_display = ("slug", "name", "cost_scraps", "available_days", "reward_type",
+                     "reward_value", "is_active")
+    list_filter = ("is_active", "reward_type")
     search_fields = ("slug", "name")
 
 

@@ -30,14 +30,15 @@ from .combat import (
     TOKEN_PERFECT_MACRO,
     award_tokens,
 )
+from .game_config import GAMEPLAY
 
 logger = logging.getLogger(__name__)
 
-# One level of a skill tree = 100 XP.
-XP_PER_LEVEL = 100
+# One level of a skill tree = 100 XP (config/gameplay.json).
+XP_PER_LEVEL = int(GAMEPLAY["progression"]["xp_per_level"])
 
 # Readiness threshold below which a rest day is mandated (Step 15).
-REST_DAY_THRESHOLD = 50
+REST_DAY_THRESHOLD = int(GAMEPLAY["progression"]["rest_day_threshold"])
 
 
 # ---------------------------------------------------------------------------

@@ -25,27 +25,27 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from ..models import LeagueResult, LeagueTier, LeagueWeek, XPLedger
+from .game_config import GAMEPLAY
 
 logger = logging.getLogger(__name__)
 
 # Tier thresholds by weekly Effort XP (docs/13 §3.1), ordered highest first.
+# Sourced from config/gameplay.json -> league -> tiers.
+_LEAGUE_CFG = GAMEPLAY["league"]
 LEAGUE_TIERS = [
-    {"tier": LeagueTier.FLAMINGO_LEGEND, "label": "Flamingo Legend", "min_xp": 1000},
-    {"tier": LeagueTier.DIAMOND, "label": "Diamond", "min_xp": 600},
-    {"tier": LeagueTier.GOLD, "label": "Gold", "min_xp": 300},
-    {"tier": LeagueTier.SILVER, "label": "Silver", "min_xp": 100},
-    {"tier": LeagueTier.BRONZE, "label": "Bronze", "min_xp": 0},
+    {
+        "tier": LeagueTier(row["tier"]),
+        "label": row["label"],
+        "min_xp": int(row["min_xp"]),
+    }
+    for row in _LEAGUE_CFG["tiers"]
 ]
 
 # Rewards paid when a week closes (docs/15 §3.1) - converted to Tokens from
 # the Phase 8 time_speedups + materials payouts (1 token / 10 speedups,
 # 1 token / 20 materials). Additive to the token economy.
-WEEKLY_REWARDS = {
-    1: {"tokens": 5},
-    2: {"tokens": 3},
-    3: {"tokens": 1},
-}
-LEAGUE_TOP_N_REWARDED = 3
+WEEKLY_REWARDS = {int(k): v for k, v in _LEAGUE_CFG["weekly_rewards"].items()}
+LEAGUE_TOP_N_REWARDED = int(_LEAGUE_CFG["top_n_rewarded"])
 
 
 def week_start_for(on_date):

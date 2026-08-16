@@ -1,0 +1,740 @@
+[
+  {
+    "slug": "starter_pack",
+    "name": "Starter Pack",
+    "price_tokens": 100,
+    "draws": 2,
+    "domains": [],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 1
+  },
+  {
+    "slug": "rare_crate",
+    "name": "Rare Crate",
+    "price_tokens": 150,
+    "draws": 1,
+    "domains": [],
+    "guaranteed_min_rarity": "rare",
+    "is_generic": true,
+    "icon": "fa-box",
+    "sort_order": 2,
+    "description": "A no-frills crate that guarantees at least a Rare from the whole catalog."
+  },
+  {
+    "slug": "epic_crate",
+    "name": "Epic Crate",
+    "price_tokens": 400,
+    "draws": 1,
+    "domains": [],
+    "guaranteed_min_rarity": "epic",
+    "is_generic": true,
+    "icon": "fa-box",
+    "sort_order": 3,
+    "description": "Guarantees at least an Epic - bulk-buying makes it far better value."
+  },
+  {
+    "slug": "iron_roost",
+    "name": "Iron Roost",
+    "price_tokens": 100,
+    "draws": 1,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 4
+  },
+  {
+    "slug": "alchemist_pack",
+    "name": "Alchemist's Pack",
+    "price_tokens": 250,
+    "draws": 3,
+    "domains": [
+      "nutrition",
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 5
+  },
+  {
+    "slug": "cardio_storm",
+    "name": "Cardio Storm",
+    "price_tokens": 100,
+    "draws": 1,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 6
+  },
+  {
+    "slug": "slumber_serum",
+    "name": "Slumber Serum",
+    "price_tokens": 100,
+    "draws": 1,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 7
+  },
+  {
+    "slug": "legendary_vault",
+    "name": "Legendary Vault",
+    "price_tokens": 500,
+    "draws": 5,
+    "domains": [],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 8
+  },
+  {
+    "slug": "legendary_crate",
+    "name": "Legendary Crate",
+    "price_tokens": 800,
+    "draws": 1,
+    "domains": [],
+    "guaranteed_min_rarity": "legendary",
+    "is_generic": true,
+    "icon": "fa-gem",
+    "sort_order": 9,
+    "description": "One guaranteed Legendary from the whole catalog. The lucky dip of a lifetime."
+  },
+  {
+    "slug": "chalk_bag",
+    "name": "Chalk Bag",
+    "price_tokens": 80,
+    "draws": 1,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 10
+  },
+  {
+    "slug": "powerlifter_stash",
+    "name": "Powerlifter's Stash",
+    "price_tokens": 200,
+    "draws": 2,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 11
+  },
+  {
+    "slug": "barbell_case",
+    "name": "Barbell Case",
+    "price_tokens": 150,
+    "draws": 1,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 12
+  },
+  {
+    "slug": "titan_vault",
+    "name": "Titan's Vault",
+    "price_tokens": 450,
+    "draws": 3,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 13
+  },
+  {
+    "slug": "berserker_crate",
+    "name": "Berserker Crate",
+    "price_tokens": 300,
+    "draws": 2,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 14
+  },
+  {
+    "slug": "plate_hoarder_box",
+    "name": "Plate Hoarder Box",
+    "price_tokens": 120,
+    "draws": 1,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 15
+  },
+  {
+    "slug": "kettlebell_cache",
+    "name": "Kettlebell Cache",
+    "price_tokens": 250,
+    "draws": 2,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 16
+  },
+  {
+    "slug": "strongman_sack",
+    "name": "Strongman's Sack",
+    "price_tokens": 350,
+    "draws": 3,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 17
+  },
+  {
+    "slug": "anvil_drop",
+    "name": "Anvil Drop",
+    "price_tokens": 600,
+    "draws": 1,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "legendary",
+    "sort_order": 18
+  },
+  {
+    "slug": "muscle_mystery_box",
+    "name": "Muscle Mystery Box",
+    "price_tokens": 100,
+    "draws": 3,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 19
+  },
+  {
+    "slug": "sprinter_pouch",
+    "name": "Sprinter's Pouch",
+    "price_tokens": 90,
+    "draws": 1,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 20
+  },
+  {
+    "slug": "marathon_bag",
+    "name": "Marathon Bag",
+    "price_tokens": 220,
+    "draws": 2,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 21
+  },
+  {
+    "slug": "trailblazer_pack",
+    "name": "Trailblazer's Pack",
+    "price_tokens": 300,
+    "draws": 3,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 22
+  },
+  {
+    "slug": "vo2_max_crate",
+    "name": "VO2 Max Crate",
+    "price_tokens": 500,
+    "draws": 3,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 23
+  },
+  {
+    "slug": "treadmill_treasure",
+    "name": "Treadmill Treasure",
+    "price_tokens": 150,
+    "draws": 1,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 24
+  },
+  {
+    "slug": "cyclist_satchel",
+    "name": "Cyclist's Satchel",
+    "price_tokens": 180,
+    "draws": 2,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 25
+  },
+  {
+    "slug": "swimmer_cache",
+    "name": "Swimmer's Cache",
+    "price_tokens": 250,
+    "draws": 2,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 26
+  },
+  {
+    "slug": "endurance_vault",
+    "name": "Endurance Vault",
+    "price_tokens": 650,
+    "draws": 1,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "legendary",
+    "sort_order": 27
+  },
+  {
+    "slug": "jump_rope_box",
+    "name": "Jump Rope Box",
+    "price_tokens": 80,
+    "draws": 1,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 28
+  },
+  {
+    "slug": "aero_crate",
+    "name": "Aero Crate",
+    "price_tokens": 350,
+    "draws": 2,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 29
+  },
+  {
+    "slug": "snack_box",
+    "name": "Snack Box",
+    "price_tokens": 70,
+    "draws": 1,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 30
+  },
+  {
+    "slug": "protein_pouch",
+    "name": "Protein Pouch",
+    "price_tokens": 160,
+    "draws": 2,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 31
+  },
+  {
+    "slug": "macro_crate",
+    "name": "Macro Crate",
+    "price_tokens": 280,
+    "draws": 2,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 32
+  },
+  {
+    "slug": "keto_chest",
+    "name": "Keto Chest",
+    "price_tokens": 320,
+    "draws": 3,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 33
+  },
+  {
+    "slug": "vegan_vault",
+    "name": "Vegan Vault",
+    "price_tokens": 320,
+    "draws": 3,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 34
+  },
+  {
+    "slug": "butcher_bag",
+    "name": "Butcher's Bag",
+    "price_tokens": 400,
+    "draws": 2,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 35
+  },
+  {
+    "slug": "farmer_crate",
+    "name": "Farmer's Crate",
+    "price_tokens": 150,
+    "draws": 1,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 36
+  },
+  {
+    "slug": "harvest_box",
+    "name": "Harvest Box",
+    "price_tokens": 200,
+    "draws": 2,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 37
+  },
+  {
+    "slug": "chef_stash",
+    "name": "Chef's Stash",
+    "price_tokens": 550,
+    "draws": 3,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 38
+  },
+  {
+    "slug": "golden_apple_crate",
+    "name": "Golden Apple Crate",
+    "price_tokens": 700,
+    "draws": 1,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "legendary",
+    "sort_order": 39
+  },
+  {
+    "slug": "puddle_pouch",
+    "name": "Puddle Pouch",
+    "price_tokens": 60,
+    "draws": 1,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 40
+  },
+  {
+    "slug": "splash_bag",
+    "name": "Splash Bag",
+    "price_tokens": 120,
+    "draws": 2,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 41
+  },
+  {
+    "slug": "bottle_box",
+    "name": "Bottle Box",
+    "price_tokens": 180,
+    "draws": 1,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 42
+  },
+  {
+    "slug": "canteen_crate",
+    "name": "Canteen Crate",
+    "price_tokens": 260,
+    "draws": 2,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 43
+  },
+  {
+    "slug": "river_sack",
+    "name": "River Sack",
+    "price_tokens": 350,
+    "draws": 3,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 44
+  },
+  {
+    "slug": "ocean_chest",
+    "name": "Ocean Chest",
+    "price_tokens": 480,
+    "draws": 2,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 45
+  },
+  {
+    "slug": "aqua_crate",
+    "name": "Aqua Crate",
+    "price_tokens": 200,
+    "draws": 2,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 46
+  },
+  {
+    "slug": "hydro_box",
+    "name": "Hydro Box",
+    "price_tokens": 150,
+    "draws": 1,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 47
+  },
+  {
+    "slug": "tsunami_vault",
+    "name": "Tsunami Vault",
+    "price_tokens": 600,
+    "draws": 3,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 48
+  },
+  {
+    "slug": "fountain_of_youth",
+    "name": "Fountain of Youth",
+    "price_tokens": 750,
+    "draws": 1,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "legendary",
+    "sort_order": 49
+  },
+  {
+    "slug": "nap_bag",
+    "name": "Nap Bag",
+    "price_tokens": 80,
+    "draws": 1,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 50
+  },
+  {
+    "slug": "snooze_box",
+    "name": "Snooze Box",
+    "price_tokens": 160,
+    "draws": 2,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "common",
+    "sort_order": 51
+  },
+  {
+    "slug": "dream_crate",
+    "name": "Dream Crate",
+    "price_tokens": 240,
+    "draws": 1,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 52
+  },
+  {
+    "slug": "slumber_sack",
+    "name": "Slumber Sack",
+    "price_tokens": 300,
+    "draws": 3,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 53
+  },
+  {
+    "slug": "rem_vault",
+    "name": "REM Vault",
+    "price_tokens": 450,
+    "draws": 2,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 54
+  },
+  {
+    "slug": "nightmare_box",
+    "name": "Nightmare Box",
+    "price_tokens": 200,
+    "draws": 2,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 55
+  },
+  {
+    "slug": "lullaby_crate",
+    "name": "Lullaby Crate",
+    "price_tokens": 180,
+    "draws": 1,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 56
+  },
+  {
+    "slug": "midnight_stash",
+    "name": "Midnight Stash",
+    "price_tokens": 350,
+    "draws": 3,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 57
+  },
+  {
+    "slug": "mattress_chest",
+    "name": "Mattress Chest",
+    "price_tokens": 550,
+    "draws": 3,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 58
+  },
+  {
+    "slug": "sandman_vault",
+    "name": "Sandman's Vault",
+    "price_tokens": 800,
+    "draws": 1,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "legendary",
+    "sort_order": 59
+  },
+  {
+    "slug": "sunrise_sprint",
+    "name": "Sunrise Sprint Pack",
+    "price_tokens": 300,
+    "draws": 3,
+    "domains": [
+      "cardio"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 60,
+    "icon": "fa-sun",
+    "description": "Dawn-lit cardio gear tuned for crisp morning tempo runs."
+  },
+  {
+    "slug": "big_three_pact",
+    "name": "Big-Three Pact",
+    "price_tokens": 550,
+    "draws": 3,
+    "domains": [
+      "strength"
+    ],
+    "guaranteed_min_rarity": "epic",
+    "sort_order": 61,
+    "icon": "fa-hand-fist",
+    "description": "A covenant for lifters who chase the bench, squat and deadlift."
+  },
+  {
+    "slug": "meal_prep_empire",
+    "name": "Meal-Prep Empire",
+    "price_tokens": 400,
+    "draws": 3,
+    "domains": [
+      "nutrition"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 62,
+    "icon": "fa-utensils",
+    "description": "Sunday-batch nutrition gear for a week of winning macros."
+  },
+  {
+    "slug": "spring_well",
+    "name": "Spring Well",
+    "price_tokens": 350,
+    "draws": 2,
+    "domains": [
+      "hydration"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 63,
+    "icon": "fa-water",
+    "description": "Crisp, flowing hydration gear drawn from an ancient wellspring."
+  },
+  {
+    "slug": "dream_journal",
+    "name": "Dream Journal",
+    "price_tokens": 320,
+    "draws": 2,
+    "domains": [
+      "sleep"
+    ],
+    "guaranteed_min_rarity": "rare",
+    "sort_order": 64,
+    "icon": "fa-book",
+    "description": "Scribing a better night's rest straight into your loadout."
+  },
+  {
+    "slug": "mythic_gauntlet",
+    "name": "Mythic Gauntlet",
+    "price_tokens": 900,
+    "draws": 1,
+    "domains": [],
+    "guaranteed_min_rarity": "legendary",
+    "is_generic": true,
+    "sort_order": 65,
+    "icon": "fa-crown",
+    "description": "An endgame one-pull crate that only yields legends."
+  },
+  {
+    "slug": "golden_hour_pouch",
+    "name": "Golden Hour Pouch",
+    "price_tokens": 250,
+    "draws": 4,
+    "domains": [],
+    "guaranteed_min_rarity": "common",
+    "is_generic": true,
+    "sort_order": 66,
+    "icon": "fa-sack-dollar",
+    "description": "Four cheap pulls from the whole catalog to top off your collection any time."
+  }
+]

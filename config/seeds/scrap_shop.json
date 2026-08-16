@@ -1,0 +1,64 @@
+[
+  {
+    "slug": "scrap_tok_small",
+    "name": "Pocketful of Tokens",
+    "icon": "fa-coins",
+    "description": "Trade scraps for a small stack of tokens.",
+    "cost_scraps": 60,
+    "available_days": [0, 1, 2, 3, 4, 5, 6],
+    "reward_type": "tokens",
+    "reward_value": 40,
+    "is_active": true,
+    "sort_order": 10
+  },
+  {
+    "slug": "scrap_stam_refill",
+    "name": "Adrenaline Canister",
+    "icon": "fa-bolt",
+    "description": "Refills 2 stamina so you can siege bosses again today. Mon/Wed/Fri only.",
+    "cost_scraps": 40,
+    "available_days": [0, 2, 4],
+    "reward_type": "stamina",
+    "reward_value": 2,
+    "is_active": true,
+    "sort_order": 20
+  },
+  {
+    "slug": "scrap_pack_iron",
+    "name": "Iron Roost Crate",
+    "icon": "fa-box",
+    "description": "A Strength pack draw - Tue/Thu only.",
+    "cost_scraps": 120,
+    "available_days": [1, 3],
+    "reward_type": "pack",
+    "reward_value": 0,
+    "pack": "iron_roost",
+    "is_active": true,
+    "sort_order": 30
+  },
+  {
+    "slug": "scrap_tok_large",
+    "name": "Scrap Exchange Bonus",
+    "icon": "fa-sack-dollar",
+    "description": "A hefty token sum. Weekend special only.",
+    "cost_scraps": 180,
+    "available_days": [5, 6],
+    "reward_type": "tokens",
+    "reward_value": 120,
+    "is_active": true,
+    "sort_order": 40
+  },
+  {
+    "slug": "scrap_pack_cardio",
+    "name": "Cardio Storm Crate",
+    "icon": "fa-heart-pulse",
+    "description": "A Cardio pack draw - Wed/Sat only.",
+    "cost_scraps": 100,
+    "available_days": [2, 5],
+    "reward_type": "pack",
+    "reward_value": 0,
+    "pack": "cardio_storm",
+    "is_active": true,
+    "sort_order": 50
+  }
+]

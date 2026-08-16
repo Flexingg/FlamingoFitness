@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Bench Press",
+    "exercise_match": "Bench Press",
+    "bodyweight_multiplier": 1.5
+  },
+  {
+    "name": "Squat",
+    "exercise_match": "Squat",
+    "bodyweight_multiplier": 2.0
+  },
+  {
+    "name": "Deadlift",
+    "exercise_match": "Deadlift",
+    "bodyweight_multiplier": 2.5
+  },
+  {
+    "name": "Overhead Press",
+    "exercise_match": "Overhead Press",
+    "bodyweight_multiplier": 1.0
+  }
+]

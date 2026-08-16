@@ -330,6 +330,13 @@ class PlayerProfile(models.Model):
     last_token_harvest = models.DateField(
         null=True, blank=True, help_text="Daily token-dividend idempotency stamp."
     )
+    scraps = models.PositiveIntegerField(
+        default=0,
+        help_text="Scrap currency earned by recycling gear; spent in the Scrap Shop.",
+    )
+    last_scraps_stamp = models.DateField(
+        null=True, blank=True, help_text="Scrap-shop rotation idempotency stamp."
+    )
     active_buffs = models.JSONField(
         default=dict,
         help_text="Dated combat buffs, e.g. {'cardio_double_date': 'YYYY-MM-DD'.",
@@ -392,6 +399,14 @@ class GearItemDef(models.Model):
         max_length=20, choices=Campaign.choices, null=True, blank=True
     )
     effect_value = models.FloatField(default=1.0)
+    effect_params = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Extensible JSON for richer effects, e.g. "
+            "{'scales_from': 'strength'} for effect_type=scales_with."
+        ),
+    )
     requires_sleep_efficiency = models.FloatField(
         null=True, blank=True, help_text="e.g. 0.85 gates a synergy item."
     )
@@ -430,6 +445,47 @@ class UserGear(models.Model):
 
     def __str__(self):
         return f"{self.user.username}: {self.gear_def.slug} x{self.quantity}"
+
+
+class ScrapShopItem(models.Model):
+    """A purchasable item in the rotating Scrap Shop (docs/16).
+
+    Availability rotates by day of week (``available_days`` is a JSON list of
+    ``date.weekday()`` ints, Monday=0 … Sunday=6). Only items whose mask matches
+    today are offered, which gives the shop a visible daily rotation.
+    """
+
+    class RewardType(models.TextChoices):
+        TOKENS = "tokens", "Tokens"
+        STAMINA = "stamina", "Stamina"
+        PACK = "pack", "Pack draws"
+
+    slug = models.SlugField(unique=True)
+    name = models.CharField(max_length=80)
+    icon = models.CharField(max_length=60, default="fa-box-open")
+    description = models.TextField(blank=True)
+    cost_scraps = models.PositiveIntegerField(default=50)
+    available_days = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="date.weekday() ints (0=Mon..6=Sun) this item is offered.",
+    )
+    reward_type = models.CharField(
+        max_length=20, choices=RewardType.choices, default=RewardType.TOKENS
+    )
+    reward_value = models.FloatField(default=0)
+    pack = models.ForeignKey(
+        GearPackDef, null=True, blank=True, on_delete=models.SET_NULL
+    )
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "slug"]
+
+    def __str__(self):
+        return f"{self.name} ({self.cost_scraps} scraps)"
+
 
 
 class CampaignBoss(models.Model):

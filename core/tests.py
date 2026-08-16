@@ -24,6 +24,7 @@ from core.models import (
     Provider,
     PvPMatch,
     RawActivityLog,
+    ScrapShopItem,
     SkillTree,
     UserBadge,
     UserGear,
@@ -2210,6 +2211,215 @@ class CombatAPITests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 403)
+
+class ScrapAndEffectTests(TestCase):
+    """Phase 10 (docs/16): new item effect types + the scrap economy."""
+
+    def setUp(self):
+        from core.services.combat import profile
+
+        self.user = User.objects.create_user(username="gearuser", password="pw")
+        self.profile = profile(self.user)
+        self.client.login(username="gearuser", password="pw")
+
+    def _give_gear(self, equipped_slot=None, quantity=1, **kw):
+        gd = GearItemDef.objects.create(**kw)
+        return UserGear.objects.create(
+            user=self.user, gear_def=gd, rarity=kw.get("rarity", "common"),
+            equipped_slot=equipped_slot, quantity=quantity,
+        )
+
+    # --- New item types ---
+    def test_flat_bonus_adds_flat_damage_to_one_domain(self):
+        from core.services.combat import additive_bonus
+
+        ug = self._give_gear(
+            slug="flat_cardio", name="Flat Cardio", slot="head", rarity="rare",
+            effect_type="flat_bonus", effect_domain="cardio", effect_value=50,
+        )
+        self.assertEqual(additive_bonus(self.profile, self.user, "cardio"), 0.0)
+        ug.equipped_slot = "head"
+        ug.save(update_fields=["equipped_slot"])
+        self.assertEqual(additive_bonus(self.profile, self.user, "cardio"), 50.0)
+        self.assertEqual(additive_bonus(self.profile, self.user, "strength"), 0.0)
+
+    def test_scales_with_another_domain(self):
+        from core.services.combat import additive_bonus, base_damage_for
+
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.LIFTOSAUR, event_type="strength",
+            payload={"total_volume_lbs": 60000}, occurred_at=timezone.now(),
+        )
+        self._give_gear(
+            slug="crossband", name="Cross Band", slot="right_hand", rarity="rare",
+            effect_type="scales_with", effect_domain="cardio", effect_value=0.25,
+            effect_params={"scales_from": "strength"}, equipped_slot="right_hand",
+        )
+        base_strength = base_damage_for("strength", self.user)
+        self.assertGreater(base_strength, 0)
+        # Cardio gains 25% of the strength base damage as flat bonus.
+        self.assertAlmostEqual(
+            additive_bonus(self.profile, self.user, "cardio"), 0.25 * base_strength
+        )
+
+    def test_scales_with_streak(self):
+        from core.services.combat import additive_bonus
+
+        self.user.streak = 10
+        self.user.save(update_fields=["streak"])
+        self._give_gear(
+            slug="streakshoes", name="Streak Shoes", slot="feet", rarity="epic",
+            effect_type="scales_with", effect_domain="cardio", effect_value=2,
+            effect_params={"scales_from": "streak"}, equipped_slot="feet",
+        )
+        self.assertEqual(additive_bonus(self.profile, self.user, "cardio"), 20.0)
+
+    def test_stamina_cap_raises_cap_and_refill(self):
+        from core.services.combat import refresh_stamina, stamina_cap
+
+        self._give_gear(
+            slug="anklets", name="Anklets", slot="feet", rarity="rare",
+            effect_type="stamina_cap", effect_value=1, equipped_slot="feet",
+        )
+        self.assertEqual(stamina_cap(self.profile, self.user), 4)  # 3 + 1
+        self.profile.stamina = 0
+        self.profile.stamina_updated_at = None
+        self.profile.save(update_fields=["stamina", "stamina_updated_at"])
+        refresh_stamina(self.profile, self.user)
+        self.assertEqual(self.profile.stamina, 4)
+
+
+    def test_token_multiplier_boosts_dividend(self):
+        from core.services.combat import daily_token_harvest, token_dividend_multiplier
+
+        self._give_gear(
+            slug="ledger", name="Ledger", slot="accessory", rarity="epic",
+            effect_type="token_multiplier", effect_value=1.5, equipped_slot="accessory",
+        )
+        self.assertEqual(token_dividend_multiplier(self.profile, self.user), 1.5)
+        XPLedger.objects.create(user=self.user, modality=Modality.ENDURANCE, amount=120)
+        # streak 0 -> x1; (120/10)=12 * 1.5 = 18
+        minted = daily_token_harvest(self.user, on_date=timezone.localdate())
+        self.assertEqual(minted, 18)
+
+    def test_stamina_refund_consumable(self):
+        from core.services.combat import consume_consumable
+
+        self.profile.stamina = 0
+        self.profile.save(update_fields=["stamina"])
+        ug = self._give_gear(
+            slug="adrenaline", name="Adrenaline", slot="", rarity="rare",
+            effect_type="stamina_refund", effect_value=2, is_consumable=True,
+            max_stack=9, quantity=1,
+        )
+        ok, err = consume_consumable(self.profile, self.user, ug.pk)
+        self.assertTrue(ok, err)
+        self.assertEqual(self.profile.stamina, 2)
+        self.assertFalse(UserGear.objects.filter(pk=ug.pk).exists())
+
+    def test_grant_tokens_consumable(self):
+        from core.services.combat import consume_consumable
+
+        before = self.profile.tokens
+        ug = self._give_gear(
+            slug="coinopener", name="Coin Opener", slot="", rarity="epic",
+            effect_type="grant_tokens", effect_value=50, is_consumable=True,
+            max_stack=9,
+        )
+        ok, err = consume_consumable(self.profile, self.user, ug.pk)
+        self.assertTrue(ok, err)
+        self.assertEqual(self.profile.tokens, before + 50)
+
+    # --- Scrap economy ---
+    def test_recycle_gear_credits_scraps_by_rarity(self):
+        from core.services.combat import recycle_gear, scrap_value
+
+        self.assertEqual(scrap_value("rare"), 15)
+        ug = self._give_gear(
+            slug="junk", name="Junk", slot="head", rarity="rare",
+            effect_type="domain_multiplier", effect_domain="cardio",
+            effect_value=1.0, quantity=3,
+        )
+        ok, err, gain = recycle_gear(self.user, ug.pk, 2)
+        self.assertTrue(ok, err)
+        self.assertEqual(gain, 30)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.scraps, 30)
+        ug.refresh_from_db()
+        self.assertEqual(ug.quantity, 1)
+
+        ok, err, gain = recycle_gear(self.user, ug.pk, 1)
+        self.assertTrue(ok, err)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.scraps, 45)
+        self.assertFalse(UserGear.objects.filter(pk=ug.pk).exists())
+
+    def test_scrap_shop_state_filters_by_weekday(self):
+        today = timezone.localdate().weekday()
+        other = (today + 1) % 7
+        ScrapShopItem.objects.create(
+            slug="today_deal", name="Today Deal", cost_scraps=10,
+            available_days=[today], reward_type="tokens", reward_value=40,
+        )
+        ScrapShopItem.objects.create(
+            slug="other_deal", name="Other Deal", cost_scraps=10,
+            available_days=[other], reward_type="stamina", reward_value=1,
+        )
+        body = self.client.get("/scrap/shop/state").json()
+        slugs = [i["slug"] for i in body["scrap_shop"]["offering"]]
+        self.assertIn("today_deal", slugs)
+        self.assertNotIn("other_deal", slugs)
+
+    def test_buy_scrap_item_grants_tokens_and_deducts(self):
+        from core.services.combat import buy_scrap_item
+
+        today = timezone.localdate().weekday()
+        ScrapShopItem.objects.create(
+            slug="tokdeal", name="Token Deal", cost_scraps=20,
+            available_days=[today], reward_type="tokens", reward_value=40,
+        )
+        self.profile.scraps = 50
+        self.profile.save(update_fields=["scraps"])
+        before = self.profile.tokens
+        result, err = buy_scrap_item(self.user, "tokdeal")
+        self.assertIsNone(err)
+        self.assertEqual(result["tokens"], 40)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.scraps, 30)
+        self.assertEqual(self.profile.tokens, before + 40)
+
+    def test_scrap_recycle_endpoint(self):
+        ug = self._give_gear(
+            slug="junk2", name="Junk2", slot="head", rarity="common",
+            effect_type="domain_multiplier", effect_domain="strength", effect_value=1.0,
+        )
+        resp = self.client.post(
+            "/scrap/recycle", data={"gear_id": ug.pk, "quantity": 1},
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["scraps_gained"], 5)
+        self.assertFalse(UserGear.objects.filter(pk=ug.pk).exists())
+
+    def test_loadout_state_reports_scrap_values(self):
+        # Armor surfaced in the Loadout panel carries scrap info so the UI can
+        # offer a recycle action on owned, unequipped gear.
+        self._give_gear(
+            slug="scrapcar", name="Scrap Car", slot="head", rarity="epic",
+            effect_type="domain_multiplier", effect_domain="cardio",
+            effect_value=1.2, quantity=2,
+        )
+        resp = self.client.get("/loadout/state")
+        body = resp.json()
+        owned = body.get("owned") or []
+        match = next((o for o in owned if o["slug"] == "scrapcar"), None)
+        self.assertIsNotNone(match)
+        self.assertEqual(match["scrap_value"], 40)      # epic
+        self.assertEqual(match["total_scraps"], 80)     # 40 * 2
+        self.assertEqual(body["wallet"]["scraps"], self.profile.scraps)
+
 
 class Phase9CleanupTests(TestCase):
     """Regression tests for the docs/15 cleanup: bulk discounts, generic crates

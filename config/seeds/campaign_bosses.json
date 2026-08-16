@@ -1,0 +1,1239 @@
+[
+  {
+    "campaign": "cardio",
+    "slug": "ghastly_recliner",
+    "name": "The Ghastly Recliner",
+    "hp_total": 2000,
+    "element": "endurance",
+    "weaknesses": [],
+    "resistances": [],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "sir_skip_a_leg",
+    "name": "Sir Skip-a-Leg",
+    "hp_total": 1500,
+    "element": "strength",
+    "weaknesses": [],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "iron_couch_king",
+    "name": "The Iron Couch King",
+    "hp_total": 2500,
+    "element": "strength",
+    "weaknesses": [],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "deadlift_djinn",
+    "name": "The Deadlift Djinn",
+    "hp_total": 4000,
+    "element": "strength",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "carbo_hydra",
+    "name": "The Carbo-Hydra",
+    "hp_total": 600,
+    "element": "nutrition",
+    "weaknesses": [],
+    "resistances": [],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "the_dehydrator",
+    "name": "The Dehydrator",
+    "hp_total": 800,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "sleep",
+    "slug": "restless_wraith",
+    "name": "The Restless Wraith",
+    "hp_total": 300,
+    "element": "recovery",
+    "weaknesses": [],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "breathless_brute",
+    "name": "The Breathless Brute",
+    "hp_total": 2200,
+    "element": "endurance",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "pace_breaker",
+    "name": "The Pace Breaker",
+    "hp_total": 2800,
+    "element": "endurance",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "the_stitch",
+    "name": "The Side Stitch",
+    "hp_total": 3200,
+    "element": "endurance",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "lactic_lord",
+    "name": "Lactic Acid Lord",
+    "hp_total": 4000,
+    "element": "endurance",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "treadmill_tyrant",
+    "name": "Treadmill Tyrant",
+    "hp_total": 4500,
+    "element": "endurance",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "distance_demon",
+    "name": "The Distance Demon",
+    "hp_total": 5000,
+    "element": "endurance",
+    "weaknesses": [
+      "nutrition",
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "exhaustion_elemental",
+    "name": "Exhaustion Elemental",
+    "hp_total": 6000,
+    "element": "endurance",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "cardio",
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "sluggish_slime",
+    "name": "The Sluggish Slime",
+    "hp_total": 6500,
+    "element": "endurance",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "lazy_lout",
+    "name": "The Lazy Lout",
+    "hp_total": 7200,
+    "element": "endurance",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "sedentary_sphinx",
+    "name": "The Sedentary Sphinx",
+    "hp_total": 8500,
+    "element": "endurance",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "prawn_posture",
+    "name": "The Prawn Posture",
+    "hp_total": 1800,
+    "element": "strength",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "ego_lifter",
+    "name": "The Ego Lifter",
+    "hp_total": 2200,
+    "element": "strength",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "half_rep_horror",
+    "name": "Half-Rep Horror",
+    "hp_total": 2800,
+    "element": "strength",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "spotter_ghost",
+    "name": "The Spotter Ghost",
+    "hp_total": 3500,
+    "element": "strength",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "barbell_beast",
+    "name": "Barbell Bending Beast",
+    "hp_total": 4200,
+    "element": "strength",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "frail_phantom",
+    "name": "The Frail Phantom",
+    "hp_total": 4800,
+    "element": "strength",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "atrophy_assassin",
+    "name": "Atrophy Assassin",
+    "hp_total": 5500,
+    "element": "strength",
+    "weaknesses": [
+      "cardio",
+      "strength"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "gravity_giant",
+    "name": "The Gravity Giant",
+    "hp_total": 6500,
+    "element": "strength",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "heavy_hand",
+    "name": "The Heavy Hand",
+    "hp_total": 7500,
+    "element": "strength",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "doms_destroyer",
+    "name": "DOMS Destroyer",
+    "hp_total": 9000,
+    "element": "strength",
+    "weaknesses": [
+      "hydration",
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "sugar_crash",
+    "name": "The Sugar Crash",
+    "hp_total": 800,
+    "element": "nutrition",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "fast_food_fiend",
+    "name": "Fast Food Fiend",
+    "hp_total": 1200,
+    "element": "nutrition",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "trans_fat_troll",
+    "name": "Trans-Fat Troll",
+    "hp_total": 1600,
+    "element": "nutrition",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "calorie_creeper",
+    "name": "The Calorie Creeper",
+    "hp_total": 2000,
+    "element": "nutrition",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "binge_banshee",
+    "name": "The Binge Banshee",
+    "hp_total": 2500,
+    "element": "nutrition",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "sodium_serpent",
+    "name": "The Sodium Serpent",
+    "hp_total": 3000,
+    "element": "nutrition",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "cholesterol_chimera",
+    "name": "Cholesterol Chimera",
+    "hp_total": 3500,
+    "element": "nutrition",
+    "weaknesses": [
+      "cardio",
+      "strength"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "snack_snatcher",
+    "name": "The Snack Snatcher",
+    "hp_total": 4000,
+    "element": "nutrition",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "candy_king",
+    "name": "The Candy King",
+    "hp_total": 5000,
+    "element": "nutrition",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "gluttonous_gargoyle",
+    "name": "Gluttonous Gargoyle",
+    "hp_total": 6500,
+    "element": "nutrition",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "dry_druid",
+    "name": "The Dry Druid",
+    "hp_total": 1000,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "parched_phantom",
+    "name": "The Parched Phantom",
+    "hp_total": 1400,
+    "element": "hydration",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "dehydrated_demon",
+    "name": "Dehydrated Demon",
+    "hp_total": 1800,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "cola_cultist",
+    "name": "The Cola Cultist",
+    "hp_total": 2200,
+    "element": "hydration",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "sugar_drink_siren",
+    "name": "Sugar-Drink Siren",
+    "hp_total": 2800,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration",
+      "nutrition"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "desert_djinn",
+    "name": "The Desert Djinn",
+    "hp_total": 3500,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "sunburned_specter",
+    "name": "Sunburned Specter",
+    "hp_total": 4200,
+    "element": "hydration",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "cottonmouth_creature",
+    "name": "Cottonmouth Creature",
+    "hp_total": 5000,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "drought_dragon",
+    "name": "The Drought Dragon",
+    "hp_total": 6000,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "barren_baron",
+    "name": "The Barren Baron",
+    "hp_total": 7500,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "hydration",
+      "strength"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "sleep",
+    "slug": "tossing_turner",
+    "name": "The Tossing Turner",
+    "hp_total": 500,
+    "element": "recovery",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "midnight_scroller",
+    "name": "The Midnight Scroller",
+    "hp_total": 800,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "caffeine_creeper",
+    "name": "The Caffeine Creeper",
+    "hp_total": 1200,
+    "element": "recovery",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "snoring_siren",
+    "name": "The Snoring Siren",
+    "hp_total": 1600,
+    "element": "recovery",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "apnea_specter",
+    "name": "Sleep Apnea Specter",
+    "hp_total": 2000,
+    "element": "recovery",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "restless_rogue",
+    "name": "The Restless Rogue",
+    "hp_total": 2500,
+    "element": "recovery",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "blue_light_behemoth",
+    "name": "Blue-Light Behemoth",
+    "hp_total": 3200,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "waking_wight",
+    "name": "The Waking Wight",
+    "hp_total": 4000,
+    "element": "recovery",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "insomnia_imp",
+    "name": "The Insomnia Imp",
+    "hp_total": 5000,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "sleepwalker_king",
+    "name": "The Sleepwalker King",
+    "hp_total": 6500,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "windburn_wraith",
+    "name": "The Windburn Wraith",
+    "hp_total": 9800,
+    "element": "endurance",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "couch_surf_golem",
+    "name": "The Couch-Surf Golem",
+    "hp_total": 10500,
+    "element": "endurance",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "marathon_mannequin",
+    "name": "The Marathon Mannequin",
+    "hp_total": 11800,
+    "element": "endurance",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "sprint_sloth",
+    "name": "The Sprint Sloth",
+    "hp_total": 13200,
+    "element": "endurance",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "gym_goer_ghoul",
+    "name": "The Gym-Goer Ghoul",
+    "hp_total": 15000,
+    "element": "endurance",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "cardio",
+    "slug": "treadmill_titan",
+    "name": "The Treadmill Titan",
+    "hp_total": 18000,
+    "element": "endurance",
+    "weaknesses": [
+      "nutrition",
+      "hydration"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "plate_rage_cyclops",
+    "name": "The Plate-Rage Cyclops",
+    "hp_total": 10000,
+    "element": "strength",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "ego_barbel_blob",
+    "name": "The Ego Barbell Blob",
+    "hp_total": 11500,
+    "element": "strength",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "powerlifting_titan",
+    "name": "The Powerlifting Titan",
+    "hp_total": 13000,
+    "element": "strength",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "the_plateau",
+    "name": "The Plateau",
+    "hp_total": 15000,
+    "element": "strength",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "deadlift_demigod",
+    "name": "The Deadlift Demigod",
+    "hp_total": 17500,
+    "element": "strength",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "strength",
+    "slug": "deload_dragon",
+    "name": "The Deload Dragon",
+    "hp_total": 20000,
+    "element": "strength",
+    "weaknesses": [
+      "cardio",
+      "sleep"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "sugar_rush_spectre",
+    "name": "The Sugar-Rush Spectre",
+    "hp_total": 2800,
+    "element": "nutrition",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "greasy_greeble_goblin",
+    "name": "The Greasy Goblin",
+    "hp_total": 3400,
+    "element": "nutrition",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "portion_poltergeist",
+    "name": "The Portion Poltergeist",
+    "hp_total": 4200,
+    "element": "nutrition",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "protein_pasha",
+    "name": "The Protein Pasha",
+    "hp_total": 5200,
+    "element": "nutrition",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "carb_conjurer",
+    "name": "The Carb Conjurer",
+    "hp_total": 6500,
+    "element": "nutrition",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "nutrition",
+    "slug": "macro_mischief_mage",
+    "name": "The Macro-Mischief Mage",
+    "hp_total": 8000,
+    "element": "nutrition",
+    "weaknesses": [
+      "cardio",
+      "hydration"
+    ],
+    "resistances": [
+      "nutrition"
+    ],
+    "mechanics": {
+      "heal_on_overage": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "brine_banshee",
+    "name": "The Brine Banshee",
+    "hp_total": 3400,
+    "element": "hydration",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "rusty_well_wraith",
+    "name": "The Rusty Well Wraith",
+    "hp_total": 4200,
+    "element": "hydration",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "sandstorm_sultan",
+    "name": "The Sandstorm Sultan",
+    "hp_total": 5200,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "dehydrated_leviathan",
+    "name": "The Dehydrated Leviathan",
+    "hp_total": 6500,
+    "element": "hydration",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "hydration",
+    "slug": "heatstroke_hydra",
+    "name": "The Heatstroke Hydra",
+    "hp_total": 8000,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration",
+      "nutrition"
+    ],
+    "resistances": [
+      "hydration"
+    ],
+    "mechanics": {
+      "front_load_water_noon": true
+    }
+  },
+  {
+    "campaign": "hydration",
+    "slug": "glacier_ghost",
+    "name": "The Glacier Ghost",
+    "hp_total": 9500,
+    "element": "hydration",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "strength"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "night_owl_overlord",
+    "name": "The Night Owl Overlord",
+    "hp_total": 2400,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "groggy_gruff",
+    "name": "The Groggy Gruff",
+    "hp_total": 3000,
+    "element": "recovery",
+    "weaknesses": [
+      "nutrition"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "coffee_corrupted_king",
+    "name": "The Coffee-Corrupted King",
+    "hp_total": 3800,
+    "element": "recovery",
+    "weaknesses": [
+      "hydration"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "late_night_lich",
+    "name": "The Late-Night Lich",
+    "hp_total": 4700,
+    "element": "recovery",
+    "weaknesses": [
+      "cardio"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "dream_eater",
+    "name": "The Dream Eater",
+    "hp_total": 6000,
+    "element": "recovery",
+    "weaknesses": [
+      "sleep"
+    ],
+    "resistances": [
+      "cardio"
+    ],
+    "mechanics": {}
+  },
+  {
+    "campaign": "sleep",
+    "slug": "eighty_winks_tyrant",
+    "name": "The Eighty-Winks Tyrant",
+    "hp_total": 7500,
+    "element": "recovery",
+    "weaknesses": [
+      "strength"
+    ],
+    "resistances": [
+      "sleep"
+    ],
+    "mechanics": {}
+  }
+]

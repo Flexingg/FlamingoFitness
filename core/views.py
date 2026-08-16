@@ -68,6 +68,10 @@ from .services import (
     respond_flock_invite,
     respond_friend_request,
     save_avatar,
+    buy_scrap_item as combat_buy_scrap_item,
+    recycle_gear as combat_recycle_gear,
+    scrap_shop_state as combat_scrap_shop_state,
+    scrap_value as combat_scrap_value,
     send_friend_request,
     set_defense as combat_set_defense,
     social_state,
@@ -602,6 +606,7 @@ def battle_campaign(request, campaign):
     """GET /battle/campaign/<campaign> - boss detail + today's damage preview."""
     from .services import (
         active_buff_multiplier,
+        additive_bonus,
         base_damage_for,
         boss_vulnerability,
         total_gear_multiplier,
@@ -612,7 +617,8 @@ def battle_campaign(request, campaign):
     ).select_related("boss").first()
     boss = CampaignBoss.objects.filter(campaign=campaign, is_active=True).order_by("sort_order").first()
     profile_obj = combat_profile(request.user)
-    base = base_damage_for(campaign, request.user)
+    flat = additive_bonus(profile_obj, request.user, campaign)
+    base = base_damage_for(campaign, request.user) + flat
     gear_mult = total_gear_multiplier(profile_obj, request.user, campaign)
     ref = (prog.boss if prog and prog.boss else boss)
     vuln = boss_vulnerability(ref, campaign) if ref else 1.0
@@ -632,6 +638,7 @@ def battle_campaign(request, campaign):
             "mechanics": ref.mechanics if ref else {},
         },
         "today_base_damage": base,
+        "flat_bonus": flat,
         "gear_multiplier": round(gear_mult, 2),
         "boss_multiplier": round(buff_mult * vuln, 2),
         "vulnerability": vuln,
@@ -692,8 +699,29 @@ def shop_state(request):
             "effect_type": ug.gear_def.effect_type,
             "effect_domain": ug.gear_def.effect_domain,
             "effect_value": ug.gear_def.effect_value,
+            "effect_params": ug.gear_def.effect_params or {},
+            "is_consumable": ug.gear_def.is_consumable,
         })
-    return JsonResponse({"wallet": wallet_dump(profile_obj), "packs": packs, "owned": owned})
+    # Items eligible for recycling: anything not currently equipped.
+    recyclable = []
+    for bucket, items in owned.items():
+        for it in items:
+            if it.get("equipped_slot"):
+                continue
+            sv = combat_scrap_value(it["rarity"])
+            recyclable.append({
+                **it,
+                "bucket": bucket,
+                "scrap_value": sv,
+                "total_scraps": sv * int(it.get("quantity", 0)),
+            })
+    return JsonResponse({
+        "wallet": wallet_dump(profile_obj),
+        "packs": packs,
+        "owned": owned,
+        "recyclable": recyclable,
+        "scrap_shop": combat_scrap_shop_state(),
+    })
 
 
 @login_required
@@ -753,6 +781,59 @@ def shop_consume(request):
     return JsonResponse({"ok": True, "wallet": wallet_dump(profile_obj)})
 
 
+@login_required
+@require_POST
+def scrap_recycle(request):
+    """POST /scrap/recycle {\"gear_id\", \"quantity\"} - turn gear into scraps.
+
+    Equipped gear cannot be recycled; the item (or ``quantity`` of its stack) is
+    removed and the user's scraps wallet is credited.
+    """
+    data = _load_combat_post_body(request)
+    try:
+        gear_id = int(data.get("gear_id"))
+    except (TypeError, ValueError):
+        return _json_error("gear_id must be an integer.", 400)
+    try:
+        quantity = int(data.get("quantity", "1") or "1")
+    except (TypeError, ValueError):
+        quantity = 1
+    ug = UserGear.objects.filter(pk=gear_id, user=request.user).first()
+    if ug is None:
+        return _json_error("Item not found.", 404)
+    if ug.equipped_slot:
+        return _json_error("Unequip an item before recycling it.", 400)
+    ok, err, gain = combat_recycle_gear(request.user, gear_id, quantity)
+    if not ok:
+        return _json_error(err, 400)
+    return JsonResponse({"ok": True, "scraps_gained": gain, "wallet": wallet_dump(combat_profile(request.user))})
+
+
+@login_required
+def scrap_shop(request):
+    """GET /scrap/shop/state - today's rotating Scrap Shop offering + scraps wallet."""
+    profile_obj = combat_profile(request.user)
+    return JsonResponse({
+        "wallet": wallet_dump(profile_obj),
+        "scrap_shop": combat_scrap_shop_state(),
+    })
+
+
+@login_required
+@require_POST
+def scrap_buy(request):
+    """POST /scrap/shop/buy {\"item_slug\"} - buy a Scrap Shop item with scraps."""
+    data = _load_combat_post_body(request)
+    slug = str(data.get("item_slug", "") or "").strip()
+    if not slug:
+        return _json_error("item_slug is required.", 400)
+    result, err = combat_buy_scrap_item(request.user, slug)
+    if err:
+        return _json_error(err, 400)
+    return JsonResponse({"ok": True, **result, "wallet": wallet_dump(combat_profile(request.user))})
+
+
+
 
 @login_required
 def loadout_state(request):
@@ -786,6 +867,8 @@ def loadout_state(request):
             "pack_name": ug.gear_def.pack.name if ug.gear_def.pack else None,
             "quantity": ug.quantity,
             "equipped": bool(ug.equipped_slot),
+            "scrap_value": combat_scrap_value(ug.rarity),
+            "total_scraps": combat_scrap_value(ug.rarity) * ug.quantity,
         }
         for ug in UserGear.objects.filter(
             user=request.user, gear_def__is_consumable=False

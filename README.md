@@ -221,8 +221,8 @@ Everything you add lives in four tables you edit in the Django admin
      whose `GearItemDef.pack` points at it).
    - **Bulk discount** is automatic: buying `3 → 10%`, `5 → 15%`, `10 → 20%`
      off (`BULK_DISCOUNTS` in `core/services/combat.py`).
-2. **Seeding:** add a dict to `DEFAULT_PACKS` in
-   `core/management/commands/create_demo_accounts.py` (idempotent by `slug`).
+2. **Seeding:** add a dict to `config/seeds/packs.json` (loaded at seeding time —
+   see **docs/16** for the Google-Sheet workflow).
 3. **Coding:** no code needed (the Shop reads `GET /api/v1/shop/state` and
    `POST /api/v1/shop/open {pack_slug, quantity}` automatically).
 
@@ -235,13 +235,31 @@ Everything you add lives in four tables you edit in the Django admin
      `fa-shirt`, `fa-helmet-safety`, `fa-hand-fist`; avoid Pro-only names like
      `fa-helmet-battle` which render invisible), `effect_type`, `effect_domain`,
      `effect_value`, and `pack` (which pack can drop it).
-   - `effect_type` options: `domain_multiplier` (scales that domain's damage),
-     `double_domain` / `shield_overage` (consumables), `synergy`
-     (set `requires_sleep_efficiency`, e.g. `0.85`).
+   - `effect_type` options (see **docs/16** for full details):
+     `domain_multiplier` (scales a domain's damage), `synergy` (domain multiplier
+     gated by sleep efficiency), **`flat_bonus`** (bare stat increase), **`scales_with`**
+     (boost derived from another metric via `effect_params.scales_from`),
+     **`stamina_cap`** (more daily stamina), **`token_multiplier`** (more daily
+     coins), `double_domain` / `shield_overage` (consumables), and **`stamina_refund`**
+     (earn back stamina) / **`grant_tokens`** (earn extra coins) consumables.
    - Consumables: tick `is_consumable`, set `max_stack` (default 9).
-2. **Seeding:** add a dict to `DEFAULT_GEAR` (its `pack` key is the pack `slug`).
+2. **Seeding:** add a dict to `config/seeds/gear_items.json` (its `pack` key is the
+   pack `slug`). No Python code is required — the seeding command reads the JSON.
 3. **Make it discoverable**: attach it to a pack (or make it part of a generic
    crate's catalog). Unpacked gear never drops anywhere.
+4. Re-run the seeder (idempotent by `slug`):
+   `manage.py create_demo_accounts` (or `manage.py seed_demo` in Docker).
+
+### ➕ Scrap economy (recycle → scraps → rotating Scrap Shop)
+
+- Any owned, **unequipped** item can be **recycled** from the Shop panel
+  (`POST /api/v1/scrap/recycle`) into **scraps** — value scales with rarity
+  (Common 5 / Rare 15 / Epic 40 / Legendary 100).
+- Scraps are spent in the **Scrap Shop** (`GET /api/v1/scrap/shop/state`, buy via
+  `POST /api/v1/scrap/shop/buy`). The offering **rotates by day of week**: each
+  `ScrapShopItem.available_days` is a list of weekday ints (`0`=Mon … `6`=Sun).
+- Seed deals in `config/seeds/scrap_shop.json`; the full design guide lives in
+  **docs/16** (including the Google-Sheet authoring + `tools/code.gs` exporter).
 
 ### ➕ Adding a PvE campaign boss
 
@@ -280,6 +298,131 @@ Everything you add lives in four tables you edit in the Django admin
 - Validate: `manage.py check`, the test suite (`Testing` below), and
   `node --check core/static/core/js/**/*.js` if frontend JS changed.
 - Full design + rulebook math: **`docs/15_Gacha_Battle_Replacing_Base.md`**.
+
+---
+
+## 🧪 Seeding the config with custom data
+
+Every droppable / purchasable entry lives as **plain JSON** in **`config/seeds/`**
+and is loaded by the seeder — **no Python changes are needed for normal content
+edits**. This is the fastest way to prototype items, packs, and scrap-shop deals:
+
+| File | Model it seeds | One JSON entry… |
+|---|---|---|
+| `config/seeds/packs.json` | `GearPackDef` | a Shop pack/crate |
+| `config/seeds/gear_items.json` | `GearItemDef` | one droppable item/consumable |
+| `config/seeds/scrap_shop.json` | `ScrapShopItem` | a rotating Scrap Shop deal |
+| `config/seeds/campaign_bosses.json` | `CampaignBoss` | one PvE campaign boss (campaign, HP, element, weaknesses/resistances/mechanics) |
+| `config/seeds/boss_configs.json` | `BossConfig` | one PR Boss benchmark (lift name + bodyweight multiplier) |
+| `config/seeds/challenges.json` | `Challenge` | a rolling community challenge |
+| `config/seeds/badges.json` | `BadgeDef` | a built-in achievement badge (points + rule) — seeded via `sync_badge_defs()` |
+
+### ⚙️ Gameplay tuning (numbers)
+
+Balance knobs — token/stamina economy, gacha odds, combat/PvP numbers, league
+tiers & weekly rewards, XP-per-level and the readiness rest-day threshold —
+live in **`config/gameplay.json`** (loaded by `core/services/game_config.py`,
+bound into the services as module-level constants). Edit a number there and the
+running workers pick it up on their next code reload; no DB migration, and no
+code editing is needed to retune the game.
+
+> Structural constants that aren't "balance" (ragged slot ids, campaign event
+> maps, weekday names) intentionally stay in Python.
+
+
+### When seeding runs
+
+```powershell
+# Local (no Docker)
+.venv\Scripts\python manage.py create_demo_accounts
+
+# Inside Docker (also runs on web-container startup; seed_demo wraps it too)
+docker compose exec web python manage.py seed_demo
+```
+
+### How the seeder merges (get_or_create by `slug`)
+
+The command uses Django's `get_or_create(slug=…, defaults=…)`:
+
+- **New `slug`** → the row is inserted with the JSON's fields, then the demo
+  `player1` starter inventory/user records are set up.
+- **Existing `slug`** → the row is left untouched (get_or_create does **not**
+  update an already-existing row). To change an item that's already seeded,
+  either:
+  1. Edit it in the Django admin (`/admin/` — `Gear item defs` etc.), or
+  2. Delete the row and re-run the seeder, or
+  3. Recreate the database from scratch:
+     `docker compose down -v` → `docker compose up --build` → `seed_demo`.
+
+So the rule of thumb is: **add new slugs freely and re-seed; for edits, use the
+admin or delete-then-re-seed.**
+
+### Example — add a gear item with a new effect type
+
+Append to `config/seeds/gear_items.json` (inside the top-level `[ ]` array):
+
+```json
+{
+  "slug": "flux_cape",
+  "name": "Flux Cape",
+  "slot": "chest",
+  "rarity": "epic",
+  "icon": "fa-cape",
+  "effect_type": "scales_with",
+  "effect_domain": "cardio",
+  "effect_value": 0.5,
+  "effect_params": { "scales_from": "strength" },
+  "pack": "cardio_storm",
+  "weight": 40,
+  "description": "Adds 50% of your Strength base damage to Cardio sieges.",
+  "is_active": true,
+  "sort_order": 210
+}
+```
+
+`effect_type` / `effect_params` supported values are listed in the **Adding a
+gear item** section above and documented in depth in **docs/16**.
+
+### Example — add a Scrap Shop deal
+
+Append to `config/seeds/scrap_shop.json`:
+
+```json
+{
+  "slug": "scrap_energy_pack",
+  "name": "Energy Refill",
+  "icon": "fa-bolt",
+  "description": "Refills 3 stamina.",
+  "cost_scraps": 60,
+  "available_days": [0, 2, 4],
+  "reward_type": "stamina",
+  "reward_value": 3,
+  "is_active": true,
+  "sort_order": 60
+}
+```
+
+`available_days` is a list of weekday ints (`0`=Mon … `6`=Sun) — an empty list
+means **every day**. `reward_type` is `tokens` / `stamina` / `pack` (for `pack`,
+also set the `"pack"` key to a `packs.json` slug).
+
+### Disabling / experimenting
+
+- Set `"is_active": false` to hide an item or deal without deleting it — it stays
+  in the catalog but never drops/sells and is filtered from the UI.
+- Adjust `weight` to tune drop rates, `rarity` / `effect_value` to tune power, and
+  `sort_order` to control inventory ordering.
+
+### Verify after seeding
+
+```powershell
+.venv\Scripts\python manage.py check
+.venv\Scripts\python manage.py shell -c "from core.models import GearItemDef, GearPackDef, ScrapShopItem; print('gear', GearItemDef.objects.count(), 'packs', GearPackDef.objects.count(), 'scrap deals', ScrapShopItem.objects.count())"
+```
+
+Run the suite with `Testing` below. For the **Google Sheet** authoring flow
+(where `config/seeds/*.json` come from), see **docs/16** and **`tools/code.gs`**.
+
 
 ---
 

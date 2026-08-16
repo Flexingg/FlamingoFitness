@@ -28,6 +28,7 @@ from ..models import (
     PvPMatch,
     Rarity,
     RawActivityLog,
+    ScrapShopItem,
     UserGear,
     XPLedger,
 )
@@ -35,35 +36,42 @@ from ..models import (
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Tuning constants (docs/15 §3)
+# Tuning constants (docs/15 §3 - sourced from config/gameplay.json).
+# To retune the economy / stamina / gacha / combat without code, edit
+# config/gameplay.json (see docs segment in tools/code.gs flow).
 # ---------------------------------------------------------------------------
-XP_TO_TOKENS = 10                 # daily dividend divisor: 1 token per 10 XP
-STREAK_TOKEN_CAP_DAYS = 10
-STREAK_TOKEN_STEP = 0.05
-TOKEN_PERFECT_MACRO = 25
-TOKEN_PERFECT_HYDRATION = 10
-TOKEN_PVE_CONQUEST = 150
-TOKEN_BOSS_PR = 100
-TOKEN_TIME_SPEEDUP_RATE = 10      # 1 token per 10 time_speedups (converted)
-TOKEN_MATERIAL_RATE = 20          # 1 token per 20 materials (converted)
-TOKEN_STARTER = 300
+from .game_config import GAMEPLAY  # noqa: E402
 
-PACK_PRICE_SIMPLE = 100
-PACK_PRICE_DELUXE = 250
-PACK_PRICE_LEGENDARY = 500
+XP_TO_TOKENS = int(GAMEPLAY["economy"]["xp_per_token"])
+STREAK_TOKEN_CAP_DAYS = int(GAMEPLAY["economy"]["streak_token_cap_days"])
+STREAK_TOKEN_STEP = float(GAMEPLAY["economy"]["streak_token_step"])
+TOKEN_PERFECT_MACRO = int(GAMEPLAY["economy"]["token_perfect_macro"])
+TOKEN_PERFECT_HYDRATION = int(GAMEPLAY["economy"]["token_perfect_hydration"])
+TOKEN_PVE_CONQUEST = int(GAMEPLAY["economy"]["token_pve_conquest"])
+TOKEN_BOSS_PR = int(GAMEPLAY["economy"]["token_boss_pr"])
+TOKEN_TIME_SPEEDUP_RATE = int(GAMEPLAY["economy"]["token_time_speedup_rate"])
+TOKEN_MATERIAL_RATE = int(GAMEPLAY["economy"]["token_material_rate"])
+TOKEN_STARTER = int(GAMEPLAY["economy"]["token_starter"])
+
+PACK_PRICE_SIMPLE = int(GAMEPLAY["shop"]["pack_price_simple"])
+PACK_PRICE_DELUXE = int(GAMEPLAY["shop"]["pack_price_deluxe"])
+PACK_PRICE_LEGENDARY = int(GAMEPLAY["shop"]["pack_price_legendary"])
 
 # Bulk-buy discounts (docs/15 §3.2): quantity tiers -> % off the unit price.
-BULK_DISCOUNTS = {1: 0.0, 3: 0.10, 5: 0.15, 10: 0.20}
-BULK_MAX = 10
-RARITY_WEIGHTS_BASE = {
-    Rarity.COMMON: 60,
-    Rarity.RARE: 28,
-    Rarity.EPIC: 10,
-    Rarity.LEGENDARY: 2,
+BULK_DISCOUNTS = {int(k): float(v) for k, v in GAMEPLAY["gacha"]["bulk_discounts"].items()}
+BULK_MAX = int(GAMEPLAY["gacha"]["bulk_max"])
+_RARITY_BY_KEY = {
+    Rarity.COMMON.value: Rarity.COMMON,
+    Rarity.RARE.value: Rarity.RARE,
+    Rarity.EPIC.value: Rarity.EPIC,
+    Rarity.LEGENDARY.value: Rarity.LEGENDARY,
 }
-EPIC_STREAK_STEP = 0.20
-LEGENDARY_STREAK_STEP = 0.05
-STREAK_ODDS_START_DAY = 7
+RARITY_WEIGHTS_BASE = {
+    _RARITY_BY_KEY[k]: int(v) for k, v in GAMEPLAY["gacha"]["rarity_weights_base"].items()
+}
+EPIC_STREAK_STEP = float(GAMEPLAY["gacha"]["epic_streak_step"])
+LEGENDARY_STREAK_STEP = float(GAMEPLAY["gacha"]["legendary_streak_step"])
+STREAK_ODDS_START_DAY = int(GAMEPLAY["gacha"]["streak_odds_start_day"])
 
 HEAD_SLOT = "head"
 BODY_SLOT = "body"   # kept for legacy; the UI shows "chest" now
@@ -72,31 +80,28 @@ ACCESSORY_SLOT = "accessory"
 # Displayed equippable slots, in order (docs/15 cleanup: expanded loadout).
 SLOT_ORDER = ("head", "chest", "left_hand", "right_hand", "legs", "feet", "accessory")
 GEAR_MULT_POOL = {
-    Rarity.COMMON: (1.0, 1.2),
-    Rarity.RARE: (1.2, 1.5),
-    Rarity.EPIC: (1.5, 2.0),
-    Rarity.LEGENDARY: (2.0, 2.5),
+    _RARITY_BY_KEY[k]: tuple(v) for k, v in GAMEPLAY["gacha"]["gear_mult_pool"].items()
 }
-SYNERGY_SLEEP_EFF = 0.85
-CONSUMABLE_MAX_STACK = 9
-BUFF_HOURS = 24
+SYNERGY_SLEEP_EFF = float(GAMEPLAY["gacha"]["synergy_sleep_eff"])
+CONSUMABLE_MAX_STACK = int(GAMEPLAY["gacha"]["consumable_max_stack"])
+BUFF_HOURS = int(GAMEPLAY["gacha"]["buff_hours"])
 
-BOSS_HP_SCALE = {"cardio": 10, "strength": 1000, "nutrition": 10, "hydration": 10, "sleep": 8}
-STAMINA_PER_DAY = 3
-REST_DAY_STAMINA_BONUS = 2
-BOSS_HEAL_OVERAGE = 500
+BOSS_HP_SCALE = {k: int(v) for k, v in GAMEPLAY["combat"]["boss_hp_scale"].items()}
+STAMINA_PER_DAY = int(GAMEPLAY["stamina"]["per_day"])
+REST_DAY_STAMINA_BONUS = int(GAMEPLAY["stamina"]["rest_day_bonus"])
+BOSS_HEAL_OVERAGE = int(GAMEPLAY["combat"]["boss_heal_overage"])
 
-ELEMENT_WHEEL = {
-    "endurance": "strength",
-    "strength": "nutrition",
-    "nutrition": "hydration",
-    "hydration": "recovery",
-    "recovery": "endurance",
+ELEMENT_WHEEL = dict(GAMEPLAY["combat"]["element_wheel"])
+PVP_AGGRESSOR_WIN_EDGE = float(GAMEPLAY["pvp"]["aggressor_win_edge"])
+GYM_TOKEN_YIELD_BASE = int(GAMEPLAY["pvp"]["gym_token_yield_base"])
+GYM_HOLD_WINDOW_HOURS = int(GAMEPLAY["pvp"]["gym_hold_window_hours"])
+PVP_CONSISTENCY_WINDOW_DAYS = int(GAMEPLAY["pvp"]["consistency_window_days"])
+
+# Scrap economy (docs/16): recycling gear yields scraps by rarity.
+SCRAP_VALUE_BY_RARITY = {
+    _RARITY_BY_KEY[k]: int(v) for k, v in GAMEPLAY["scrap"]["value_by_rarity"].items()
 }
-PVP_AGGRESSOR_WIN_EDGE = 1.10
-GYM_TOKEN_YIELD_BASE = 20
-GYM_HOLD_WINDOW_HOURS = 24
-PVP_CONSISTENCY_WINDOW_DAYS = 7
+WEEKDAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 _CAMPAIGN_EVENT_TYPES = {
     Campaign.CARDIO: ("cardio", "endurance"),
@@ -114,11 +119,12 @@ def profile(user):
 
 
 def wallet_dump(p):
-    """Shared wallet shape for /dashboard/state and /battle/state."""
+    """Shared wallet shape for /dashboard/state, /battle/state and /shop/state."""
     return {
         "tokens": p.tokens,
+        "scraps": p.scraps,
         "stamina": p.stamina,
-        "stamina_cap": STAMINA_PER_DAY,
+        "stamina_cap": stamina_cap(p, p.user),
         "rest_day_bonus": REST_DAY_STAMINA_BONUS,
     }
 
@@ -155,6 +161,20 @@ def spend_tokens(user, amount):
     return True, None
 
 
+def token_dividend_multiplier(p, user, on_date=None):
+    """Product of equipped ``token_multiplier`` gear (extra daily coins)."""
+    on_date = on_date or timezone.localdate()
+    mult = 1.0
+    for ug in UserGear.objects.filter(
+        user=user,
+        equipped_slot__isnull=False,
+        gear_def__is_consumable=False,
+        gear_def__effect_type="token_multiplier",
+    ):
+        mult *= float(ug.gear_def.effect_value or 1.0)
+    return mult
+
+
 def daily_token_harvest(user, on_date=None):
     """Mint the daily token dividend, idempotent per (user, date). Returns minted."""
     on_date = on_date or timezone.localdate()
@@ -167,7 +187,7 @@ def daily_token_harvest(user, on_date=None):
         )["s"]
         or 0
     )
-    minted = token_dividend(xp_today, user.streak)
+    minted = int(token_dividend(xp_today, user.streak) * token_dividend_multiplier(p, user))
     p.tokens += minted
     p.last_token_harvest = on_date
     p.save(update_fields=["tokens", "last_token_harvest"])
@@ -180,13 +200,37 @@ def _is_rest_day(user, on_date=None):
     return bool(r and r.streak_requirement == DailyReadiness.StreakRequirement.REST_DAY)
 
 
+def stamina_cap(p, user, on_date=None):
+    """Daily stamina ceiling: base + rest-day bonus + equipped ``stamina_cap`` gear.
+
+    ``stamina_cap`` items are non-consumable equipment that raise the ceiling, so
+    equipped stamina gear lets a player accrue more siege attacks each morning.
+    """
+    on_date = on_date or timezone.localdate()
+    base = STAMINA_PER_DAY + (REST_DAY_STAMINA_BONUS if _is_rest_day(user, on_date) else 0)
+    gear_bonus = sum(
+        float(ug.gear_def.effect_value or 0)
+        for ug in UserGear.objects.filter(
+            user=user,
+            equipped_slot__isnull=False,
+            gear_def__is_consumable=False,
+            gear_def__effect_type="stamina_cap",
+        )
+    )
+    return int(base + gear_bonus)
+
+
 def refresh_stamina(p, user, now=None, on_date=None):
-    """Refill daily stamina (overflow-safe; rest day grants REST_DAY_STAMINA_BONUS)."""
+    """Refill daily stamina (overflow-safe; rest day grants REST_DAY_STAMINA_BONUS).
+
+    Uses :func:`stamina_cap` so equipped ``stamina_cap`` gear raises the ceiling a
+    player refills toward and can keep above.
+    """
     now = now or timezone.now()
     on_date = on_date or timezone.localdate(now)
     if p.stamina_updated_at and p.stamina_updated_at.date() >= on_date:
         return p
-    cap = STAMINA_PER_DAY + (REST_DAY_STAMINA_BONUS if _is_rest_day(user, on_date) else 0)
+    cap = stamina_cap(p, user, on_date=on_date)
     p.stamina = max(p.stamina, cap)  # overflow-safe: never reduces below existing
     p.stamina_updated_at = now
     p.save(update_fields=["stamina", "stamina_updated_at"])
@@ -447,6 +491,56 @@ def total_gear_multiplier(p, user, domain, on_date=None):
     return mult
 
 
+def _scale_metric(source, user, on_date):
+    """Resolve a ``scales_with`` metric to a numeric magnitude (docs/16)."""
+    source = str(source or "").strip()
+    if source in Campaign.values:
+        return float(base_damage_for(source, user, on_date))
+    if source == "streak":
+        return float(user.streak or 0)
+    if source == "xp":
+        return float(getattr(user, "total_xp", 0) or 0)
+    if source == "tokens":
+        return float(profile(user).tokens or 0)
+    if source == "stamina":
+        return float(profile(user).stamina or 0)
+    return 0.0
+
+
+def _scales_with_contribution(gd, user, on_date):
+    """Bonus contributed by an equipped ``scales_with`` item for its target domain."""
+    if gd.requires_sleep_efficiency and not _buff_gate_passes(gd, user, on_date):
+        return 0.0
+    source = (gd.effect_params or {}).get("scales_from") or "strength"
+    return float(gd.effect_value or 0) * _scale_metric(source, user, on_date)
+
+
+def additive_bonus(p, user, domain, on_date=None):
+    """Flat damage added to ``domain`` from equipped ``flat_bonus`` / ``scales_with``.
+
+    ``flat_bonus`` adds ``effect_value`` points outright; ``scales_with`` adds
+    ``effect_value * <metric>`` points, where the metric comes from
+    ``effect_params['scales_from']`` (a campaign domain, or ``streak``/``xp``/
+    ``tokens``/``stamina``).
+    """
+    on_date = on_date or timezone.localdate()
+    total = 0.0
+    for ug in UserGear.objects.filter(
+        user=user,
+        equipped_slot__isnull=False,
+        gear_def__is_consumable=False,
+        gear_def__effect_type__in=["flat_bonus", "scales_with"],
+    ).select_related("gear_def"):
+        gd = ug.gear_def
+        if gd.effect_domain and gd.effect_domain != domain:
+            continue
+        if gd.effect_type == "flat_bonus":
+            total += float(gd.effect_value or 0)
+        elif gd.effect_type == "scales_with":
+            total += _scales_with_contribution(gd, user, on_date)
+    return round(total, 2)
+
+
 def active_buff_multiplier(p, domain, on_date=None):
     """Consumable buff multiplier for a campaign (docs/15 §3.4)."""
     on_date = on_date or timezone.localdate()
@@ -464,21 +558,37 @@ def has_overage_shield(p, on_date=None):
 
 
 def consume_consumable(profile_obj, user, gear_id):
-    """Use a consumable UserGear; write a dated buff. Returns (ok, error)."""
+    """Use a consumable UserGear. Writes a dated buff or grants stamina/tokens.
+
+    Returns (ok, error).
+    """
     ug = UserGear.objects.filter(pk=gear_id, user=user, gear_def__is_consumable=True).first()
     if ug is None:
         return False, "Consumable not found."
     today = timezone.localdate().isoformat()
+    etype = ug.gear_def.effect_type
     buffs = dict(profile_obj.active_buffs or {})
-    if ug.gear_def.effect_type == "double_domain":
+    changed_fields = []
+    if etype == "double_domain":
         key = f"{ug.gear_def.effect_domain}_double_date"
         buffs[key] = today
-    elif ug.gear_def.effect_type == "shield_overage":
+        profile_obj.active_buffs = buffs
+        changed_fields.append("active_buffs")
+    elif etype == "shield_overage":
         buffs["shield_overage_date"] = today
+        profile_obj.active_buffs = buffs
+        changed_fields.append("active_buffs")
+    elif etype == "stamina_refund":
+        cap = stamina_cap(profile_obj, user)
+        refund = int(ug.gear_def.effect_value or 0)
+        profile_obj.stamina = min(cap, profile_obj.stamina + refund)
+        changed_fields.append("stamina")
+    elif etype == "grant_tokens":
+        profile_obj.tokens += int(ug.gear_def.effect_value or 0)
+        changed_fields.append("tokens")
     else:
         return False, "Not a usable consumable type."
-    profile_obj.active_buffs = buffs
-    profile_obj.save(update_fields=["active_buffs"])
+    profile_obj.save(update_fields=changed_fields)
     ug.quantity = max(0, ug.quantity - 1)
     if ug.quantity <= 0:
         ug.delete()
@@ -537,7 +647,7 @@ def engage_boss(user, campaign, on_date=None):
 def _resolve_attack(user, campaign, prog, now, on_date):
     p = profile(user)
     boss = prog.boss
-    base = float(base_damage_for(campaign, user, on_date))
+    base = float(base_damage_for(campaign, user, on_date)) + additive_bonus(p, user, campaign, on_date=on_date)
     gear_mult = total_gear_multiplier(p, user, campaign, on_date=on_date)
     vuln = boss_vulnerability(boss, campaign)
     buff_mult = active_buff_multiplier(p, campaign, on_date)
@@ -626,7 +736,7 @@ def battle_state(user, now=None):
         ).first()
         ref = (prog.boss if prog and prog.boss else boss)
         hp = prog.total_hp if prog else (boss.hp_total if boss else 0)
-        base_dmg = base_damage_for(campaign, user, on_date)
+        base_dmg = base_damage_for(campaign, user, on_date) + additive_bonus(p, user, campaign, on_date=on_date)
         gear_mult = total_gear_multiplier(p, user, campaign, on_date=on_date)
         vuln = boss_vulnerability(ref, campaign) if ref else 1.0
         buff_mult = active_buff_multiplier(p, campaign, on_date)
@@ -681,9 +791,11 @@ def attacker_power(user, now=None):
     now = now or timezone.now()
     p = profile(user)
     consistency = _consistency_xp(user, now=now)
+    on_date = timezone.localdate(now)
     total = 0.0
     for campaign in Campaign.values:
-        total += consistency * total_gear_multiplier(p, user, campaign)
+        total += consistency * total_gear_multiplier(p, user, campaign, on_date=on_date) \
+            + additive_bonus(p, user, campaign, on_date=on_date)
     return total
 
 
@@ -718,7 +830,8 @@ def power_breakdown(user, now=None):
     total = 0.0
     for campaign in Campaign.values:
         mult = total_gear_multiplier(p, user, campaign, on_date=on_date)
-        contrib = consistency * mult
+        bonus = additive_bonus(p, user, campaign, on_date=on_date)
+        contrib = consistency * mult + bonus
         per_campaign[campaign] = round(contrib, 2)
         total += contrib
     return {
@@ -851,6 +964,116 @@ def pvp_state(user, now=None):
         "attackable": attackable,
         "matches": matches,
     }
+
+# ---------------------------------------------------------------------------
+# Scrap economy (docs/16): recycle gear to scraps, spend in the rotating shop
+# ---------------------------------------------------------------------------
+def scrap_value(rarity):
+    """Scraps yielded per unit of a given rarity."""
+    return SCRAP_VALUE_BY_RARITY.get(rarity, SCRAP_VALUE_BY_RARITY[Rarity.COMMON])
+
+
+def _scrap_shop_weekday(now=None):
+    now = now or timezone.now()
+    return timezone.localdate(now).weekday()
+
+
+@transaction.atomic
+def recycle_gear(user, gear_id, quantity=None):
+    """Recycle a UserGear stack (or part of it) into scraps.
+
+    Returns (ok, error, gain). Removes the recycled quantity and credits
+    ``quantity * scrap_value(rarity)`` scraps to the user's wallet.
+    """
+    p = profile(user)
+    ug = UserGear.objects.select_for_update().filter(pk=gear_id, user=user).first()
+    if ug is None:
+        return False, "Item not found.", 0
+    qty = int(quantity or 1)
+    if qty < 1 or qty > ug.quantity:
+        return False, "Invalid quantity.", 0
+    gain = scrap_value(ug.rarity) * qty
+    p.scraps += gain
+    p.save(update_fields=["scraps"])
+    ug.quantity -= qty
+    if ug.quantity <= 0:
+        ug.delete()
+    else:
+        ug.save(update_fields=["quantity"])
+    return True, None, gain
+
+
+def scrap_shop_state(now=None):
+    """Rotating Scrap Shop offering for today (docs/16).
+
+    Only items whose ``available_days`` mask contains today's weekday are shown.
+    """
+    now = now or timezone.now()
+    weekday = _scrap_shop_weekday(now)
+    items = []
+    for it in ScrapShopItem.objects.filter(is_active=True).select_related("pack").order_by(
+        "sort_order", "slug"
+    ):
+        days = it.available_days or list(range(7))
+        if weekday not in days:
+            continue
+        items.append({
+            "slug": it.slug,
+            "name": it.name,
+            "icon": it.icon,
+            "description": it.description,
+            "cost_scraps": it.cost_scraps,
+            "reward_type": it.reward_type,
+            "reward_value": int(it.reward_value or 0) if it.reward_type != ScrapShopItem.RewardType.PACK else None,
+            "pack": it.pack.name if (it.reward_type == ScrapShopItem.RewardType.PACK and it.pack) else None,
+            "pack_slug": it.pack.slug if (it.reward_type == ScrapShopItem.RewardType.PACK and it.pack) else None,
+        })
+    return {
+        "weekday": WEEKDAY_NAMES[weekday],
+        "offering": items,
+    }
+
+
+@transaction.atomic
+def buy_scrap_item(user, slug, now=None):
+    """Buy a Scrap Shop item with scraps. Only today's offerings can be bought.
+
+    Returns (result, error) where result describes the granted reward.
+    """
+    now = now or timezone.now()
+    weekday = _scrap_shop_weekday(now)
+    item = ScrapShopItem.objects.filter(slug=slug, is_active=True).select_related("pack").first()
+    if item is None:
+        return None, "Scrap shop item not found."
+    days = item.available_days or list(range(7))
+    if weekday not in days:
+        return None, "This item isn't on offer today."
+    p = PlayerProfile.objects.select_for_update().get_or_create(user=user)[0]
+    if p.scraps < item.cost_scraps:
+        return None, "Not enough scraps."
+    p.scraps -= item.cost_scraps
+    result = {"cost_scraps": item.cost_scraps, "reward_type": item.reward_type}
+    save_fields = ["scraps"]
+    if item.reward_type == ScrapShopItem.RewardType.TOKENS:
+        amount = int(item.reward_value or 0)
+        p.tokens += amount
+        save_fields.append("tokens")
+        result.update({"tokens": amount})
+    elif item.reward_type == ScrapShopItem.RewardType.STAMINA:
+        amount = int(item.reward_value or 0)
+        p.stamina = min(stamina_cap(p, user), p.stamina + amount)
+        save_fields.append("stamina")
+        result.update({"stamina": amount})
+    elif item.reward_type == ScrapShopItem.RewardType.PACK:
+        if item.pack is None:
+            return None, "This scrap reward has no pack configured."
+        ok, err, manifest = _run_pulls(user, item.pack, item.pack.draws, random.random)
+        if not ok:
+            return None, err
+        result.update({"pack": item.pack.slug, "draws": len(manifest), "manifest": manifest})
+    p.save(update_fields=save_fields)
+    return result, None
+
 
 # ---------------------------------------------------------------------------
 # Daily tick (replaces tick_base_economy_daily) - docs/15 §9
