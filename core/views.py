@@ -83,6 +83,29 @@ def _json_error(message, status=400):
     return JsonResponse({"error": message}, status=status)
 
 
+def _bounded_logs(request, queryset):
+    """Optionally bound a RawActivityLog queryset to the newest N days via ?days=.
+
+    Used by the skill-tree state views so interactive chart / raw-data ranges can
+    be resolved server-side for large datasets. A missing / invalid / non-positive
+    value leaves the queryset unchanged (existing behaviour: all history).
+    """
+    days = request.GET.get("days")
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        return queryset
+    if days <= 0:
+        return queryset
+    cutoff = timezone.now() - timedelta(days=days)
+    return queryset.filter(occurred_at__gte=cutoff)
+
+
+def _raw_requested(request):
+    """True when ?raw=1 asks each history day to also carry its original payload."""
+    return request.GET.get("raw") == "1"
+
+
 def signup(request):
     """Account creation page (GET/POST)."""
     if request.user.is_authenticated:
@@ -234,11 +257,19 @@ def nutrition_state(request):
     from .services import summarize_nutrition
     from .models import SkillTree
 
-    logs = (
-        RawActivityLog.objects.filter(user=request.user, event_type="nutrition")
-        .order_by("-occurred_at")
+    logs = _bounded_logs(
+        request,
+        RawActivityLog.objects.filter(
+            user=request.user, event_type="nutrition"
+        ).order_by("-occurred_at"),
     )
-    history = [summarize_nutrition(log) for log in logs]
+    _raw = _raw_requested(request)
+    history = []
+    for _log in logs:
+        _item = summarize_nutrition(_log)
+        if _raw:
+            _item["raw_payload"] = _log.payload
+        history.append(_item)
 
     today_str = timezone.localdate().isoformat()
     today = next((h for h in history if h["date"] == today_str), None)
@@ -283,11 +314,19 @@ def hydration_state(request):
     from .services import summarize_hydration
     from .models import SkillTree
 
-    logs = (
-        RawActivityLog.objects.filter(user=request.user, event_type="hydration")
-        .order_by("-occurred_at")
+    logs = _bounded_logs(
+        request,
+        RawActivityLog.objects.filter(
+            user=request.user, event_type="hydration"
+        ).order_by("-occurred_at"),
     )
-    history = [summarize_hydration(log) for log in logs]
+    _raw = _raw_requested(request)
+    history = []
+    for _log in logs:
+        _item = summarize_hydration(_log)
+        if _raw:
+            _item["raw_payload"] = _log.payload
+        history.append(_item)
     
     # Debug logging to help diagnose hydration data issues
     import logging
@@ -337,11 +376,19 @@ def endurance_state(request):
     from .services import summarize_endurance
     from .models import SkillTree
 
-    logs = (
-        RawActivityLog.objects.filter(user=request.user, event_type="endurance")
-        .order_by("-occurred_at")
+    logs = _bounded_logs(
+        request,
+        RawActivityLog.objects.filter(
+            user=request.user, event_type="endurance"
+        ).order_by("-occurred_at"),
     )
-    history = [summarize_endurance(log) for log in logs]
+    _raw = _raw_requested(request)
+    history = []
+    for _log in logs:
+        _item = summarize_endurance(_log)
+        if _raw:
+            _item["raw_payload"] = _log.payload
+        history.append(_item)
 
     today_str = timezone.localdate().isoformat()
     today = next((h for h in history if h["date"] == today_str), None)
@@ -407,11 +454,19 @@ def strength_state(request):
     """
     from .services import summarize_strength
 
-    logs = (
-        RawActivityLog.objects.filter(user=request.user, event_type="strength")
-        .order_by("-occurred_at")
+    logs = _bounded_logs(
+        request,
+        RawActivityLog.objects.filter(
+            user=request.user, event_type="strength"
+        ).order_by("-occurred_at"),
     )
-    history = [summarize_strength(log) for log in logs]
+    _raw = _raw_requested(request)
+    history = []
+    for _log in logs:
+        _item = summarize_strength(_log)
+        if _raw:
+            _item["raw_payload"] = _log.payload
+        history.append(_item)
 
     today_str = timezone.localdate().isoformat()
     today = next((h for h in history if h["date"] == today_str), None)
@@ -543,11 +598,19 @@ def recovery_state(request):
     ).first()
     has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
 
-    logs = (
-        RawActivityLog.objects.filter(user=user, event_type="sleep")
-        .order_by("-occurred_at")
+    logs = _bounded_logs(
+        request,
+        RawActivityLog.objects.filter(
+            user=user, event_type="sleep"
+        ).order_by("-occurred_at"),
     )
-    history = [summarize_sleep(log) for log in logs]
+    _raw = _raw_requested(request)
+    history = []
+    for _log in logs:
+        _item = summarize_sleep(_log)
+        if _raw:
+            _item["raw_payload"] = _log.payload
+        history.append(_item)
 
     today_str = timezone.localdate().isoformat()
     today = next((h for h in history if h["date"] == today_str), None)

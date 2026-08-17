@@ -56,10 +56,13 @@
 | `core/static/core/js/strength.js` | Strength panel - `GET /api/v1/strength/` |
 | `core/static/core/js/boss.js` | PR Boss panel - `GET /api/v1/boss/` |
 | `core/static/core/js/recovery.js` | Recovery panel - `GET /api/v1/recovery/` |
-| `core/static/core/js/base.js` | Base-building panel - `GET /api/v1/base/`, `POST` start/speedup/collect/customize/staff/evolve; uses `/api/v1/social/` for friend picker |
 | `core/static/core/js/badges.js` | Achievement badges panel - `GET /api/v1/badges/` |
-| `core/static/core/js/leagues.js` | Leagues / Challenges / Flock panel - `GET /api/v1/leagues/`, `GET /api/v1/challenges/`, `GET /api/v1/social/`, POST friends & flock actions; implements the friend picker modal reused by `base.js` |
-| `core/static/core/js/stat_info.js` | Top-nav stat explainer modal - `GET /api/v1/stats/{streak,materials,energy}/` |
+| `core/static/core/js/leagues.js` | Leagues / Challenges / Flock panel - `GET /api/v1/leagues/`, `GET /api/v1/challenges/`, `GET /api/v1/social/`, POST friends & flock actions; implements the friend picker modal |
+| `core/static/core/js/shop.js` | Gacha Shop + Scrap Shop - `GET /api/v1/shop/state`, `POST /shop/open|consume`, `GET /api/v1/scrap/shop/state`, `POST /scrap/recycle`, `/scrap/shop/buy` |
+| `core/static/core/js/loadout.js` | Loadout panel - `GET /api/v1/loadout/state`, `POST /loadout/equip|unequip` |
+| `core/static/core/js/battle.js` | PvE siege panel - `GET /api/v1/battle/state`, `/battle/campaign/{campaign}`, `POST /battle/engage|attack` |
+| `core/static/core/js/pvp.js` | PvP Gym panel - `GET /api/v1/pvp/state`, `POST /pvp/defend|attack` |
+| `core/static/core/js/stat_info.js` | Top-nav stat explainer modal - `GET /api/v1/stats/{streak,tokens,stamina}/` |
 
 ### 2.4 PWA
 
@@ -69,11 +72,6 @@
 | `core/static/core/service-worker.js` | Offline / instant-loading service worker |
 | `core/static/core/icons/icon-192.svg` | App icon |
 
-### 2.5 Standalone HTML (development reference)
-
-| File | Purpose |
-|---|---|
-| `example_html/dashboard.html` | Early static mock of the dashboard (not used in production) |
 ---
 
 ## 3. Python Views (API & Pages)
@@ -94,14 +92,22 @@ All views live in a single file: `core/views.py`.
 | `strength_state` | `GET /api/v1/strength/` | Dashboard |
 | `boss_state` | `GET /api/v1/boss/` | Dashboard |
 | `recovery_state` | `GET /api/v1/recovery/` | Dashboard |
-| `base_state` | `GET /api/v1/base/` | Base-Building |
-| `base_start` | `POST /api/v1/base/start` | Base-Building |
-| `base_speedup` | `POST /api/v1/base/speedup` | Base-Building |
-| `base_collect` | `POST /api/v1/base/collect` | Base-Building |
-| `base_customize` | `POST /api/v1/base/customize` | Base-Building |
-| `base_staff` | `POST /api/v1/base/staff` | Base-Building |
-| `base_evolve` | `POST /api/v1/base/evolve` | Base-Building |
-| `base_milestone` | `POST /api/v1/base/milestone` | Base-Building |
+| `battle_state` | `GET /api/v1/battle/state` | Battle (PvE) |
+| `battle_campaign` | `GET /api/v1/battle/campaign/{campaign}` | Battle (PvE) |
+| `battle_engage` | `POST /api/v1/battle/engage` | Battle (PvE) |
+| `battle_attack` | `POST /api/v1/battle/attack` | Battle (PvE) |
+| `shop_state` | `GET /api/v1/shop/state` | Shop |
+| `shop_open` | `POST /api/v1/shop/open` | Shop |
+| `shop_consume` | `POST /api/v1/shop/consume` | Shop |
+| `scrap_recycle` | `POST /api/v1/scrap/recycle` | Scrap Shop |
+| `scrap_shop` | `GET /api/v1/scrap/shop/state` | Scrap Shop |
+| `scrap_buy` | `POST /api/v1/scrap/shop/buy` | Scrap Shop |
+| `loadout_state` | `GET /api/v1/loadout/state` | Loadout |
+| `loadout_equip` | `POST /api/v1/loadout/equip` | Loadout |
+| `loadout_unequip` | `POST /api/v1/loadout/unequip` | Loadout |
+| `pvp_state` | `GET /api/v1/pvp/state` | PvP |
+| `pvp_defend` | `POST /api/v1/pvp/defend` | PvP |
+| `pvp_attack` | `POST /api/v1/pvp/attack` | PvP |
 | `leagues_state` | `GET /api/v1/leagues/` | Leagues |
 | `challenges_state` | `GET /api/v1/challenges/` | Challenges |
 | `social_state_view` | `GET /api/v1/social/` | Social |
@@ -123,7 +129,7 @@ All views live in a single file: `core/views.py`.
 | File | Purpose |
 |---|---|
 | `flamingo_fitness/urls.py` | Root URLconf - routes requests to `core.urls` |
-| `core/urls.py` | All feature URL patterns (auth, dashboard, base, leagues, challenges, social, badges, stat explainers, HA webhook) |
+| `core/urls.py` | All feature URL patterns (auth, dashboard, battle, shop, loadout, pvp, leagues, challenges, social, badges, stat explainers, HA webhook) |
 ---
 
 ## 5. Models (Database Schema)
@@ -139,9 +145,17 @@ All models live in `core/models.py`.
 | `SkillTree` | `core_skilltree` | Dashboard - per-user per-modality level/XP |
 | `DailyReadiness` | `core_dailyreadiness` | Dashboard - readiness score per day |
 | `BossConfig` | `core_bossconfig` | Dashboard - PR Boss definition |
-| `BaseResource` | `core_baseresource` | Base-Building - materials / energy / speedups |
-| `BaseBuildingDef` | `core_basebuildingdef` | Base-Building - catalog of buildable items |
-| `BaseBuilding` | `core_basebuilding` | Base-Building - user's buildings |
+| `PlayerProfile` | `core_playerprofile` | Combat - token/stamina/scraps wallet + conquest/PvP counters |
+| `GearPackDef` | `core_gearpackdef` | Shop - purchasable Gacha pack/crate |
+| `GearItemDef` | `core_gearitemdef` | Shop - gear/consumable catalog |
+| `UserGear` | `core_usergear` | Shop - owned gear / consumable stacks |
+| `ScrapShopItem` | `core_scrapshopitem` | Shop - rotating scrap offers |
+| `CampaignBoss` | `core_campaignboss` | Battle - PvE boss definition |
+| `CampaignProgress` | `core_campaignprogress` | Battle - per-user siege progress |
+| `BattleLog` | `core_battlelog` | Battle - one attack result |
+| `Gym` | `core_gym` | PvP - player's home turf |
+| `GymOccupation` | `core_gymoccupation` | PvP - who holds a gym |
+| `PvPMatch` | `core_pvpmatch` | PvP - resolved gym battle |
 | `BadgeDef` | `core_badgedef` | Badges - badge catalog |
 | `UserBadge` | `core_userbadge` | Badges - per-user awarded badges |
 | `LeagueWeek` | `core_leagueweek` | Leagues - weekly periods |
@@ -169,11 +183,11 @@ All core business logic lives in `core/services/`. Public symbols are re-exporte
 | File | Key exports | Feature |
 |---|---|---|
 | `core/services/readiness.py` | `compute_readiness`, `compute_readiness_for_all_users` | Dashboard - Garmin Readiness score |
-### 6.3 Base-Building Meta-Game
+### 6.3 Combat (Tokens, Gacha, Battle & PvP)
 
 | File | Key exports | Feature |
 |---|---|---|
-| `core/services/base_economy.py` | `base_level`, `tick_base_economy`, `collect_building`, `start_construction`, `spend_speedups`, `evolve_building`, `evaluate_synergies`, `refresh_resources`, `resource_dump`, `maybe_drop_blueprint`, `production_plan`, plus many constants & helpers | Base-Building |
+| `core/services/combat.py` | `profile`, `award_tokens`, `spend_tokens`, `daily_token_harvest`, `refresh_stamina`, `open_pack`, `total_gear_multiplier`, `compute_attack`, `engage_boss`, `attack_boss`, `set_defense`, `attack_gym`, `pay_gym_yields`, `scrap_value`, `recycle_gear`, `scrap_shop_state`, `buy_scrap_item`, plus many constants & helpers | Combat, Shop, Battle & PvP |
 
 ### 6.4 Leagues
 
@@ -232,7 +246,7 @@ All tasks live in `core/tasks.py`. Schedules are configured in `flamingo_fitness
 | `sync_liftosaur_for_user` | on-demand (from profile) | Integrations |
 | `poll_sparkyfitness` | every 4h | Integrations |
 | `compute_readiness_for_all` | daily @ 06:15 | Dashboard |
-| `tick_base_economy_daily` | daily @ 00:05 | Base-Building |
+| `tick_combat_daily` | daily @ 00:10 | Combat (tokens / stamina / gym yields) |
 | `close_league_week_task` | weekly Mon 00:35 | Leagues |
 
 ---
@@ -265,7 +279,7 @@ All tasks live in `core/tasks.py`. Schedules are configured in `flamingo_fitness
 
 | File | Purpose |
 |---|---|
-| `core/management/commands/seed_demo.py` | `manage.py seed_demo` - seeds badge catalog, boss configs, base-building catalog |
+| `core/management/commands/seed_demo.py` | `manage.py seed_demo` - seeds badge catalog, boss configs, and the Phase 9 combat catalog |
 | `core/management/commands/create_demo_accounts.py` | `manage.py create_demo_accounts` - creates `player1` and related demo data |
 ---
 
@@ -282,7 +296,7 @@ All tasks live in `core/tasks.py`. Schedules are configured in `flamingo_fitness
 | `docs/06_Home_Assistant_Spec.md` | Home Assistant webhook spec |
 | `docs/07_Next_Steps.md` | Build sequence & roadmap |
 | `docs/08_Questions.md` | Open design questions |
-| `docs/09_Base_Building_Meta_Game.md` | Base-building design doc |
+| `docs/09_Base_Building_Meta_Game-Now_Cancelled.md` | Base-building design (CANCELLED - replaced by Phase 9 combat) |
 | `docs/10_Sparky_Fitness_Integration.md` | SparkyFitness integration notes |
 | `docs/11_Liftosaur_Integration.md` | Liftosaur integration notes |
 | `docs/12_Gamification_Ideas_Roadmap.md` | Future gamification ideas |
@@ -307,7 +321,10 @@ All tasks live in `core/tasks.py`. Schedules are configured in `flamingo_fitness
 |---|---|---|---|---|
 | **Auth / Profile** | `views.signup`, `views.profile`, `views.avatar_upload` | `services/avatar.py` | `dashboard.js` (top-nav) | `User` |
 | **Dashboard** | `views.dashboard_state`, `views.dashboard_page`, `views.leaderboard_weekly` | `services/gamification.py`, `services/readiness.py` | `dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `recovery.js`, `boss.js` | `SkillTree`, `DailyReadiness`, `BossConfig` |
-| **Base-Building** | `views.base_*` (8 endpoints) | `services/base_economy.py` | `base.js` | `BaseResource`, `BaseBuildingDef`, `BaseBuilding` |
+| **Combat / Battle** | `views.battle_*` (4 endpoints) | `services/combat.py` | `battle.js` | `CampaignBoss`, `CampaignProgress`, `BattleLog` |
+| **Shop / Scrap** | `views.shop_*`, `views.scrap_*` | `services/combat.py` | `shop.js` | `GearPackDef`, `GearItemDef`, `UserGear`, `ScrapShopItem` |
+| **Loadout** | `views.loadout_*` | `services/combat.py` | `loadout.js` | `UserGear`, `GearItemDef` |
+| **PvP** | `views.pvp_*` (3 endpoints) | `services/combat.py` | `pvp.js` | `Gym`, `GymOccupation`, `PvPMatch` |
 | **Leagues** | `views.leagues_state` | `services/leagues.py` | `leagues.js` | `LeagueWeek`, `LeagueResult` |
 | **Challenges** | `views.challenges_state` | `services/challenges.py` | `leagues.js` | `Challenge` |
 | **Social** | `views.social_state_view`, `friends_*`, `flocks_*` (7 endpoints) | `services/social.py` | `leagues.js` | `Friendship`, `Flock`, `FlockMembership`, `FlockInvite` |

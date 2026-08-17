@@ -32,6 +32,10 @@ from ..models import (
     RawActivityLog,
     SkillTree,
     UserBadge,
+    PlayerProfile,
+    UserGear,
+    BattleLog,
+    LeagueResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,6 +193,63 @@ def _weight_readings(user):
     return readings
 
 
+def _profile_field(user, field, default=0):
+    """Numeric field from the user's PlayerProfile (0 when none exists)."""
+    try:
+        profile = user.combat_profile
+    except Exception:  # noqa: BLE001 - no profile yet is a normal early state
+        return default
+    return int(getattr(profile, field, default) or 0)
+
+
+def _siege_damage(user):
+    """Total siege damage dealt across every battle (lifetime)."""
+    total = 0
+    for dmg in BattleLog.objects.filter(user=user).values_list(
+        "total_damage", flat=True
+    ):
+        total += int(dmg or 0)
+    return total
+
+
+def _gear_count(user, rarity=None):
+    """Total owned gear items (sum of stack quantities), optionally by rarity."""
+    qs = UserGear.objects.filter(user=user)
+    if rarity:
+        qs = qs.filter(rarity=rarity)
+    return sum(int(q or 0) for q in qs.values_list("quantity", flat=True))
+
+
+LEAGUE_TIER_INDEX = {
+    "bronze": 1,
+    "silver": 2,
+    "gold": 3,
+    "diamond": 4,
+    "flamingo_legend": 5,
+}
+
+
+def _best_league_tier_index(user):
+    """Highest league tier index reached (0 when there are no results)."""
+    tiers = LeagueResult.objects.filter(user=user).values_list("tier", flat=True)
+    return max((LEAGUE_TIER_INDEX.get(t, 1) for t in tiers), default=0)
+
+
+def _league_results_count(user, top=None):
+    """Number of closed league weeks on record (optionally rank <= top)."""
+    qs = LeagueResult.objects.filter(user=user)
+    if top is not None:
+        qs = qs.filter(rank__lte=top)
+    return qs.count()
+
+
+def _tier_label(index):
+    for tier, idx in LEAGUE_TIER_INDEX.items():
+        if idx == index:
+            return tier
+    return "none"
+
+
 # ---------------------------------------------------------------------------
 # Rule engine. A rule is a small JSON dict stored on BadgeDef.rule, e.g.
 # {"type": "streak", "minimum": 30}. evaluate_rule() returns
@@ -274,6 +335,27 @@ def evaluate_rule(user, rule):
             target = float(rule.get("minimum", 5))
             readings = _weight_readings(user)
             value = round(readings[0] - readings[-1], 1) if len(readings) >= 2 else 0.0
+        elif rtype == "conquests":
+            target = int(rule.get("minimum", 1))
+            value = _profile_field(user, "total_conquests")
+        elif rtype == "siege_damage":
+            target = int(rule.get("minimum", 1))
+            value = _siege_damage(user)
+        elif rtype == "pvp_wins":
+            target = int(rule.get("minimum", 1))
+            value = _profile_field(user, "pvp_wins")
+        elif rtype == "gear_owned":
+            target = int(rule.get("minimum", 1))
+            value = _gear_count(user, rule.get("rarity"))
+        elif rtype == "league_results":
+            target = int(rule.get("minimum", 1))
+            value = _league_results_count(user)
+        elif rtype == "league_top3":
+            target = int(rule.get("minimum", 1))
+            value = _league_results_count(user, top=3)
+        elif rtype == "league_tier":
+            target = LEAGUE_TIER_INDEX.get(str(rule.get("tier", "gold")), 1)
+            value = _best_league_tier_index(user)
         else:
             return False, 0, 0
     except Exception:  # noqa: BLE001 - one broken rule must not break badges
@@ -340,6 +422,24 @@ def progress_text(rule, value, target):
     if rtype == "weight_lost":
         return "%.1f of %.0f lbs dropped from your starting weight." % (
             float(value), float(target),
+        )
+    if rtype == "conquests":
+        return "%d of %d campaign bosses conquered." % (value, target)
+    if rtype == "siege_damage":
+        return "{:,} of {:,} total siege damage dealt.".format(int(value), int(target))
+    if rtype == "pvp_wins":
+        return "%d of %d gym battles won." % (value, target)
+    if rtype == "gear_owned":
+        rarity = rule.get("rarity")
+        what = "%s items" % rarity if rarity else "gear items"
+        return "%d of %d %s owned." % (value, target, what)
+    if rtype == "league_results":
+        return "%d of %d ranked league weeks." % (value, target)
+    if rtype == "league_top3":
+        return "%d of %d top-3 league finishes." % (value, target)
+    if rtype == "league_tier":
+        return "Best league tier: %s (need %s or higher)." % (
+            _tier_label(value), rule.get("tier", "gold"),
         )
     return "%d of %d." % (value, target)
 

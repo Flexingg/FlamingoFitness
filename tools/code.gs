@@ -11,6 +11,10 @@
  *   - "GearItems"   -> rows for GearItemDef  (config/seeds/gear_items.json)
  *   - "ScrapShop"   -> rows for ScrapShopItem (config/seeds/scrap_shop.json)
  *
+ * The script AUTO-CREATES missing tabs and writes the header row into
+ * blank sheets on every run (ensureTables), so it also works when the
+ * spreadsheet is empty.
+ *
  * How to use:
  *   1. Open your spreadsheet in Google Sheets.
  *   2. Extensions -> Apps Script, paste this file (code.gs) as the project.
@@ -90,11 +94,31 @@ function ordered(fields, header) {
     .map(function (f) { return { field: f, col: header[f] }; });
 }
 
+/** Create any missing tabs and write the header row into blank sheets. */
+function ensureTables() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(FIELD_ROWS).forEach(function (name) {
+    var fieldNames = FIELD_ROWS[name];
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+    }
+    // If the first row is blank, write the header names once.
+    var first = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0];
+    var hasHeader = first.some(function (c) {
+      return c !== null && String(c).trim() !== '';
+    });
+    if (!hasHeader) {
+      sheet.getRange(1, 1, 1, fieldNames.length).setValues([fieldNames.slice()]);
+    }
+  });
+}
+
 /** Read all data rows for a configured sheet name into JSON-ready objects. */
 function rowsFor(sheetName) {
+  ensureTables();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(sheetName);
-  if (!sheet) throw new Error('Sheet "' + sheetName + '" not found.');
   var fieldNames = FIELD_ROWS[sheetName];
   var header = readHeader(sheet);
 

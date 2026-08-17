@@ -153,14 +153,17 @@ no new ingestion, just checks run when stats change (or lazily on the badges
 endpoint). Examples:
 - *"Perfect Week"* — all 7 daily readiness requirements met.
 - *"10-Day Flame"* — 10-day streak (already tracked on `User.streak`).
-- *"Base Tycoon"* — reach base level 25 (Phase 7 `base_level`).
-- *"Blueprint Hunter"* — collect 5 blueprints.
+- *"Boss Slayer"* — conquer N campaign bosses (`PlayerProfile.total_conquests`).
+- *"Siege Engine"* — deal N total siege damage (`BattleLog.total_damage`).
+- *"Gym Champion"* — win N PvP battles (`PlayerProfile.pvp_wins`).
+- *"Gear Collector"* — own N gear items (`UserGear`).
+- *"Flamingo Legend"* — reach the Flamingo Legend league tier.
 - *"All-Modality Master"* — every skill tree at level 3+.
 - *"Night Owl / Early Bird"* — log a workout in a given local-time window
   (the PWA already knows client local time for day/night).
 
 **Why it fits.** It's a pure read-compute layer over `SkillTree` /
-`BaseResource` / `User.streak` / `XPLedger`; no schema beyond a `BadgeDef` +
+`PlayerProfile` / `UserGear` / `BattleLog` / `User.streak` / `XPLedger`; no schema beyond a `BadgeDef` +
 `UserBadge` grant table, and it gives profile pages and the "start of day"
 toast obvious goals to chase.
 

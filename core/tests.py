@@ -232,6 +232,89 @@ class APITests(TestCase):
         self.assertTrue(resp.json()["accepted"])
 
 
+class InsightsAPITests(TestCase):
+    """?days= (bounded history) and ?raw=1 (raw payload) on the skill-tree views.
+
+    Powers the interactive Graph / Raw-data ranges in the skill-tree panels
+    (docs/18). ``days`` must bound the returned history by the RawActivityLog
+    occurred_at window; a missing/invalid value keeps the existing behaviour
+    (all history).
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="insight", password="pw")
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "k"}, is_active=True,
+        )
+        # Three hydration logs: today, in-range this week, and old (25 days ago).
+        self._hydration(0, 92)
+        self._hydration(5, 74)
+        self._hydration(25, 41)
+
+    def _hydration(self, days_ago, oz):
+        d = timezone.localdate() - timedelta(days=days_ago)
+        return RawActivityLog.objects.create(
+            user=self.user, source=Provider.SPARKYFITNESS, event_type="hydration",
+            occurred_at=timezone.now() - timedelta(days=days_ago),
+            payload={
+                "date": d.isoformat(),
+                "water_goal": 80,
+                "water_intake_entries": [{"time": "12:00", "amount": oz}],
+            },
+        )
+
+    def test_days_filter_bounds_history(self):
+        self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/hydration/?days=7")
+        self.assertEqual(resp.status_code, 200)
+        dates = {h["date"] for h in resp.json()["history"]}
+        self.assertNotIn((timezone.localdate() - timedelta(days=25)).isoformat(), dates)
+        self.assertIn(timezone.localdate().isoformat(), dates)
+        self.assertEqual(len(dates), 2)
+
+    def test_no_days_returns_all(self):
+        self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/hydration/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["history"]), 3)
+
+    def test_invalid_days_ignored(self):
+        self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/hydration/?days=abc")
+        self.assertEqual(len(resp.json()["history"]), 3)
+
+    def test_raw_flag_includes_payload(self):
+        self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/hydration/?raw=1")
+        self.assertEqual(resp.status_code, 200)
+        for h in resp.json()["history"]:
+            self.assertIn("raw_payload", h)
+
+    def test_nutrition_and_recovery_also_bounded(self):
+        self.client.force_login(self.user)
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.SPARKYFITNESS, event_type="nutrition",
+            occurred_at=timezone.now() - timedelta(days=2),
+            payload={
+                "date": (timezone.localdate() - timedelta(days=2)).isoformat(),
+                "food_entries": [{"protein": 90, "calories": 800}],
+                "goals": {"protein": 180, "calories": 2400},
+            },
+        )
+        RawActivityLog.objects.create(
+            user=self.user, source=Provider.SPARKYFITNESS, event_type="sleep",
+            occurred_at=timezone.now() - timedelta(days=15),
+            payload={
+                "sleep_hours": 9,
+                "date": (timezone.localdate() - timedelta(days=15)).isoformat(),
+            },
+        )
+        self.assertEqual(len(self.client.get("/api/v1/nutrition/?days=7").json()["history"]), 1)
+        self.assertEqual(len(self.client.get("/api/v1/recovery/?days=7").json()["history"]), 0)
+        self.assertEqual(len(self.client.get("/api/v1/recovery/").json()["history"]), 1)
+
+
 class SparkyTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="sparky", password="pw")

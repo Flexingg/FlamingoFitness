@@ -211,6 +211,11 @@
             list.appendChild(row);
         });
         content.appendChild(list);
+
+        // Interactive Charts + Raw data views (FFInsights / Chart.js).
+        if (window.FFInsights) {
+            window.FFInsights.createInsights(content, 'recovery', data);
+        }
     };
 
     // Bind the green Recovery node on the skill-tree plan.

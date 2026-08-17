@@ -10,7 +10,7 @@ Readiness-Adjusted Streaks: Rest days are mandated or granted based on recovery 
 
 Modality Skill Trees: Progression tracks for Strength, Endurance, Nutrition, Hydration, and Recovery with interactive day-detail views, XP progress bars, and a bodyweight-based PR Boss benchmark panel.
 
-Base-Building Meta-Game: XP and macros translate into resources to build a virtual idle base (e.g., building out a Miami beach club).
+Token & Combat Meta-Game: XP from habits earns Tokens, which you spend on Gacha gear packs (Shop) to build a 3-slot Loadout, siege PvE campaign bosses, and hold PvP Gyms.
 
 Asymmetric Leaderboards: A unified "Effort XP" allows users doing different activities to compete fairly.
 
@@ -56,7 +56,7 @@ docs/11_Liftosaur_Integration.md: Liftosaur API client and workout parser spec.
 
 docs/12_Gamification_Ideas_Roadmap.md: Future gamification idea bank (Phase 8+) — seasons/ranked leagues, quest board, flocks/raids, badges, pacing & integrity, Home Assistant synergy, hydration micro-games, progression curves, PWA nudges; each idea mapped to existing models/endpoints with effort tags and a prioritized review overlay. Items #1 (leagues) and #3 (flocks) shipped in Phase 8.
 
-docs/13_Leagues_Challenges_Flocks.md: Phase 8 build spec (IMPLEMENTED) — weekly leagues with tiers/history/rewards, the single-active challenge system (default: calories burned in the last 30 days), and the social layer (friends + Flocks + real-friend base staffing).
+docs/13_Leagues_Challenges_Flocks.md: Phase 8 build spec (IMPLEMENTED) — weekly leagues with tiers/history/rewards, the single-active challenge system (default: calories burned in the last 30 days), and the social layer (friends + Flocks).
 
 docs/liftosaur_api_spec.md: The Liftosaur API spec for workout ingestion.
 

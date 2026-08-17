@@ -2,8 +2,8 @@
 
 A Duolingo-style fitness web app that turns health data (sleep, nutrition,
 weightlifting, Peloton, Garmin) into gamified behavior: readiness-adjusted
-streaks, modality skill trees, a base-building meta-game, and asymmetric
-leaderboards.
+streaks, modality skill trees, a token/combat meta-game (Shop → Loadout → PvE
+sieges → PvP Gyms), leagues & badges, and asymmetric leaderboards.
 
 Built strictly on **Django + PostgreSQL + Redis/Celery** with a **vanilla JS
 PWA** frontend (no React/Vue/Node). See `docs/` for the full spec.
@@ -51,7 +51,8 @@ To link your **SparkyFitness** account (docs/10):
 2. Paste your `fit.randalls.cc` API key into the form and hit **Link & Sync**.
 3. The app immediately polls SparkyFitness and dumps sleep + nutrition into
    `RawActivityLog`, converts them to XP (perfect macros → +50 Nutrition XP
-   and +10 Base Materials), and keeps syncing every 4 hours via Celery Beat.
+   and +25 Tokens, perfect hydration → +10 Tokens), and keeps syncing every
+   4 hours via Celery Beat.
 
 **No API key?** Leave it blank — the client returns realistic demo data only
 when the `DEMO` environment variable is set to `true` (off by default). With
@@ -68,9 +69,10 @@ when the `DEMO` environment variable is set to `true` (off by default). With
 
 Badges are lightweight, derived achievements (Roadmap idea #5). Nothing new
 is ingested — every badge's earn condition is a small **rule** evaluated
-against data the app already stores (streak, activity logs, skill trees, base
-level, blueprints, lifetime XP). Grants happen **lazily** whenever the
-dashboard calls `GET /api/v1/badges/`, and a badge is never granted twice.
+against data the app already stores (streak, activity logs, skill trees,
+lifetime XP, and the Phase 9 PvE / PvP / Shop / league state). Grants happen
+**lazily** whenever the dashboard calls `GET /api/v1/badges/`, and a badge is
+never granted twice.
 
 Each badge carries a difficulty-scaled number of **Badge Points** (5 = trivial
 → 100 = very hard); the panel header shows both the badge count and the
@@ -90,7 +92,7 @@ points total (`earned / overall`). Badge tiles are **clickable**:
      see in the detail view.
    - **Icon** — any FontAwesome 6 class without the `fa-solid` prefix, e.g.
      `fa-person-running`.
-   - **Category** — free-form grouping label (Streaks, Base, Skill, Habits…).
+   - **Category** — free-form grouping label (Streaks, PvE, PvP, Shop, Leagues…).
    - **Points** — Badge Points for the badge; scale with difficulty
      (5 trivial · 10 easy · 25–50 medium · 75–100 hard).
    - **Sort order / Is active** — panel ordering and an on/off switch.
@@ -114,19 +116,27 @@ points total (`earned / overall`). Badge tiles are **clickable**:
 | `streak` | `minimum` | streak reaches N days | `{"type": "streak", "minimum": 30}` |
 | `activity_logs` | `minimum` | N total activities logged | `{"type": "activity_logs", "minimum": 50}` |
 | `perfect_days` | `days` | activity on each of the last N days | `{"type": "perfect_days", "days": 7}` |
-| `base_level` | `minimum` | base level (sum of building levels) reaches N | `{"type": "base_level", "minimum": 10}` |
-| `blueprints` | `minimum` | N total blueprints owned | `{"type": "blueprints", "minimum": 3}` |
 | `skill_level` | `modality`, `minimum` | one skill tree reaches level N | `{"type": "skill_level", "modality": "strength", "minimum": 5}` |
 | `all_modalities` | `minimum` | every skill tree reaches level N | `{"type": "all_modalities", "minimum": 3}` |
 | `total_xp` | `minimum` | lifetime XP reaches N | `{"type": "total_xp", "minimum": 500}` |
 | `time_window` | `before_hour` **or** `after_hour` | any activity logged in that local-time window | `{"type": "time_window", "after_hour": 21}` |
+| `conquests` | `minimum` | N campaign bosses conquered | `{"type": "conquests", "minimum": 5}` |
+| `siege_damage` | `minimum` | N total siege damage dealt | `{"type": "siege_damage", "minimum": 250000}` |
+| `pvp_wins` | `minimum` | N gym battles won | `{"type": "pvp_wins", "minimum": 5}` |
+| `gear_owned` | `minimum`, `rarity`? | N gear items owned (optionally of a rarity) | `{"type": "gear_owned", "minimum": 10}` |
+| `league_results` | `minimum` | N ranked league weeks finished | `{"type": "league_results", "minimum": 4}` |
+| `league_top3` | `minimum` | N top-3 league finishes | `{"type": "league_top3", "minimum": 1}` |
+| `league_tier` | `tier` | highest league tier reaches the given tier | `{"type": "league_tier", "tier": "gold"}` |
 
-The eight built-in badges (First Steps, 10-Day Flame, Perfect Week, Blueprint
-Hunter, Base Tycoon, All-Modality Master, Early Bird, Night Owl) are just rows
-in the same `BadgeDef` table — edit, re-point or deactivate them like any
-badge you create yourself. (The base-era `base_level` / `blueprints` badge rules
-and the *Base Tycoon* / *Blueprint Hunter* badges were **retired** when the base
-game was removed in Phase 9.)
+The whole built-in catalog (streaks, habits, sleep, nutrition, burn, plus the
+Phase 9 PvE / PvP / Shop / Leagues badges) lives as plain JSON in
+`config/seeds/badges.json` and is seeded into the `BadgeDef` table by
+`sync_badge_defs()` (which runs on every badges poll — no manual re-seed
+needed). Every built-in badge is just a row in the same `BadgeDef` table —
+edit, re-point or deactivate it like any badge you create yourself. (The old
+base-era `base_level` / `blueprints` rules and the *Base Tycoon* /
+*Blueprint Hunter* badges were **removed** when the base game was ripped out
+in Phase 9.)
 
 
 ---
@@ -160,7 +170,9 @@ To run jobs manually (what Celery would do):
 
 **Phase 2 — Data models** (`core/models.py`)
 - Custom `User`, `UserIntegration`, `RawActivityLog` (JSONB), `XPLedger`,
-  `SkillTree`, `DailyReadiness`, `BaseResource`
+  `SkillTree`, `DailyReadiness`, `BossConfig`, plus the Phase 9 combat models
+  (`PlayerProfile`, `GearPackDef`, `GearItemDef`, `UserGear`, `CampaignBoss`,
+  `CampaignProgress`, `BattleLog`, `Gym`, `PvPMatch`)
 - Django admin for all models + migrations
 
 **Phase 3 — Ingestion / async** (`core/services`, `core/tasks.py`)
@@ -190,7 +202,7 @@ To run jobs manually (what Celery would do):
   `POST /api/v1/flocks/create|invite|respond|leave` (see `docs/13`)
 
 **Phase 6 — Frontend / PWA** (`core/templates`, `core/static`)
-- Django template dashboard ported from `example_html/dashboard.html`
+- Django template dashboard (single-file `core/templates/core/dashboard.html`)
 - Vanilla JS `fetch()` rendering (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`, `recovery.js`, plus Phase 9: `shop.js`, `loadout.js`, `battle.js`, `pvp.js`) + service worker + `manifest.json` + icons
 
 ## 🎮 Phase 9 — Tokens, Gacha, Loadout, Battle & PvP (docs/15)
@@ -438,8 +450,9 @@ Redis at container hostnames). Inside Docker, plain `manage.py test core`
 works as usual.
 
 The suite covers the XP math (endurance/strength/sleep/body-battery/nutrition),
-the gamification flow (PR boss bonuses, level-ups, materials), the readiness
-thresholds, the base economy, leagues/challenges/flocks, and the API endpoints.
+the gamification flow (PR boss bonuses, level-ups, token awards), the readiness
+thresholds, the token/combat economy (gacha, loadouts, sieges, PvP),
+leagues/challenges/flocks, badges and the API endpoints.
 
 ---
 

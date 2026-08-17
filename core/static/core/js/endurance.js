@@ -156,6 +156,11 @@
         skill.style.justifyContent = 'center';
         skill.textContent = (st.level ? 'Endurance Lv ' + st.level : 'Endurance') + '  ' + (st.total_xp || 0) + ' XP';
         content.appendChild(skill);
+
+        // Interactive Charts + Raw data views (FFInsights / Chart.js).
+        if (window.FFInsights) {
+            window.FFInsights.createInsights(content, 'endurance', data);
+        }
     };
 
     // Build a single day card (the today card).

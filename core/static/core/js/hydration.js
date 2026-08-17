@@ -155,6 +155,11 @@
         skill.style.justifyContent = 'center';
         skill.textContent = (st.level ? 'Hydration Lv ' + st.level : 'Hydration') + '  ' + (st.total_xp || 0) + ' XP';
         content.appendChild(skill);
+
+        // Interactive Charts + Raw data views (FFInsights / Chart.js).
+        if (window.FFInsights) {
+            window.FFInsights.createInsights(content, 'hydration', data);
+        }
     };
 
     function formatWater(value, goal) {

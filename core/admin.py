@@ -147,7 +147,12 @@ class BadgeDefAdmin(admin.ModelAdmin):
                     '{"type": "perfect_days", "days": 7} | '
                     '{"type": "total_xp", "minimum": 500} | '
                     '{"type": "time_window", "before_hour": 6} or '
-                    '{"type": "time_window", "after_hour": 21}. '
+                    '{"type": "time_window", "after_hour": 21} | '
+                    '{"type": "conquests", "minimum": 5} (PvE) | '
+                    '{"type": "pvp_wins", "minimum": 3} | '
+                    '{"type": "gear_owned", "minimum": 10} | '
+                    '{"type": "league_results", "minimum": 1} or '
+                    '{"type": "league_tier", "tier": "gold"}. '
                     "Leave empty to keep a badge unearnable. See README "
                     "'Achievement badges' for the full reference."
                 ),

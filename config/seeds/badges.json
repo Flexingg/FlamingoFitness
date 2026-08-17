@@ -733,5 +733,266 @@
       "type": "sleep_best",
       "minimum": 10
     }
+  },
+  {
+    "key": "first_conquest",
+    "name": "First Kill",
+    "description": "Conquer your first campaign boss.",
+    "icon": "fa-dragon",
+    "category": "PvE",
+    "sort_order": 200,
+    "points": 10,
+    "rule": {
+      "type": "conquests",
+      "minimum": 1
+    }
+  },
+  {
+    "key": "conquests_5",
+    "name": "Boss Slayer",
+    "description": "Conquer 5 campaign bosses.",
+    "icon": "fa-swords",
+    "category": "PvE",
+    "sort_order": 201,
+    "points": 25,
+    "rule": {
+      "type": "conquests",
+      "minimum": 5
+    }
+  },
+  {
+    "key": "conquests_15",
+    "name": "Legion Breaker",
+    "description": "Conquer 15 campaign bosses.",
+    "icon": "fa-shield-halved",
+    "category": "PvE",
+    "sort_order": 202,
+    "points": 50,
+    "rule": {
+      "type": "conquests",
+      "minimum": 15
+    }
+  },
+  {
+    "key": "conquests_30",
+    "name": "Campaign Conqueror",
+    "description": "Conquer 30 campaign bosses.",
+    "icon": "fa-crown",
+    "category": "PvE",
+    "sort_order": 203,
+    "points": 100,
+    "rule": {
+      "type": "conquests",
+      "minimum": 30
+    }
+  },
+  {
+    "key": "siege_damage_250k",
+    "name": "Siege Engine",
+    "description": "Deal 250,000 total siege damage.",
+    "icon": "fa-bullseye",
+    "category": "PvE",
+    "sort_order": 204,
+    "points": 25,
+    "rule": {
+      "type": "siege_damage",
+      "minimum": 250000
+    }
+  },
+  {
+    "key": "siege_damage_1m",
+    "name": "Siegebreaker",
+    "description": "Deal 1,000,000 total siege damage.",
+    "icon": "fa-tower-cell",
+    "category": "PvE",
+    "sort_order": 205,
+    "points": 75,
+    "rule": {
+      "type": "siege_damage",
+      "minimum": 1000000
+    }
+  },
+  {
+    "key": "pvp_first_win",
+    "name": "Gym Crasher",
+    "description": "Win your first gym battle.",
+    "icon": "fa-hand-fist",
+    "category": "PvP",
+    "sort_order": 210,
+    "points": 10,
+    "rule": {
+      "type": "pvp_wins",
+      "minimum": 1
+    }
+  },
+  {
+    "key": "pvp_wins_5",
+    "name": "Territory Taker",
+    "description": "Win 5 gym battles.",
+    "icon": "fa-flag",
+    "category": "PvP",
+    "sort_order": 211,
+    "points": 25,
+    "rule": {
+      "type": "pvp_wins",
+      "minimum": 5
+    }
+  },
+  {
+    "key": "pvp_wins_20",
+    "name": "Gym Champion",
+    "description": "Win 20 gym battles.",
+    "icon": "fa-trophy",
+    "category": "PvP",
+    "sort_order": 212,
+    "points": 50,
+    "rule": {
+      "type": "pvp_wins",
+      "minimum": 20
+    }
+  },
+  {
+    "key": "pvp_wins_50",
+    "name": "PvP Dominator",
+    "description": "Win 50 gym battles.",
+    "icon": "fa-crown",
+    "category": "PvP",
+    "sort_order": 213,
+    "points": 100,
+    "rule": {
+      "type": "pvp_wins",
+      "minimum": 50
+    }
+  },
+  {
+    "key": "gear_first",
+    "name": "Fresh Loot",
+    "description": "Own your first piece of gear.",
+    "icon": "fa-box-open",
+    "category": "Shop",
+    "sort_order": 220,
+    "points": 5,
+    "rule": {
+      "type": "gear_owned",
+      "minimum": 1
+    }
+  },
+  {
+    "key": "gear_10",
+    "name": "Gear Collector",
+    "description": "Own 10 gear items.",
+    "icon": "fa-layer-group",
+    "category": "Shop",
+    "sort_order": 221,
+    "points": 25,
+    "rule": {
+      "type": "gear_owned",
+      "minimum": 10
+    }
+  },
+  {
+    "key": "gear_25",
+    "name": "Loadout Loyalist",
+    "description": "Own 25 gear items.",
+    "icon": "fa-shirt",
+    "category": "Shop",
+    "sort_order": 222,
+    "points": 50,
+    "rule": {
+      "type": "gear_owned",
+      "minimum": 25
+    }
+  },
+  {
+    "key": "gear_50",
+    "name": "Arsenal Baron",
+    "description": "Own 50 gear items.",
+    "icon": "fa-boxes-stacked",
+    "category": "Shop",
+    "sort_order": 223,
+    "points": 100,
+    "rule": {
+      "type": "gear_owned",
+      "minimum": 50
+    }
+  },
+  {
+    "key": "gear_legendary",
+    "name": "Legendary Forged",
+    "description": "Own a Legendary item.",
+    "icon": "fa-gem",
+    "category": "Shop",
+    "sort_order": 224,
+    "points": 50,
+    "rule": {
+      "type": "gear_owned",
+      "minimum": 1,
+      "rarity": "legendary"
+    }
+  },
+  {
+    "key": "league_first",
+    "name": "League Rookie",
+    "description": "Finish your first ranked league week.",
+    "icon": "fa-ranking-star",
+    "category": "Leagues",
+    "sort_order": 230,
+    "points": 10,
+    "rule": {
+      "type": "league_results",
+      "minimum": 1
+    }
+  },
+  {
+    "key": "league_weeks_4",
+    "name": "League Veteran",
+    "description": "Finish 4 ranked league weeks.",
+    "icon": "fa-ranking-star",
+    "category": "Leagues",
+    "sort_order": 231,
+    "points": 25,
+    "rule": {
+      "type": "league_results",
+      "minimum": 4
+    }
+  },
+  {
+    "key": "league_top3",
+    "name": "Podium Finisher",
+    "description": "Place in the top 3 of a league week.",
+    "icon": "fa-medal",
+    "category": "Leagues",
+    "sort_order": 232,
+    "points": 50,
+    "rule": {
+      "type": "league_top3",
+      "minimum": 1
+    }
+  },
+  {
+    "key": "league_gold",
+    "name": "Gold Class",
+    "description": "Reach Gold tier (or higher) in a league week.",
+    "icon": "fa-arrow-trend-up",
+    "category": "Leagues",
+    "sort_order": 233,
+    "points": 25,
+    "rule": {
+      "type": "league_tier",
+      "tier": "gold"
+    }
+  },
+  {
+    "key": "league_legend",
+    "name": "Flamingo Legend",
+    "description": "Reach Flamingo Legend tier in a league week.",
+    "icon": "fa-crown",
+    "category": "Leagues",
+    "sort_order": 234,
+    "points": 100,
+    "rule": {
+      "type": "league_tier",
+      "tier": "flamingo_legend"
+    }
   }
 ]

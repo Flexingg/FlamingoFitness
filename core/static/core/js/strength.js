@@ -153,6 +153,11 @@
             wrap.appendChild(ul);
             content.appendChild(wrap);
         }
+
+        // Interactive Charts + Raw data views (FFInsights / Chart.js).
+        if (window.FFInsights) {
+            window.FFInsights.createInsights(content, 'strength', data);
+        }
     };
 // Build a single workout day card (the today card).
     function buildStrengthCard(day, title) {

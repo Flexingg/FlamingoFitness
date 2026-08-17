@@ -1207,3 +1207,190 @@ body {
 }
 .path-focus-fight:hover { filter: brightness(1.1); }
 .path-focus-fight:active { border-bottom-width: 0; transform: translateY(2px); }
+/* ============================================================
+   Skill-tree Insights: Chart.js Graph + Raw data views (docs/18)
+   Duolingo-styled segmented tabs, range chips, summary chips,
+   chart card and raw-data table. Theme-aware via CSS vars above.
+   ============================================================ */
+.insights-box {
+    margin-top: 22px;
+    border-top: 2px dashed var(--border-color);
+    padding-top: 16px;
+}
+
+/* Segmented Duolingo tab bar ------------------------------- */
+.insights-tabs {
+    display: flex;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+.insights-tab {
+    flex: 1 1 0;
+    padding: 10px 6px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: Nunito, sans-serif;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background .18s, color .18s, transform .1s;
+}
+.insights-tab:hover { background: rgba(148, 163, 184, 0.08); }
+.insights-tab:active { transform: translateY(1px); }
+.insights-tab.active {
+    background: var(--primary-pink);
+    color: #fff;
+    box-shadow: 0 3px 0 var(--dark-pink);
+}
+
+/* Range chips ----------------------------------------------- */
+.insights-toolbar { display: flex; align-items: center; margin-bottom: 12px; }
+.insights-range { display: flex; gap: 8px; flex-wrap: wrap; }
+.insights-range-chip {
+    padding: 7px 14px;
+    border: 2px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-light);
+    color: var(--text-muted);
+    font-family: Nunito, sans-serif;
+    font-weight: 800;
+    font-size: .85rem;
+    cursor: pointer;
+    transition: all .15s;
+}
+.insights-range-chip:hover { border-color: var(--primary-pink); color: var(--text-main); }
+.insights-range-chip:active { transform: translateY(1px); }
+.insights-range-chip.active {
+    background: var(--primary-green);
+    border-color: var(--dark-green);
+    color: #fff;
+    box-shadow: 0 3px 0 var(--dark-green);
+}
+
+/* Summary chips --------------------------------------------- */
+.insights-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.insights-chip {
+    flex: 1 1 110px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+}
+.insights-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    box-shadow: 0 0 8px rgba(255,255,255,.12);
+}
+.insights-chip-text { display: flex; flex-direction: column; line-height: 1.15; }
+.insights-chip-value { color: var(--text-main); font-weight: 900; font-size: 1.05rem; }
+.insights-chip-label { color: var(--text-muted); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; }
+
+/* Chart card ------------------------------------------------ */
+.insights-chart-card {
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 20px;
+    padding: 14px 10px 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.2);
+}
+.insights-chart-wrap { position: relative; height: 260px; }
+
+/* Raw data table -------------------------------------------- */
+.raw-export-btn {
+    display: block;
+    margin-left: auto;
+    margin-bottom: 12px;
+    padding: 8px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-light);
+    color: var(--text-muted);
+    font-family: Nunito, sans-serif;
+    font-weight: 800;
+    font-size: .82rem;
+    cursor: pointer;
+    transition: all .15s;
+}
+.raw-export-btn:hover { border-color: var(--primary-blue); color: var(--text-main); }
+.raw-export-btn:active { transform: translateY(1px); }
+
+.raw-table-wrap { max-width: 100%; }
+.raw-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: Nunito, sans-serif;
+    font-size: .9rem;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+}
+.raw-table th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-bottom: 2px solid var(--border-color);
+    background: rgba(0,0,0,.12);
+}
+.raw-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.raw-table tbody tr:last-child > td { border-bottom: 0; }
+.raw-row:hover td { background: rgba(255, 94, 154, .04); }
+.raw-date { color: var(--text-main); font-weight: 800; }
+
+.raw-toggle {
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+    transition: transform .15s, color .15s, border-color .15s;
+}
+.raw-toggle:hover { color: var(--text-main); border-color: var(--primary-pink); }
+.raw-toggle.open { transform: rotate(90deg); color: var(--primary-pink); border-color: var(--primary-pink); }
+
+.raw-json {
+    padding: 12px;
+    margin: 0 8px 8px 8px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: #7dd3fc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow: auto;
+}
+
+/* Helpers / empty states ------------------------------------ */
+.insights-note {
+    padding: 14px;
+    color: var(--text-muted);
+    font-weight: 700;
+    text-align: center;
+    font-size: .9rem;
+    background: var(--bg-light);
+    border: 2px dashed var(--border-color);
+    border-radius: 16px;
+}
+

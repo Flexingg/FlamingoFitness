@@ -622,8 +622,9 @@ class BadgeDef(models.Model):
 
     A badge is a *derived* milestone: its ``key`` maps to a check predicate in
     ``core/services/badges.py`` that reads data we already store (``User.streak``,
-    ``RawActivityLog``, ``SkillTree``, ``BaseResource``, base level), so no new
-    ingestion is required. Grants are recorded on :class:`UserBadge`.
+    ``RawActivityLog``, ``SkillTree``, ``PlayerProfile``, and siege / PvP / gear /
+    league state), so no new ingestion is required. Grants are recorded on
+    :class:`UserBadge`.
     """
 
     key = models.SlugField(max_length=50, unique=True)

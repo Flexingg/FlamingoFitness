@@ -158,6 +158,11 @@
         skill.style.justifyContent = 'center';
         skill.textContent = (st.level ? 'Nutrition Lv ' + st.level : 'Nutrition') + '  ' + (st.total_xp || 0) + ' XP';
         content.appendChild(skill);
+
+        // Interactive Charts + Raw data views (FFInsights / Chart.js).
+        if (window.FFInsights) {
+            window.FFInsights.createInsights(content, 'nutrition', data);
+        }
     };
 
     function formatMacro(value, goal) {
