@@ -1996,6 +1996,46 @@ class AvatarUploadTests(TestCase):
         self.assertIn("avatar", resp.json()["user"])
         self.assertIn("dicebear", resp.json()["user"]["avatar"])
 
+    def test_post_startup_avatar_is_served_by_media_middleware(self):
+        """Freshly uploaded avatars must not fall through WhiteNoise's index.
+
+        MediaServingWhiteNoise resolves /media/* from the filesystem per request
+        instead of WhiteNoise's startup-time snapshot, so a picture saved after
+        the server booted returns 200 instead of 404 (which would otherwise let
+        the frontend's onerror handler silently swap it back to the default).
+        """
+        import tempfile
+        from pathlib import Path
+
+        from django.http import HttpResponse
+        from django.test import RequestFactory, override_settings
+
+        from flamingo_fitness.whitenoise import MediaServingWhiteNoise
+
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            avatars = Path(tmp) / "avatars"
+            avatars.mkdir()
+            with override_settings(MEDIA_ROOT=tmp):
+                # Upload happens long after the server started: build the
+                # middleware first, then write the file to disk.
+                middleware = MediaServingWhiteNoise(
+                    lambda request: HttpResponse("passthrough")
+                )
+                name = "42_after_boot.png"
+                payload = b"\x89PNG\r\n\x1a\n" + (b"\x00" * 16)
+                (avatars / name).write_bytes(payload)
+
+                url = "/media/avatars/" + name
+                # find_file() is the disk-backed resolver used for /media/*.
+                self.assertIsNotNone(middleware.find_file(url))
+
+                resp = middleware(RequestFactory().get(url))
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(b"".join(resp.streaming_content), payload)
+                # Release the streaming file handle before the temp dir is
+                # removed (Windows holds an open handle and would block cleanup).
+                resp.close()
+
 
 
 
