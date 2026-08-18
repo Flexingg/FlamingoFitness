@@ -136,6 +136,34 @@
                     {{ form.as_p }}
                     <button class="btn-flamingo w-full bg-flamingo text-white font-black py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg mt-3" type="submit" name="provider" value="sparkyfitness"><i class="fa-solid fa-link mr-1"></i> Link &amp; Sync</button>
                 </form>
+                {% if sparky and sparky.is_active %}
+                <div class="sync-history mt-4 pt-4 border-t border-slate-700">
+                    <p class="auth-title text-sm font-black text-white text-left mb-1"><i class="fa-solid fa-clock-rotate-left text-slate-300 mr-1.5"></i> Fetch history</p>
+                    <p class="auth-subtitle text-slate-400 text-xs font-semibold text-left mb-3">Backfill the last 30 or 365 days of {{ sparky.get_provider_display }} data into your charts. Imported data never awards XP.</p>
+                    <form method="post" action="{% url 'profile' %}" class="sync-history-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="sync_history">
+                        <input type="hidden" name="provider" value="sparkyfitness">
+                        <div class="flex bg-slate-900 border border-slate-600 rounded-xl p-1 mb-3" role="radiogroup" aria-label="How far back to fetch">
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="days" value="30" class="sr-only peer" checked>
+                                <span class="sync-range-seg block text-center py-2.5 text-xs font-black rounded-lg text-slate-400 peer-checked:bg-flamingo peer-checked:text-white transition-all">30 days</span>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="days" value="365" class="sr-only peer">
+                                <span class="sync-range-seg block text-center py-2.5 text-xs font-black rounded-lg text-slate-400 peer-checked:bg-flamingo peer-checked:text-white transition-all">365 days</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-flamingo sync-history-btn w-full bg-slate-700 text-white font-black text-sm py-3 rounded-xl border-b-4 border-slate-800 hover:bg-slate-600 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Import history
+                        </button>
+                    </form>
+                    <p class="auth-subtitle text-slate-400 text-xs font-semibold mt-2.5 text-left">
+                        {% if sparky.last_polled %}Last synced {{ sparky.last_polled|date:"Y-m-d H:i" }} ·{% else %}Not synced yet ·{% endif %}
+                        {{ sparky_log_count }} data record(s) stored
+                    </p>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Liftosaur form -->
@@ -147,14 +175,34 @@
                     {{ lift_form.as_p }}
                     <button class="btn-flamingo btn-purple w-full bg-purple-600 text-white font-black py-3.5 rounded-2xl border-b-4 border-purple-800 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg mt-3" type="submit" name="provider" value="liftosaur"><i class="fa-solid fa-link mr-1"></i> Link &amp; Sync</button>
                 </form>
-                <p class="auth-subtitle text-slate-400 text-xs font-semibold mt-3 text-center">
-                    {% if liftosaur.last_polled %}
-                        Last synced: {{ liftosaur.last_polled|date:"Y-m-d H:i" }} ·
+                {% if liftosaur and liftosaur.is_active %}
+                <div class="sync-history mt-4 pt-4 border-t border-slate-700">
+                    <p class="auth-title text-sm font-black text-white text-left mb-1"><i class="fa-solid fa-clock-rotate-left text-slate-300 mr-1.5"></i> Fetch history</p>
+                    <p class="auth-subtitle text-slate-400 text-xs font-semibold text-left mb-3">Backfill the last 30 or 365 days of {{ liftosaur.get_provider_display }} strength data into your charts. Imported data never awards XP.</p>
+                    <form method="post" action="{% url 'profile' %}" class="sync-history-form" data-hue="purple">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="sync_history">
+                        <input type="hidden" name="provider" value="liftosaur">
+                        <div class="flex bg-slate-900 border border-slate-600 rounded-xl p-1 mb-3" role="radiogroup" aria-label="How far back to fetch">
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="days" value="30" class="sr-only peer" checked>
+                                <span class="sync-range-seg block text-center py-2.5 text-xs font-black rounded-lg text-slate-400 peer-checked:bg-purple-600 peer-checked:text-white transition-all">30 days</span>
+                            </label>
+                            <label class="flex-1 cursor-pointer">
+                                <input type="radio" name="days" value="365" class="sr-only peer">
+                                <span class="sync-range-seg block text-center py-2.5 text-xs font-black rounded-lg text-slate-400 peer-checked:bg-purple-600 peer-checked:text-white transition-all">365 days</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn-flamingo btn-purple sync-history-btn w-full bg-purple-600 text-white font-black text-sm py-3 rounded-xl border-b-4 border-purple-800 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                            <i class="fa-solid fa-cloud-arrow-down mr-1"></i> Import history
+                        </button>
+                    </form>
+                    <p class="auth-subtitle text-slate-400 text-xs font-semibold mt-2.5 text-left">
+                        {% if liftosaur.last_polled %}Last synced {{ liftosaur.last_polled|date:"Y-m-d H:i" }} ·{% else %}Not synced yet ·{% endif %}
                         {{ lift_log_count }} strength day(s) stored
-                    {% else %}
-                        Not synced yet — click "Link &amp; Sync", then refresh in a few seconds.
-                    {% endif %}
-                </p>
+                    </p>
+                </div>
+                {% endif %}
             </div>
         </main>
     </div>
@@ -249,6 +297,46 @@
                     if (window.ffApplyTheme) window.ffApplyTheme(radio.value);
                     if (status) status.textContent = 'Saving\u2026';
                     form.submit();
+                });
+            });
+        })();
+    </script>
+
+    <script>
+        /* Fetch-history controls: keep the segmented 30/365 range visually in
+           sync with the hidden radio, and guard against double submissions
+           (the actual import runs in a background Celery task). */
+        (function () {
+            var HUE = { pink: 'bg-flamingo', purple: 'bg-purple-600' };
+            document.querySelectorAll('.sync-history-form').forEach(function (form) {
+                var hue = form.dataset.hue || 'pink';
+                var activeClass = HUE[hue] || 'bg-flamingo';
+                var radios = form.querySelectorAll('input[name="days"]');
+
+                // Fallback highlight if a browser/build lacks the peer-checked
+                // Tailwind variant. Keeps the selected segment in sync.
+                function paint() {
+                    radios.forEach(function (radio) {
+                        var seg = radio.closest('label').querySelector('.sync-range-seg');
+                        if (!seg) return;
+                        var on = radio.checked;
+                        seg.classList.remove('bg-flamingo', 'bg-purple-600');
+                        seg.classList.toggle(activeClass, on);
+                        seg.classList.toggle('text-white', on);
+                        seg.classList.toggle('text-slate-400', !on);
+                    });
+                }
+                radios.forEach(function (radio) {
+                    radio.addEventListener('change', paint);
+                });
+                paint();
+
+                var btn = form.querySelector('.sync-history-btn');
+                form.addEventListener('submit', function () {
+                    if (!btn) return;
+                    btn.disabled = true;
+                    btn.classList.add('opacity-60');
+                    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-1"></i> Queued\u2026';
                 });
             });
         })();

@@ -321,12 +321,13 @@ class LiftosaurClient(MockAPIClient):
             )
         return {}
 
-    def _fetch_history(self, api_key, start_date_iso):
+    def _fetch_history(self, api_key, start_date_iso, end_date_iso=None):
         """Fetch workout history with cursor-based pagination.
 
         API Endpoint: GET /history
         Query Params:
             - startDate: ISO 8601 string (e.g., "2026-07-09")
+            - endDate: ISO 8601 string (optional; bounds the range for backfill)
             - limit: 200 (max allowed per page)
             - cursor: Next page cursor returned from previous response
         """
@@ -336,6 +337,8 @@ class LiftosaurClient(MockAPIClient):
 
         while has_more:
             params = {"limit": 200, "startDate": start_date_iso}
+            if end_date_iso:
+                params["endDate"] = end_date_iso
             if cursor:
                 params["cursor"] = cursor
 
@@ -369,12 +372,15 @@ class LiftosaurClient(MockAPIClient):
             )
         return records
 
-    def fetch(self, integration, days=30):
+    def fetch(self, integration, days=30, end_date=None):
         """Fetch recent workout history grouped by workout day.
 
         Args:
             integration: Model instance containing user credentials (api_key).
             days (int): Number of days in the past to look back. Default 30.
+            end_date (datetime.date, optional): Anchor the trailing window to
+                ``end_date`` instead of today so the historical backfill can walk
+                backward through old data in bounded chunks.
 
         Returns:
             list of tuple: List of (provider, event_type, payload, occurred_at) tuples.
@@ -387,8 +393,9 @@ class LiftosaurClient(MockAPIClient):
                 return self._demo_data()
             return []
 
-        start_date = (date.today() - timedelta(days=days)).isoformat()
-        records = self._fetch_history(api_key, start_date)
+        end = end_date or date.today()
+        start_date = (end - timedelta(days=days)).isoformat()
+        records = self._fetch_history(api_key, start_date, end_date_iso=end.isoformat())
 
         # Group history records by date string (YYYY-MM-DD extracted from timestamp)
         by_date = {}

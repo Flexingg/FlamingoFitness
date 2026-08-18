@@ -141,6 +141,67 @@ def profile(request):
                 messages.success(request, "Appearance updated.")
             return redirect("profile")
 
+        # Historical backfill from a linked provider (profile "Sync history").
+        # Validates the provider + lookback window, then hands the actual fetch
+        # to a background Celery task so we don't block a Gunicorn worker.
+        if request.POST.get("action") == "sync_history":
+            from .tasks import (
+                HISTORICAL_LOOKBACK_CHOICES,
+                backfill_in_progress,
+                backfill_liftosaur_for_user,
+                backfill_sparkyfitness_for_user,
+            )
+
+            provider_raw = request.POST.get("provider", "")
+            try:
+                days = int(request.POST.get("days") or 0)
+            except (TypeError, ValueError):
+                days = 0
+
+            backfill_task = {
+                "sparkyfitness": backfill_sparkyfitness_for_user,
+                "liftosaur": backfill_liftosaur_for_user,
+            }.get(provider_raw)
+            integration = integrations.filter(
+                provider=provider_raw, is_active=True
+            ).first()
+
+            if backfill_task is None:
+                messages.error(request, "Unknown integration for history sync.")
+            elif integration is None:
+                messages.error(
+                    request, "Link this integration first, then sync its history."
+                )
+            elif int(days) not in HISTORICAL_LOOKBACK_CHOICES:
+                messages.error(request, "Choose a valid history range (30 or 365 days).")
+            elif backfill_in_progress(request.user.id, provider_raw):
+                messages.info(
+                    request,
+                    "A history sync for this integration is already running — "
+                    "it'll finish in the background. Check back shortly.",
+                )
+            else:
+                try:
+                    backfill_task.delay(request.user.id, days)
+                    messages.success(
+                        request,
+                        (
+                            "Syncing up to %d days of %s history in the "
+                            "background (no XP is awarded for imported data)."
+                        )
+                        % (days, integration.get_provider_display()),
+                    )
+                except Exception:  # noqa: BLE001 - task queue may be unavailable
+                    import logging
+
+                    logging.getLogger(__name__).exception(
+                        "Could not queue %s history sync", provider_raw
+                    )
+                    messages.error(
+                        request, "Could not start the history sync right now. Try again."
+                    )
+            return redirect("profile")
+
         provider_key = request.POST.get("provider", "sparkyfitness")
         if provider_key == "liftosaur":
             form = LiftosaurLinkForm(request.POST)
@@ -199,6 +260,11 @@ def profile(request):
             user=request.user, source=Provider.LIFTOSAUR, event_type="strength"
         ).count()
     )
+    sparky_log_count = (
+        RawActivityLog.objects.filter(
+            user=request.user, source=Provider.SPARKYFITNESS
+        ).count()
+    )
 
     return render(
         request,
@@ -210,6 +276,7 @@ def profile(request):
             "sparky": sparky,
             "liftosaur": liftosaur,
             "lift_log_count": lift_log_count,
+            "sparky_log_count": sparky_log_count,
             "theme_choices": Theme.choices,
         },
     )

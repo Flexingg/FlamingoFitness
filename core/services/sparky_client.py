@@ -94,10 +94,13 @@ class SparkyFitnessClient(MockAPIClient):
             return default
 
     # -- main entry point ---------------------------------------------------
-    def fetch(self, integration, days=2):
+    def fetch(self, integration, days=2, end_date=None):
         """Fetch recent SparkyFitness data for an integration.
 
-        Returns a list of (provider, event_type, payload, occurred_at).
+        ``days`` is the length of the trailing window, which ends on
+        ``end_date`` (defaults to today). Passing an explicit ``end_date`` lets
+        the historical backfill walk backward through old data in bounded
+        chunks. Returns a list of (provider, event_type, payload, occurred_at).
         """
         api_key = (integration.credentials or {}).get("api_key")
         if not api_key:
@@ -105,7 +108,9 @@ class SparkyFitnessClient(MockAPIClient):
                 return self._demo_data()
             return []
 
-        today = date.today()
+        # Anchor the window to the provided end_date (historical backfill) or
+        # today (the recurring pollers).
+        today = end_date or date.today()
         start = today - timedelta(days=days - 1)
         
         # We need a list of actual date objects for endpoints that don't support ranges

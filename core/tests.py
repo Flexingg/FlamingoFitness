@@ -1123,6 +1123,221 @@ class ProfileLinkTests(TestCase):
                 user=self.user, source=Provider.SPARKYFITNESS
             ).exists()
         )
+
+    def test_profile_renders_sync_history_when_linked(self):
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS, is_active=True
+        )
+        resp = self.client.get("/profile/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        # Segmented fetch-history control renders for a linked provider.
+        self.assertIn("Fetch history", html)
+        self.assertIn("30 days", html)
+        self.assertIn("365 days", html)
+        self.assertIn("data record(s) stored", html)
+
+    def test_sync_history_sparky_365_renders_profile(self):
+        """Selecting 365 days must land back on a rendered (non-blank) profile."""
+        from django.test import override_settings
+
+        UserIntegration.objects.create(
+            user=self.user,
+            provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": ""},
+            is_active=True,
+        )
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {
+                    "action": "sync_history",
+                    "provider": "sparkyfitness",
+                    "days": "365",
+                },
+                follow=True,
+            )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Fetch history", html)
+        self.assertIn("Link SparkyFitness", html)
+
+    def test_backfill_sparky_chunks_365_days(self):
+        """A 365-day import must run in bounded chunks (not one huge loop)."""
+        from unittest import mock
+
+        from core.tasks import backfill_sparkyfitness_for_user
+
+        UserIntegration.objects.create(
+            user=self.user,
+            provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": "k"},
+            is_active=True,
+        )
+        fake = mock.Mock()
+        fake.fetch.return_value = [
+            (Provider.SPARKYFITNESS, "sleep", {"sleep_hours": 7}, timezone.now())
+        ]
+        with mock.patch("core.tasks.SparkyFitnessClient", return_value=fake):
+            count = backfill_sparkyfitness_for_user(self.user.id, 365)
+
+        days_log = [c.kwargs.get("days") for c in fake.fetch.call_args_list]
+        # 365 days split into 12 x 30 + 1 x 5 across the chunking walk.
+        self.assertEqual(len(days_log), 13)
+        self.assertEqual(days_log[:12], [30] * 12)
+        self.assertEqual(days_log[12], 5)
+        # Windows walk strictly backward (newest first).
+        end_dates = [c.kwargs.get("end_date") for c in fake.fetch.call_args_list]
+        self.assertTrue(
+            all(end_dates[i] > end_dates[i + 1] for i in range(len(end_dates) - 1))
+        )
+        # Task completes successfully, not -1.
+        self.assertGreaterEqual(count, 0)
+
+    def test_backfill_skips_when_already_running(self):
+        """A second backfill for the same user+provider is a no-op."""
+        from django.core.cache import cache
+        from django.test import override_settings
+        from unittest import mock
+
+        from core.tasks import backfill_lock_key, backfill_sparkyfitness_for_user
+
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS, is_active=True
+        )
+        caches = {
+            "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}
+        }
+        with override_settings(CACHES=caches):
+            cache.set(
+                backfill_lock_key(self.user.id, Provider.SPARKYFITNESS),
+                "1",
+                timeout=60,
+            )
+            with mock.patch("core.tasks.SparkyFitnessClient") as factory:
+                count = backfill_sparkyfitness_for_user(self.user.id, 365)
+            factory.assert_not_called()
+            self.assertEqual(count, 0)
+
+    def test_sync_history_sparky_ingests_without_xp(self):
+        from django.test import override_settings
+
+        UserIntegration.objects.create(
+            user=self.user,
+            provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": ""},
+            is_active=True,
+        )
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {
+                    "action": "sync_history",
+                    "provider": "sparkyfitness",
+                    "days": "30",
+                },
+            )
+        self.assertEqual(resp.status_code, 302)
+        logs = RawActivityLog.objects.filter(
+            user=self.user, source=Provider.SPARKYFITNESS
+        )
+        self.assertTrue(logs.exists())
+        # Historical import must not award XP / badges...
+        self.assertFalse(XPLedger.objects.filter(user=self.user).exists())
+        # ...and the rows are stamped processed so they can never convert later.
+        self.assertEqual(logs.filter(processed=True).count(), logs.count())
+
+    def test_sync_history_sparky_is_idempotent(self):
+        from django.test import override_settings
+
+        UserIntegration.objects.create(
+            user=self.user,
+            provider=Provider.SPARKYFITNESS,
+            credentials={"api_key": ""},
+            is_active=True,
+        )
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            for _ in range(2):
+                self.client.post(
+                    "/profile/",
+                    {
+                        "action": "sync_history",
+                        "provider": "sparkyfitness",
+                        "days": "30",
+                    },
+                )
+        logs = RawActivityLog.objects.filter(
+            user=self.user, source=Provider.SPARKYFITNESS
+        )
+        # Keyed by (source, event_type, occurred_at), so re-syncing never
+        # duplicates a day's row.
+        self.assertEqual(
+            logs.count(),
+            logs.values("source", "event_type", "occurred_at").distinct().count(),
+        )
+
+    def test_sync_history_liftosaur_ingests_without_xp(self):
+        from django.test import override_settings
+
+        UserIntegration.objects.create(
+            user=self.user,
+            provider=Provider.LIFTOSAUR,
+            credentials={"api_key": ""},
+            is_active=True,
+        )
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {
+                    "action": "sync_history",
+                    "provider": "liftosaur",
+                    "days": "30",
+                },
+            )
+        self.assertEqual(resp.status_code, 302)
+        logs = RawActivityLog.objects.filter(
+            user=self.user, source=Provider.LIFTOSAUR, event_type="strength"
+        )
+        self.assertTrue(logs.exists())
+        self.assertFalse(XPLedger.objects.filter(user=self.user).exists())
+        self.assertTrue(all(log.processed for log in logs))
+
+    def test_sync_history_requires_valid_range(self):
+        from django.test import override_settings
+
+        UserIntegration.objects.create(
+            user=self.user, provider=Provider.SPARKYFITNESS, is_active=True
+        )
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {
+                    "action": "sync_history",
+                    "provider": "sparkyfitness",
+                    "days": "9999",
+                },
+            )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(
+            RawActivityLog.objects.filter(
+                user=self.user, source=Provider.SPARKYFITNESS
+            ).exists()
+        )
+
+    def test_sync_history_requires_linked_integration(self):
+        from django.test import override_settings
+
+        with override_settings(DEMO=True, CELERY_TASK_ALWAYS_EAGER=True):
+            resp = self.client.post(
+                "/profile/",
+                {"action": "sync_history", "provider": "sparkyfitness", "days": "30"},
+            )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(
+            RawActivityLog.objects.filter(
+                user=self.user, source=Provider.SPARKYFITNESS
+            ).exists()
+        )
 # ---------------------------------------------------------------------------
 # Achievement Badges (Roadmap idea #5)
 # ---------------------------------------------------------------------------

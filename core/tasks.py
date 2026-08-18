@@ -6,6 +6,7 @@ engines so XP and readiness state stay fresh without blocking the web thread.
 """
 
 import logging
+from datetime import date, timedelta
 
 from celery import shared_task
 from django.utils import timezone
@@ -23,13 +24,49 @@ from .services import (
 
 logger = logging.getLogger(__name__)
 
+# Profile-settings "Sync history" windows. Kept to 30/365 days: deeper ranges
+# mean thousands of per-day API calls for SparkyFitness (hydration/endurance
+# are fetched day-by-day) and risk worker timeouts + provider rate limits.
+# Garmin/Peloton remain mock-only, so backfill covers SparkyFitness + Liftosaur.
+HISTORICAL_LOOKBACK_CHOICES = (30, 365)
 
-def ingest_results(integration, results):
+# Days each backfill chunk covers. An explicit ``end_date`` is passed to each
+# fetch() so a 365-day import drains in several bounded chunks instead of one
+# enormous synchronous loop.
+BACKFILL_CHUNK_DAYS = 30
+
+# How long a backfill's in-flight lock is held. A 365-day SparkyFitness import
+# issues thousands of day-by-day calls and can exceed this; when the lock
+# expires a fresh job may start (a safe degradation, never a correctness issue).
+BACKFILL_LOCK_TIMEOUT = 60 * 60  # seconds
+
+
+def backfill_lock_key(user_id, provider):
+    return f"backfill:{provider}:{user_id}"
+
+
+def backfill_in_progress(user_id, provider):
+    """True if a backfill for this user+provider is currently running.
+
+    Best-effort: if the cache is unavailable we assume NOT in progress so we
+    never block a legitimate import on an incidental cache outage.
+    """
+    from django.core.cache import cache
+
+    try:
+        return bool(cache.get(backfill_lock_key(user_id, provider)))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def ingest_results(integration, results, award_xp=True):
     """Persist fetch() result tuples into RawActivityLog and award XP.
 
-    Shared by the Celery pollers and the profile page's Link & Sync action so
-    both persist RawActivityLog rows exactly the same way. Returns the number
-    of NEW log rows created.
+    Shared by the Celery pollers and the profile page's actions so both persist
+    RawActivityLog rows exactly the same way. When ``award_xp=False``
+    (historical backfill) rows are written but deliberately NOT converted to
+    XP/tokens, and they're marked processed so they can never be converted
+    retroactively. Returns the number of NEW log rows created.
 
     DEDUP: rows are keyed by (user, source, event_type, occurred_at), so
     syncing the same day twice (beat poll, manual re-link, Liftosaur re-sync)
@@ -87,15 +124,22 @@ def ingest_results(integration, results):
             )
             was_created = True
         if was_created:
-            # Convert the fresh payload into XP immediately (best effort).
-            try:
-                process_log(log)
-            except Exception:  # noqa: BLE001 - keep polling resilient
-                logger.exception(
-                    "XP processing failed for %s log (user=%s)",
-                    event_type,
-                    integration.user.username,
-                )
+            if award_xp:
+                # Convert the fresh payload into XP immediately (best effort).
+                try:
+                    process_log(log)
+                except Exception:  # noqa: BLE001 - keep polling resilient
+                    logger.exception(
+                        "XP processing failed for %s log (user=%s)",
+                        event_type,
+                        integration.user.username,
+                    )
+            else:
+                # Historical/backfill import: persist the row but do NOT grant
+                # XP, tokens, materials, streaks or badges. Mark it processed so
+                # a later poll refresh can never convert it retroactively.
+                log.processed = True
+                log.save(update_fields=["processed"])
             created += 1
         else:
             updated += 1
@@ -185,6 +229,98 @@ def sync_liftosaur_for_user(user_id):
     except Exception:  # noqa: BLE001
         logger.exception("sync_liftosaur_for_user(%s) failed", user_id)
         return -1
+
+
+def _backfill(provider, user_id, days, task_name):
+    """Backfill a user's integration history without awarding XP.
+
+    Walks the most recent ``days`` of history (newest window first) in
+    BACKFILL_CHUNK_DAYS chunks by passing an explicit ``end_date`` to each
+    client.fetch() - clients otherwise anchor on today, so only this lets us
+    reach older data. Rows are ingested with award_xp=False. Returns the number
+    of RawActivityLog rows created, or -1 on error / missing integration.
+
+    An in-flight lock (per user+provider) prevents stacking heavy imports when
+    a 365-day job is already draining; the lock is best-effort (a cache outage
+    must never block a legitimate import).
+    """
+    from django.core.cache import cache
+
+    lock_key = backfill_lock_key(user_id, provider)
+    try:
+        acquired = bool(cache.add(lock_key, "1", timeout=BACKFILL_LOCK_TIMEOUT))
+    except Exception:  # noqa: BLE001 - best-effort guard
+        acquired = True
+    if not acquired:
+        logger.info("%s(%s): backfill already running, skipping", task_name, user_id)
+        return 0
+
+    try:
+        from django.contrib.auth import get_user_model
+
+        UserModel = get_user_model()
+        user = UserModel.objects.get(pk=user_id)
+        integration = UserIntegration.objects.filter(
+            user=user, provider=provider, is_active=True
+        ).first()
+        if integration is None:
+            logger.warning(
+                "%s: no active %s integration for %s",
+                task_name, provider, user.username,
+            )
+            return -1
+
+        client_factory = {
+            Provider.SPARKYFITNESS: SparkyFitnessClient,
+            Provider.LIFTOSAUR: LiftosaurClient,
+        }.get(provider)
+        if client_factory is None:
+            logger.warning(
+                "%s: no backfill client for provider %s", task_name, provider
+            )
+            return -1
+
+        end = date.today()
+        remaining = max(int(days), 0)
+        total = 0
+        while remaining > 0:
+            size = min(remaining, BACKFILL_CHUNK_DAYS)
+            results = client_factory().fetch(integration, days=size, end_date=end)
+            total += ingest_results(integration, results, award_xp=False)
+            remaining -= size
+            end = end - timedelta(days=size)
+
+        integration.last_polled = timezone.now()
+        integration.save(update_fields=["last_polled", "updated_at"])
+        logger.info(
+            "%s(%s): imported %d historical row(s) (no XP awarded)",
+            task_name, user.username, total,
+        )
+        return total
+    except Exception:  # noqa: BLE001
+        logger.exception("%s(%s) failed", task_name, user_id)
+        return -1
+    finally:
+        try:
+            cache.delete(lock_key)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@shared_task
+def backfill_sparkyfitness_for_user(user_id, days=30):
+    """Backfill up to ``days`` of SparkyFitness history for one user (no XP)."""
+    return _backfill(
+        Provider.SPARKYFITNESS, user_id, days, "backfill_sparkyfitness_for_user"
+    )
+
+
+@shared_task
+def backfill_liftosaur_for_user(user_id, days=30):
+    """Backfill up to ``days`` of Liftosaur workout history for one user (no XP)."""
+    return _backfill(
+        Provider.LIFTOSAUR, user_id, days, "backfill_liftosaur_for_user"
+    )
 
 
 @shared_task
