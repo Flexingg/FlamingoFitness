@@ -17,6 +17,7 @@ urlpatterns = [
     path("profile/avatar", views.avatar_upload, name="avatar_upload"),
     # API (Steps 16-18)
     path("dashboard/state", views.dashboard_state, name="dashboard_state"),
+    path("onboarded", views.complete_onboarding, name="complete_onboarding"),
     path("nutrition/", views.nutrition_state, name="nutrition_state"),
     path("hydration/", views.hydration_state, name="hydration_state"),
     path("endurance/", views.endurance_state, name="endurance_state"),
@@ -47,6 +48,8 @@ urlpatterns = [
     # Phase 9 (docs/15): Token, Gacha & Battle
     path("battle/state", views.battle_state, name="battle_state"),
     path("battle/campaign/<str:campaign>/", views.battle_campaign, name="battle_campaign"),
+    path("battle/leaderboard/<str:campaign>/", views.battle_leaderboard, name="battle_leaderboard"),
+    path("battle/history/<str:campaign>/", views.battle_history, name="battle_history"),
     path("battle/engage", views.battle_engage, name="battle_engage"),
     path("battle/attack", views.battle_attack, name="battle_attack"),
     path("shop/state", views.shop_state, name="shop_state"),

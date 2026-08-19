@@ -85,7 +85,7 @@ All views live in a single file: `core/views.py`.
 | `avatar_upload` | `POST /api/v1/profile/avatar` | Auth |
 | `dashboard_page` | `GET /` | Dashboard page |
 | `dashboard_state` | `GET /api/v1/dashboard/state` | Dashboard |
-| `leaderboard_weekly` | `GET /api/v1/leaderboard/weekly` | Dashboard |
+| `leaderboard_weekly` | `GET /api/v1/leaderboard/weekly` (+ optional `?kind=` like-with-like filter, docs/17 #17) | Dashboard |
 | `nutrition_state` | `GET /api/v1/nutrition/` | Dashboard |
 | `hydration_state` | `GET /api/v1/hydration/` | Dashboard |
 | `endurance_state` | `GET /api/v1/endurance/` | Dashboard |
@@ -96,6 +96,8 @@ All views live in a single file: `core/views.py`.
 | `battle_campaign` | `GET /api/v1/battle/campaign/{campaign}` | Battle (PvE) |
 | `battle_engage` | `POST /api/v1/battle/engage` | Battle (PvE) |
 | `battle_attack` | `POST /api/v1/battle/attack` | Battle (PvE) |
+| `battle_leaderboard` | `GET /api/v1/battle/leaderboard/{campaign}` (docs/17 #33) | Battle (PvE) |
+| `battle_history` | `GET /api/v1/battle/history/{campaign}` (docs/17 #34) | Battle (PvE) |
 | `shop_state` | `GET /api/v1/shop/state` | Shop |
 | `shop_open` | `POST /api/v1/shop/open` | Shop |
 | `shop_consume` | `POST /api/v1/shop/consume` | Shop |

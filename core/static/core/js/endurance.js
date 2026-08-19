@@ -63,6 +63,14 @@
         // Not linked, or no data at all -> show the Link-Sparky CTA.
         if (!data.linked || (!data.today && !(data.history && data.history.length))) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-bicycle',
+                title: 'No endurance data yet',
+                desc: 'Link SparkyFitness to start tracking your cardio workouts and minutes.',
+                hint: 'Cardio minutes and calories earn Endurance XP.',
+                ctaText: 'Link SparkyFitness',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
             return;
         }

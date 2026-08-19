@@ -64,11 +64,15 @@
 
         if (!data.linked) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-bed',
+                title: 'Link SparkyFitness',
+                desc: 'No recovery data yet. Connect SparkyFitness to track sleep and readiness.',
+                hint: 'Sleep and readiness feed your Recovery skill tree and daily streak.',
+                ctaText: 'Link SparkyFitness',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
-            empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-bed"></i></div>' +
-                '<p class="empty-title">Link SparkyFitness</p>' +
-                '<p class="empty-desc">No recovery data yet. Connect SparkyFitness to track sleep and readiness.</p>' +
-                '<a href="/profile/" class="btn-flamingo">Link SparkyFitness</a>';
             return;
         }
 
@@ -165,8 +169,13 @@
         if (!data.history || !data.history.length) {
             var none = document.createElement('div');
             none.className = 'nutrition-empty';
-            none.innerHTML = '<p class="empty-title">Linked \u2014 no sleep data yet</p>' +
-                '<p class="empty-desc">Once your SparkyFitness sleep syncs, your nights will appear here.</p>';
+            none.innerHTML = window.emptyStateHTML({
+                icon: 'fa-moon',
+                title: 'Linked to SparkyFitness - no sleep yet',
+                desc: 'Once your SparkyFitness sleep syncs, your nights will appear here with a sleep score and XP.',
+                hint: '8+ hours earns the most Recovery XP.',
+                secondary: true
+            });
             content.appendChild(none);
             return;
         }

@@ -111,7 +111,13 @@
                 '<div class="text-xs text-slate-400 font-semibold mt-1">Terrain: ' + esc(gym.terrain) + '</div>' +
                 '</div>';
         } else {
-            html += '<p class="text-xs text-slate-500 font-semibold mb-2">You have no Gym yet. Claim one below (then equip gear in your Loadout).</p>';
+            html += window.emptyStateHTML({
+                icon: 'fa-flag',
+                title: 'No gym yet',
+                desc: 'Claim one below, then equip gear in your Loadout to defend it.',
+                hint: 'Terrain matches the element you defend.',
+                secondary: true
+            });
         }
 
         // Rebuild defense form (always shown so players can update terrain/name).
@@ -142,7 +148,13 @@
         html += '<h3 class="text-white font-black mb-2"><i class="fa-solid fa-fire text-red-400"></i> Attackable Gyms</h3>';
         var attackable = data.attackable || [];
         if (!attackable.length) {
-            html += '<p class="text-xs text-slate-500 font-semibold mb-4">No enemy gyms to attack yet.</p>';
+            html += window.emptyStateHTML({
+                icon: 'fa-fire',
+                title: 'No enemy gyms to attack yet',
+                desc: 'Gyms you can attack appear here once rivals take turf in your territory.',
+                hint: 'Consistency and gear decide every fight.',
+                secondary: true
+            });
         } else {
             html += '<div class="grid grid-cols-1 gap-3 mb-4">';
             attackable.forEach(function (g) {

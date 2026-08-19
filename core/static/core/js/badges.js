@@ -86,8 +86,12 @@
 
         var badges = data.badges || [];
         if (!badges.length) {
-            content.innerHTML = '<div class="nutrition-empty"><p class="empty-title">No badges configured.</p>' +
-                '<p class="empty-desc">An admin can add badges under "Badge defs" in the Django admin.</p></div>';
+            content.innerHTML = window.emptyStateHTML({
+                icon: 'fa-medal',
+                title: 'No badges configured',
+                desc: 'An admin can add badges under "Badge defs" in the Django admin.',
+                secondary: true
+            });
             return;
         }
 

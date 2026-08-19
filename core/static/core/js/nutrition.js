@@ -66,6 +66,14 @@
         // Not linked, or no data at all -> show the Link-Sparky CTA.
         if (!data.linked || (!data.today && !(data.history && data.history.length))) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-apple-whole',
+                title: 'No nutrition data yet',
+                desc: 'Link SparkyFitness to start tracking your macros and hitting your protein goals.',
+                hint: 'Nutrition XP flows in once your food syncs.',
+                ctaText: 'Link SparkyFitness',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
             return;
         }

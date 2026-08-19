@@ -344,6 +344,10 @@ class PlayerProfile(models.Model):
     total_conquests = models.PositiveIntegerField(default=0)
     pvp_wins = models.PositiveIntegerField(default=0)
     pvp_losses = models.PositiveIntegerField(default=0)
+    onboarded = models.BooleanField(
+        default=False,
+        help_text="Guided first-flight onboarding completed (docs/17 #91).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -545,6 +549,14 @@ class BattleLog(models.Model):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="battle_logs")
     campaign = models.CharField(max_length=20, choices=Campaign.choices)
+    boss = models.ForeignKey(
+        CampaignBoss,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="battle_logs",
+        help_text="The specific boss this attack hit (docs/17 #33/#34 sieges).",
+    )
     date = models.DateField()
     base_damage = models.BigIntegerField(default=0)
     gear_multiplier = models.FloatField(default=1.0)

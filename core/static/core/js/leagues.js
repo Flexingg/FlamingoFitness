@@ -9,10 +9,24 @@
     'use strict';
 
     var LEAGUES_URL = '/api/v1/leagues/';
+    var WEEKLY_URL = '/api/v1/leaderboard/weekly';
     var CHALLENGES_URL = '/api/v1/challenges/';
     var SOCIAL_URL = '/api/v1/social/';
     var currentTab = 'leaderboard';
     var lastSocial = null;
+    // Like-with-like leaderboard filter (docs/17 #17): the modality kinds the
+    // Board tab can isolate. "all" = the normal asymmetric weekly league board.
+    // Values mirror Modality in core/models.py (endurance is surfaced as "Cardio"
+    // to match the brainstorm's "only cardio" wording).
+    var KIND_FILTERS = [
+        { value: 'all', label: 'All', icon: 'fa-ranking-star' },
+        { value: 'strength', label: 'Strength', icon: 'fa-dumbbell' },
+        { value: 'endurance', label: 'Cardio', icon: 'fa-heart-pulse' },
+        { value: 'nutrition', label: 'Nutrition', icon: 'fa-apple-whole' },
+        { value: 'hydration', label: 'Hydration', icon: 'fa-droplet' },
+        { value: 'recovery', label: 'Recovery', icon: 'fa-bed' }
+    ];
+    var currentKind = 'all';
     var DEFAULT_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
 
     // Blank/empty avatars fall back to the cartoon default; onerror guards
@@ -144,13 +158,10 @@
         currentTab = tab;
         tabButton(tab);
         if (tab === 'leaderboard') {
-            setContent('<p class="loading-hint"><i class="fa-solid fa-spinner fa-spin"></i> Loading league...</p>');
-            fetch(LEAGUES_URL, { credentials: 'same-origin' })
-                .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
-                .then(renderLeaderboard)
-                .catch(function (err) {
-                    setContent('<p class="error-hint">Could not load leagues (error ' + err + ').</p>');
-                });
+            // Like-with-like kind filter (docs/17 #17): route the Board tab
+            // through the current kind selection (defaults to the asymmetric
+            // "all" league board, but remembers the last chosen modality).
+            switchLeagueKind(currentKind);
         } else if (tab === 'challenges') {
             setContent('<p class="loading-hint"><i class="fa-solid fa-spinner fa-spin"></i> Loading challenge...</p>');
             fetch(CHALLENGES_URL, { credentials: 'same-origin' })
@@ -175,8 +186,84 @@
             });
     }
 
-    // ---- Leaderboard (GET /api/v1/leagues/) ----
+    // ---- Leaderboard (GET /api/v1/leagues/ + like-with-like ?kind=) ----
     var MEDALS = { 1: '\uD83E\uDD47', 2: '\uD83E\uDD48', 3: '\uD83E\uDD49' };
+
+    function kindLabel(value) {
+        for (var i = 0; i < KIND_FILTERS.length; i++) {
+            if (KIND_FILTERS[i].value === value) return KIND_FILTERS[i].label;
+        }
+        return value;
+    }
+
+    // Pill row of modality kinds (docs/17 #17). Reuses the .leagues-tabs slates
+    // so no new CSS is needed; rendered above both the asymmetric board and the
+    // like-with-like boards so a user can switch freely between them.
+    function kindFilterRow() {
+        return '<div class="leader-kind-filters leagues-tabs flex bg-slate-800 rounded-2xl p-1.5 mb-4 border border-slate-600 shadow-inner">' +
+            KIND_FILTERS.map(function (k) {
+                return '<button class="leagues-tab flex-1 py-2 text-xs font-bold rounded-xl transition-all' +
+                    (k.value === currentKind ? ' active' : '') + '" data-kind="' + k.value +
+                    '" onclick="switchLeagueKind(\'' + k.value + '\')">' +
+                    '<i class="fa-solid ' + k.icon + ' mr-1"></i>' + esc(k.label) + '</button>';
+            }).join('') +
+            '</div>';
+    }
+
+    // Switch the Board tab between the asymmetric league board ("all") and a
+    // single-modality like-with-like board via GET /api/v1/leaderboard/weekly?kind=.
+    window.switchLeagueKind = function (kind) {
+        currentKind = kind;
+        tabButton('leaderboard');
+        if (kind === 'all') {
+            setContent('<p class="loading-hint"><i class="fa-solid fa-spinner fa-spin"></i> Loading league...</p>');
+            fetch(LEAGUES_URL, { credentials: 'same-origin' })
+                .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
+                .then(renderLeaderboard)
+                .catch(function (err) {
+                    setContent('<p class="error-hint">Could not load leagues (error ' + err + ').</p>');
+                });
+            return;
+        }
+        setContent('<p class="loading-hint"><i class="fa-solid fa-spinner fa-spin"></i> Loading ' +
+            esc(kindLabel(kind)) + ' leaderboard...</p>');
+        fetch(WEEKLY_URL + '?kind=' + encodeURIComponent(kind), { credentials: 'same-origin' })
+            .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
+            .then(renderKindBoard)
+            .catch(function (err) {
+                setContent('<p class="error-hint">Could not load the ' + esc(kindLabel(kind)) +
+                    ' leaderboard (error ' + err + ').</p>');
+            });
+    };
+
+    // Like-with-like board (docs/17 #17): rolling 7-day XP for ONE modality, so
+    // users compare effort apples-to-apples instead of against a mixed XP dump.
+    function renderKindBoard(data) {
+        var html = kindFilterRow();
+        html += '<div class="league-week-card">' +
+            '<div class="league-week-title"><i class="fa-solid fa-heart-pulse"></i> ' +
+            esc(kindLabel(data.kind)) + ' leaderboard</div>' +
+            '<div class="league-week-range">Rolling ' + (data.window_days || 7) +
+            ' days \u00b7 compare ' + esc(kindLabel(data.kind)).toLowerCase() +
+            ' effort - like-with-like play.</div></div>';
+        html += '<div class="league-board">';
+        (data.leaderboard || []).forEach(function (row) {
+            var medal = MEDALS[row.rank] || ('#' + row.rank);
+            html += '<div class="league-row">' +
+                '<span class="league-rank">' + medal + '</span>' +
+                avatarImg('league-avatar', row.avatar) +
+                '<span class="league-name">' + esc(row.username) + '</span>' +
+                '<span class="league-xp">' + row.total_xp + ' XP</span>' +
+                '</div>';
+        });
+        html += '</div>';
+        if (!(data.leaderboard || []).length) {
+            html += '<p class="league-empty-hint"><i class="fa-solid fa-bullhorn"></i> ' +
+                'No ' + esc(kindLabel(data.kind)).toLowerCase() +
+                ' XP logged in the last 7 days - get training to claim a spot!</p>';
+        }
+        setContent(html);
+    }
 
     function tierChip(tier) {
         return '<span class="tier-chip tier-' + esc(tier) + '">' +
@@ -184,7 +271,7 @@
     }
 
     function renderLeaderboard(data) {
-        var html = '';
+        var html = kindFilterRow();
         var week = data.week || {};
         html += '<div class="league-week-card">' +
             '<div class="league-week-title"><i class="fa-solid fa-shield-halved"></i> Weekly League</div>' +
@@ -233,12 +320,12 @@
     // ---- Challenges (GET /api/v1/challenges/) ----
     function renderChallenges(data) {
         if (!data.challenge) {
-            setContent(
-                '<div class="nutrition-empty">' +
-                '<div class="empty-icon"><i class="fa-solid fa-fire-flame-curved"></i></div>' +
-                '<p class="empty-title">No active challenge.</p>' +
-                '<p class="empty-desc">Check back soon - a new community challenge is on its way.</p>' +
-                '</div>');
+            setContent(window.emptyStateHTML({
+                icon: 'fa-fire-flame-curved',
+                title: 'No active challenge',
+                desc: 'Check back soon - a new community challenge is on its way.',
+                hint: 'Challenges give the whole league a shared weekly goal.'
+            }));
             return;
         }
         var c = data.challenge;

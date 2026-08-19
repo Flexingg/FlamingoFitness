@@ -149,15 +149,32 @@ state. Response:
 
 GET /api/v1/leaderboard/weekly
 
-Returns the asymmetric XP leaderboard.
+Returns the asymmetric XP leaderboard over the rolling 7-day window. An
+optional `?kind=<modality>` query param (a `Modality` value: `strength`,
+`endurance`, `nutrition`, `hydration`, `recovery`) restricts the board to a
+single modality so users can compare like-with-like effort (docs/17 #17). An
+unknown `kind` returns `400` with `{"error": "..."}`.
+
 Response:
 
 {
   "leaderboard": [
-    {"username": "player1", "total_xp": 450, "avatar": "/img/a1.png"},
-    {"username": "housemate", "total_xp": 320, "avatar": "/img/a2.png"}
+    {"rank": 1, "username": "player1", "total_xp": 450, "avatar": "/img/a1.png"},
+    {"rank": 2, "username": "housemate", "total_xp": 320, "avatar": "/img/a2.png"}
+  ],
+  "window_days": 7,
+  "kind": "endurance",
+  "kinds": [
+    {"value": "strength", "label": "Strength"},
+    {"value": "endurance", "label": "Endurance"},
+    {"value": "nutrition", "label": "Nutrition"},
+    {"value": "hydration", "label": "Hydration"},
+    {"value": "recovery", "label": "Recovery"}
   ]
 }
+
+`kinds` is always present (the list of filterable modalities); `kind` is the
+applied filter (`"all"` when no `?kind=` is given).
 
 Integration APIs (Webhooks)
 

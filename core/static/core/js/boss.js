@@ -63,20 +63,28 @@
 
         if (!data.linked_liftosaur) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-crown',
+                title: 'Link Liftosaur',
+                desc: 'Challenge the PR Bosses once you link Liftosaur and track your lifts.',
+                hint: 'PR bosses compare your best lift to a bodyweight benchmark.',
+                ctaText: 'Link Liftosaur',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
-            empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-crown"></i></div>' +
-                '<p class="empty-title">Link Liftosaur</p>' +
-                '<p class="empty-desc">Challenge the PR Bosses once you link Liftosaur and track your lifts.</p>' +
-                '<a href="/profile/" class="btn-flamingo">Link Liftosaur</a>';
             return;
         }
         if (!data.bodyweight) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-weight-scale',
+                title: 'Linked to Liftosaur, but no bodyweight yet',
+                desc: 'Boss goals are based on your bodyweight. Track it in SparkyFitness and it will show up here.',
+                hint: 'Your best lift is compared against a multiple of your weight.',
+                ctaText: 'Link SparkyFitness',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
-            empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-weight-scale"></i></div>' +
-                '<p class="empty-title">Linked \u2014 no bodyweight yet</p>' +
-                '<p class="empty-desc">Boss goals are based on your bodyweight. Track it in SparkyFitness and it will show up here.</p>' +
-                '<a href="/profile/" class="btn-flamingo">Link SparkyFitness</a>';
             return;
         }
 
@@ -146,8 +154,12 @@
         if (!data.bosses || !data.bosses.length) {
             var none = document.createElement('div');
             none.className = 'nutrition-empty';
-            none.innerHTML = '<p class="empty-title">No bosses configured yet.</p>' +
-                '<p class="empty-desc">An admin can add PR Boss benchmarks in the Django admin.</p>';
+            none.innerHTML = window.emptyStateHTML({
+                icon: 'fa-flag-checkered',
+                title: 'No PR bosses configured yet',
+                desc: 'An admin can add PR Boss benchmarks in the Django admin.',
+                secondary: true
+            });
             content.appendChild(none);
             return;
         }

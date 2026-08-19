@@ -281,7 +281,7 @@ class CampaignProgressAdmin(admin.ModelAdmin):
 
 @admin.register(BattleLog)
 class BattleLogAdmin(admin.ModelAdmin):
-    list_display = ("user", "campaign", "date", "base_damage", "total_damage", "boss_heal", "tokens_won")
+    list_display = ("user", "campaign", "boss", "date", "base_damage", "total_damage", "boss_heal", "tokens_won")
     list_filter = ("campaign",)
     search_fields = ("user__username",)
 

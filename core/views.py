@@ -46,6 +46,8 @@ from .services import (
     attack_boss as combat_attack_boss,
     attack_gym as combat_attack_gym,
     avatar_url,
+    battle_history as combat_battle_history,
+    battle_leaderboard as combat_battle_leaderboard,
     battle_state as combat_battle_state,
     challenge_state,
     compute_readiness,
@@ -808,6 +810,28 @@ def battle_attack(request):
 
 
 @login_required
+def battle_leaderboard(request, campaign):
+    """GET /battle/leaderboard/<campaign> - docs/17 #33: rank siege damage dealt
+    to the current boss among the user's friends / flock."""
+    campaign = str(campaign or "").strip()
+    valid = [c for c, _ in CampaignBoss._meta.get_field("campaign").choices]
+    if campaign not in valid:
+        return _json_error("Invalid campaign.", 400)
+    return JsonResponse(combat_battle_leaderboard(request.user, campaign))
+
+
+@login_required
+def battle_history(request, campaign):
+    """GET /battle/history/<campaign> - docs/17 #34: browsable siege kill
+    timeline / diary (conquests + halved bosses) for one campaign."""
+    campaign = str(campaign or "").strip()
+    valid = [c for c, _ in CampaignBoss._meta.get_field("campaign").choices]
+    if campaign not in valid:
+        return _json_error("Invalid campaign.", 400)
+    return JsonResponse(combat_battle_history(request.user, campaign))
+
+
+@login_required
 def shop_state(request):
     """GET /shop/state - packs + owned gear buckets + wallet."""
     profile_obj = combat_profile(request.user)
@@ -1133,6 +1157,7 @@ def dashboard_state(request):
                 "streak": user.streak,
                 "avatar": avatar_url(user),
             },
+            "onboarded": bool(profile_obj.onboarded),
             "resources": wallet_dump(profile_obj),
             "readiness": {
                 "score": readiness.score,
@@ -1144,27 +1169,70 @@ def dashboard_state(request):
     )
 
 
-def leaderboard_weekly(request):
-    """GET /api/v1/leaderboard/weekly (Step 17).
+@login_required
+@require_POST
+def complete_onboarding(request):
+    """POST /api/v1/onboarded - mark the guided first-flight tour as done.
 
-    Aggregates XPLedger over the rolling 7-day window per user.
+    Idempotent: setting ``onboarded`` to True is a no-op if it is already set.
+    Called from dashboard.js when the user finishes or skips the onboarding
+    walkthrough (docs/17 #91).
+    """
+    profile_obj = combat_profile(request.user)
+    if not profile_obj.onboarded:
+        profile_obj.onboarded = True
+        profile_obj.save(update_fields=["onboarded"])
+    return JsonResponse({"ok": True, "onboarded": True})
+
+
+def leaderboard_weekly(request):
+    """GET /api/v1/leaderboard/weekly (Step 17) + like-with-like filter (docs/17 #17).
+
+    Aggregates XPLedger over the rolling 7-day window per user. An optional
+    ``?kind=`` query param (a ``Modality`` value, e.g. ``endurance``) restricts
+    the board to a single modality so users can compare like-with-like effort
+    (only strength, only cardio, only hydration, etc.). An unknown ``kind``
+    returns a 400 so a mistyped filter never silently shows the whole board.
     """
     since = timezone.now() - timedelta(days=7)
+    qs = XPLedger.objects.filter(created_at__gte=since)
+
+    kinds = [{"value": value, "label": label} for value, label in Modality.choices]
+    kind = request.GET.get("kind", "").strip().lower()
+    if kind:
+        valid = dict(Modality.choices)
+        if kind not in valid:
+            return JsonResponse(
+                {
+                    "error": f"Invalid kind '{kind}'. Choose from "
+                    f"{[k['value'] for k in kinds]}."
+                },
+                status=400,
+            )
+        qs = qs.filter(modality=kind)
+
     rows = (
-        XPLedger.objects.filter(created_at__gte=since)
-        .values("user__username", "user__avatar")
+        qs.values("user__username", "user__avatar")
         .annotate(total_xp=Sum("amount"))
         .order_by("-total_xp")
     )
     leaderboard = [
         {
+            "rank": index,
             "username": row["user__username"],
             "avatar": row["user__avatar"],
             "total_xp": row["total_xp"],
         }
-        for row in rows
+        for index, row in enumerate(rows, start=1)
     ]
-    return JsonResponse({"leaderboard": leaderboard, "window_days": 7})
+    return JsonResponse(
+        {
+            "leaderboard": leaderboard,
+            "window_days": 7,
+            "kind": kind or "all",
+            "kinds": kinds,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

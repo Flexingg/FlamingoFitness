@@ -62,19 +62,27 @@
 
         if (!data.linked) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-dumbbell',
+                title: 'Link Liftosaur',
+                desc: 'No strength data yet. Connect Liftosaur to track your lifting volume.',
+                hint: 'Lifting volume, sets and reps earn Strength XP.',
+                ctaText: 'Link Liftosaur',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
-            empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-dumbbell"></i></div>' +
-                '<p class="empty-title">Link Liftosaur</p>' +
-                '<p class="empty-desc">No strength data yet. Connect Liftosaur to track your lifting volume.</p>' +
-                '<a href="/profile/" class="btn-flamingo">Link Liftosaur</a>';
             return;
         }
         if (!data.today && !(data.history && data.history.length)) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-sync-alt',
+                title: 'Linked to Liftosaur, waiting for workouts',
+                desc: 'Once your Liftosaur workouts sync, your volume and XP will appear here. PRs live in the PR Boss panel.',
+                hint: 'Log a session in Liftosaur, then come back to claim your XP.',
+                secondary: true
+            });
             empty.classList.remove('hidden');
-            empty.innerHTML = '<div class="empty-icon"><i class="fa-solid fa-spinner fa-spin"></i></div>' +
-                '<p class="empty-title">Linked \u2014 no workouts yet</p>' +
-                '<p class="empty-desc">Once your Liftosaur workouts sync, your volume and XP will appear here. PRs live in the PR Boss panel.</p>';
             return;
         }
 

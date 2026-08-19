@@ -185,6 +185,10 @@ class Command(BaseCommand):
         if profile_player.scraps < 60:
             profile_player.scraps = 60
             profile_player.save(update_fields=["scraps"])
+        # Demo users skip the guided first-flight onboarding walkthrough (docs/17 #91).
+        if not profile_player.onboarded:
+            profile_player.onboarded = True
+            profile_player.save(update_fields=["onboarded"])
 
         # Gyms for both demo users so PvP is alive on first boot.
         for u, nm in ((player, "Flamingo Arena"), (admin, "Iron Roost Gym")):

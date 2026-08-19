@@ -183,9 +183,14 @@
         var itemCount = (owned || []).length;
         html += '<h3 class="text-white font-black mt-6 mb-2"><i class="fa-solid fa-boxes-stacked text-indigo-400"></i> Inventory (' + itemCount + ')</h3>';
         if (!itemCount) {
-            html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 text-sm text-slate-300 font-semibold">' +
-                '<p class="mb-1"><i class="fa-solid fa-circle-info text-indigo-400"></i> Your inventory is empty.</p>' +
-                '<p class="text-slate-400">Head to the <button type="button" onclick="window.loadShop && window.loadShop(); return false;" class="text-indigo-400 font-black underline hover:text-indigo-300">Shop (the Game button)</button> and pull a pack to haul in new gear, then come back here to equip it.</p></div>';
+            html += window.emptyStateHTML({
+                icon: 'fa-box-open',
+                title: 'Your inventory is empty',
+                desc: 'Pull a pack in the Shop to haul in new gear, then come back here to equip it.',
+                hint: 'Tokens buy packs. Packs drop gear.',
+                ctaText: 'Open the Shop',
+                ctaOnClick: 'window.loadShop && window.loadShop(); return false;'
+            });
         } else {
             html += '<div class="flex flex-col gap-3">';
             SLOT_ORDER.forEach(function (slot) {

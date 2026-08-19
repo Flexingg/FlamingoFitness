@@ -175,7 +175,13 @@
             packs.forEach(function (p) { html += renderPackCard(p); });
             html += '</div>';
         } else {
-            html += '<p class="text-sm text-slate-500 font-semibold">No packs in this category yet.</p>';
+            html += window.emptyStateHTML({
+                icon: 'fa-box-open',
+                title: 'No packs in this category yet',
+                desc: 'Open packs to pull gear that boosts your damage and stats.',
+                hint: 'Pack line-ups rotate regularly - check back soon.',
+                secondary: true
+            });
         }
 
         var owned = data.owned || {};

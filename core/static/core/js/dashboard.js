@@ -267,6 +267,13 @@
         document.getElementById('loading-hint').classList.add('hidden');
         document.getElementById('skill-tree').classList.remove('hidden');
 
+        // First-flight onboarding (docs/17 #91): show the walkthrough for any
+        // account that has not completed it yet. Demo users are pre-marked
+        // onboarded in create_demo_accounts so they never see it.
+        if (data.onboarded === false && window.startOnboarding) {
+            window.startOnboarding();
+        }
+
     }
 
     // ---- Simple modal helpers ----
@@ -367,10 +374,210 @@
     };
 
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && document.getElementById('help-bubble')) {
-            window.closeHelpBubble();
+        if (e.key === 'Escape') {
+            if (document.getElementById('help-bubble')) window.closeHelpBubble();
+            if (document.getElementById('onboarding-overlay')) window.finishOnboarding();
         }
     });
+
+    // ---- Shared empty-state component (docs/17 #92) ----
+    // Builds a consistent "why no data + what to do" card with an optional CTA.
+    // Most panel controllers call window.showEmptyState() in their render*()
+    // empty branches; string-building controllers use window.emptyStateHTML().
+    function csrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        return m ? m.content : '';
+    }
+    window.csrfToken = csrfToken;
+
+    window.emptyStateHTML = function (opts) {
+        opts = opts || {};
+        var ctaHtml = '';
+        if (opts.ctaText) {
+            var cls = 'empty-state-cta' + (opts.secondary ? ' secondary' : '');
+            if (typeof opts.ctaAction === 'function') {
+                ctaHtml = '<button type="button" class="' + cls + '" data-empty-cta="1">' + escHtml(opts.ctaText) + '</button>';
+            } else if (opts.ctaOnClick) {
+                ctaHtml = '<button type="button" class="' + cls + '" onclick="' + opts.ctaOnClick + '">' + escHtml(opts.ctaText) + '</button>';
+            } else if (opts.ctaHref) {
+                ctaHtml = '<a href="' + escHtml(opts.ctaHref) + '" class="' + cls + '">' + escHtml(opts.ctaText) + '</a>';
+            }
+        }
+        return '<div class="empty-state">' +
+            (opts.icon ? '<div class="empty-state-icon"><i class="fa-solid ' + escHtml(opts.icon) + '"></i></div>' : '') +
+            (opts.title ? '<p class="empty-state-title">' + escHtml(opts.title) + '</p>' : '') +
+            (opts.desc ? '<p class="empty-state-desc">' + escHtml(opts.desc) + '</p>' : '') +
+            (opts.hint ? '<p class="empty-state-hint">' + escHtml(opts.hint) + '</p>' : '') +
+            ctaHtml + '</div>';
+    };
+
+    // Inject the empty-state card into a container (typically the *-empty divs).
+    // When opts.ctaAction is a function it is bound to the rendered CTA button.
+    window.showEmptyState = function (el, opts) {
+        if (!el) return;
+        opts = opts || {};
+        el.innerHTML = window.emptyStateHTML(opts);
+        if (typeof opts.ctaAction === 'function') {
+            var btn = el.querySelector('[data-empty-cta]');
+            if (btn) btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                opts.ctaAction();
+            });
+        }
+    };
+
+    var onboardingShown = false;
+    var onboardingEl = null;
+    var onboardingIndex = 0;
+
+    var ONBOARDING_STEPS = [
+        {
+            icon: 'fa-seedling',
+            kicker: 'Welcome to Flamingo Fitness',
+            title: 'Your training, turned into a game',
+            desc: 'Everything you already do - lifting, cardio, nutrition, hydration and sleep - earns XP for your skill trees. This is the loop you will be living in.',
+            hint: 'Five skill trees. One daily loop.'
+        },
+        {
+            icon: 'fa-sitemap',
+            kicker: '1 / Skill trees',
+            title: 'Train hard, level up',
+            desc: 'Each modality is its own skill tree. Log a workout, drink water or hit your macros and you earn XP toward the next level of that tree.',
+            hint: 'Tap any colored node on the home screen.'
+        },
+        {
+            icon: 'fa-dice-d6',
+            kicker: '2 / Tokens & loot',
+            title: 'Spend tokens, pull gear',
+            desc: 'Earned XP can turn into tokens. Open packs in the Shop (the Game button) to pull gear that boosts your damage and stats.',
+            hint: 'Tokens buy packs. Packs drop gear.',
+            ctaText: 'Open the Shop',
+            action: 'shop'
+        },
+        {
+            icon: 'fa-dragon',
+            kicker: '3 / Sieges',
+            title: 'Beat the campaign bosses',
+            desc: 'Use stamina to attack PvE siege bosses. Your daily activity provides the damage and your loadout multiplies it.',
+            hint: 'Each attack costs 1 stamina.',
+            ctaText: 'Open the Battle',
+            action: 'battle'
+        },
+        {
+            icon: 'fa-shield-halved',
+            kicker: '4 / PvP',
+            title: 'Claim and defend gyms',
+            desc: 'Take rival gyms, hold the turf and climb the ladder. Consistency and gear decide every fight.',
+            hint: 'You are all set. Go train!',
+            ctaText: 'Open PvP',
+            action: 'pvp'
+        }
+    ];
+    // ---- Guided first-flight onboarding (docs/17 #91) ----
+    // A walkthrough modal sequence built on .modal-overlay/.modal-content
+    // (styled in dashboard.css). ONBOARDING_STEPS drive the copy; steps with an
+    // `action` deep-link to that REAL panel so first-time users touch the Shop,
+    // Battle and PvP screens before the tour ends.
+
+    function onboardingActionMap(name) {
+        var map = { shop: 'loadShop', battle: 'loadBattle', pvp: 'loadPvP' };
+        return map[name] || null;
+    }
+
+    function renderOnboardingOverlay() {
+        if (!onboardingEl) return;
+        if (onboardingIndex < 0 || onboardingIndex >= ONBOARDING_STEPS.length) return;
+        var step = ONBOARDING_STEPS[onboardingIndex];
+        var last = onboardingIndex === ONBOARDING_STEPS.length - 1;
+
+        var dotsHtml = '';
+        for (var d = 0; d < ONBOARDING_STEPS.length; d++) {
+            dotsHtml += '<span class="onboarding-dot' + (d === onboardingIndex ? ' active' : '') + '" aria-hidden="true"></span>';
+        }
+
+        var bodyHtml = '<div class="onboarding-card">' +
+            '<div class="onboarding-icon"><i class="fa-solid ' + escHtml(step.icon || 'fa-dice-d6') + '"></i></div>' +
+            '<div class="onboarding-kicker">' + escHtml(step.kicker || '') + '</div>' +
+            '<div class="onboarding-title">' + escHtml(step.title || '') + '</div>' +
+            '<div class="onboarding-desc">' + escHtml(step.desc || '') +
+            (step.hint ? '<br><br><i>' + escHtml(step.hint) + '</i>' : '') + '</div>' +
+            '<div class="onboarding-dots">' + dotsHtml + '</div>';
+
+        var actionsHtml;
+        if (step.action) {
+            actionsHtml = '<div class="onboarding-actions">' +
+                '<button type="button" class="onboarding-next" id="onboarding-cta">' + escHtml(step.ctaText || 'Lets go') + '</button>' +
+                '<button type="button" class="onboarding-skip" id="onboarding-skip">Skip</button>' +
+                '</div>';
+        } else {
+            actionsHtml = '<div class="onboarding-actions">' +
+                '<button type="button" class="onboarding-next" id="onboarding-next">' + (last ? 'Finish' : 'Next') + '</button>' +
+                '<button type="button" class="onboarding-skip" id="onboarding-skip">Skip</button>' +
+                '</div>';
+        }
+
+        var body = document.getElementById('onboarding-body');
+        if (body) body.innerHTML = bodyHtml + actionsHtml;
+
+        var nextBtn = document.getElementById('onboarding-next');
+        var ctaBtn = document.getElementById('onboarding-cta');
+        var skipBtn = document.getElementById('onboarding-skip');
+        if (nextBtn) nextBtn.onclick = function () { window.advanceOnboarding(); };
+        if (skipBtn) skipBtn.onclick = function () { window.finishOnboarding(); };
+        if (ctaBtn) ctaBtn.onclick = function () {
+            var fn = onboardingActionMap(step.action);
+            if (fn && window[fn]) {
+                window[fn]();
+                setTimeout(window.advanceOnboarding, 400);
+            } else {
+                window.advanceOnboarding();
+            }
+        };
+    }
+
+    window.advanceOnboarding = function () {
+        if (onboardingIndex < ONBOARDING_STEPS.length - 1) {
+            onboardingIndex++;
+            renderOnboardingOverlay();
+        } else {
+            window.finishOnboarding();
+        }
+    };
+
+    // Persist completion (POST /api/v1/onboarded) whether the user finishes or
+    // skips, then tear down the overlay so the tour never reappears this session.
+    window.finishOnboarding = function () {
+        onboardingShown = true;
+        var overlay = document.getElementById('onboarding-overlay');
+        if (overlay) { overlay.classList.remove('show-modal'); overlay.remove(); }
+        onboardingEl = null;
+        var csrf = window.csrfToken ? window.csrfToken() : '';
+        fetch('/api/v1/onboarded', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' }
+        }).catch(function () { /* best-effort; persisted on the next load */ });
+    };
+
+    window.startOnboarding = function () {
+        if (onboardingShown || onboardingEl || !ONBOARDING_STEPS.length) return;
+        onboardingShown = true;
+        onboardingIndex = 0;
+        var overlay = document.createElement('div');
+        overlay.id = 'onboarding-overlay';
+        overlay.className = 'modal-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Welcome to Flamingo Fitness - guided tour');
+        overlay.innerHTML = '<div class="modal-content onboarding-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto"><div id="onboarding-body"></div></div>';
+        overlay.addEventListener('click', function (e) {
+            if (e.target === overlay) window.finishOnboarding();
+        });
+        document.body.appendChild(overlay);
+        requestAnimationFrame(function () { overlay.classList.add('show-modal'); });
+        onboardingEl = overlay;
+        renderOnboardingOverlay();
+    };
 
     // ---- Path page: active campaign focus bar ----
     function focusCampaignIcon(c) {

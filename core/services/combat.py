@@ -668,6 +668,7 @@ def _resolve_attack(user, campaign, prog, now, on_date):
         p.save(update_fields=["total_conquests"])
     BattleLog.objects.create(
         user=user, campaign=campaign, date=on_date,
+        boss=prog.boss,
         base_damage=int(base), gear_multiplier=round(gear_mult, 2),
         boss_multiplier=round(vuln * buff_mult, 2),
         total_damage=total, boss_heal=heal, tokens_won=tokens_won,
@@ -773,6 +774,165 @@ def battle_state(user, now=None):
         "wallet": wallet_dump(p),
         "streak": user.streak,
         "campaigns": campaigns,
+    }
+
+
+def _campaign_peers(user):
+    """Self + friends + flockmates (docs/17 #33 per-campaign siege scope)."""
+    from .social import friends_of, membership_of
+
+    peer_ids = {user.pk}
+    for friend in friends_of(user):
+        peer_ids.add(friend.pk)
+    membership = membership_of(user)
+    if membership is not None:
+        for m in membership.flock.memberships.select_related("user"):
+            peer_ids.add(m.user.pk)
+    return peer_ids
+
+
+def battle_leaderboard(user, campaign, limit=20, now=None):
+    """docs/17 #33 - rank siege damage dealt to the *current* boss among
+    friends / flock. Uses ``BattleLog.boss`` so only damage that actually hit
+    the engaged boss counts.
+
+    Returns a ranked leaderboard (most damage first) scoped to the requester's
+    friends + flockmates (+ themselves), ready for the ``leagues.js`` rank-row
+    UI, plus the requester's own rank / damage.
+    """
+    now = now or timezone.now()
+    prog = CampaignProgress.objects.filter(user=user, campaign=campaign).first()
+    if prog is not None and prog.boss is not None:
+        boss = prog.boss
+    else:
+        boss = CampaignBoss.objects.filter(
+            campaign=campaign, is_active=True
+        ).order_by("sort_order", "id").first()
+    if boss is None:
+        return {
+            "campaign": campaign,
+            "label": Campaign(campaign).label,
+            "boss": None,
+            "leaderboard": [],
+            "my_rank": None,
+            "my_damage": 0,
+            "peer_count": 0,
+        }
+
+    peer_ids = _campaign_peers(user)
+    rows = list(
+        BattleLog.objects.filter(boss=boss, user_id__in=peer_ids)
+        .values("user_id", "user__username", "user__avatar")
+        .annotate(damage=Sum("total_damage"))
+        .order_by("-damage")
+    )
+
+    leaderboard = []
+    my_rank = None
+    my_damage = 0
+    for idx, row in enumerate(rows):
+        is_you = row["user_id"] == user.pk
+        # Ties share a rank; otherwise rank == position + 1.
+        rank = (
+            leaderboard[-1]["rank"]
+            if leaderboard and leaderboard[-1]["damage"] == row["damage"]
+            else idx + 1
+        )
+        entry = {
+            "rank": rank,
+            "username": row["user__username"],
+            "avatar": row["user__avatar"],
+            "damage": row["damage"] or 0,
+            "is_you": is_you,
+        }
+        leaderboard.append(entry)
+        if is_you:
+            my_rank = rank
+            my_damage = entry["damage"]
+    leaderboard = leaderboard[:limit]
+
+    return {
+        "campaign": campaign,
+        "label": Campaign(campaign).label,
+        "boss": {
+            "slug": boss.slug,
+            "name": boss.name,
+            "icon": boss.icon,
+        },
+        "leaderboard": leaderboard,
+        "my_rank": my_rank,
+        "my_damage": my_damage,
+        "peer_count": len(peer_ids),
+    }
+
+
+def battle_history(user, campaign):
+    """docs/17 #34 - browsable siege diary: per-boss conquest + halved milestones
+    derived from the user's ``BattleLog`` rows for a campaign.
+
+    Each boss the player has actually attacked becomes its own diary group, so a
+    "hemi" (50%-crossed) run and a completed conquest are visibly distinguishable
+    from ordinary chipping. Bosses are ordered most-recently-active first; attacks
+    within a group are chronological.
+    """
+    logs = (
+        BattleLog.objects.filter(user=user, campaign=campaign, boss__isnull=False)
+        .select_related("boss")
+        .order_by("created_at")
+    )
+    # Group logs by boss, preserving first-seen insertion order for stable sort.
+    by_boss = {}
+    for log in logs:
+        by_boss.setdefault(log.boss_id, {"boss": log.boss, "logs": []})[
+            "logs"
+        ].append(log)
+
+    bosses = []
+    for boss_id, group in by_boss.items():
+        boss = group["boss"]
+        entries = []
+        total = 0
+        halved = False
+        conquered = False
+        for log in group["logs"]:
+            total += log.total_damage
+            if not halved and boss and boss.hp_total > 0 and total >= (boss.hp_total * 0.5):
+                halved = True
+            if log.tokens_won > 0:
+                conquered = True
+            entries.append(
+                {
+                    "id": log.pk,
+                    "date": log.date.isoformat(),
+                    "total_damage": log.total_damage,
+                    "boss_heal": log.boss_heal,
+                    "tokens_won": log.tokens_won,
+                    "created_at": log.created_at.isoformat(),
+                }
+            )
+        last_activity = group["logs"][-1].created_at
+        bosses.append(
+            {
+                "boss_id": boss_id,
+                "slug": boss.slug if boss else None,
+                "name": boss.name if boss else None,
+                "icon": boss.icon if boss else None,
+                "hp_total": boss.hp_total if boss else 0,
+                "total_damage": total,
+                "halved": halved,
+                "conquered": conquered,
+                "attacks": entries,
+                "last_activity": last_activity.isoformat(),
+            }
+        )
+
+    # Most recently engaged boss first.
+    bosses.sort(key=lambda b: b["last_activity"], reverse=True)
+    # Trim verbose attack lists unless requested - keep the diary browsable.
+    return {
+        "campaign": campaign,
+        "label": Campaign(campaign).label,
+        "bosses": bosses,
     }
 
 # ---------------------------------------------------------------------------

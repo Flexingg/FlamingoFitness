@@ -16,6 +16,7 @@ from core.models import (
     CampaignBoss,
     CampaignProgress,
     DailyReadiness,
+    Friendship,
     GearItemDef,
     GearPackDef,
     Gym,
@@ -230,6 +231,62 @@ class APITests(TestCase):
         )
         self.assertEqual(resp.status_code, 201)
         self.assertTrue(resp.json()["accepted"])
+
+
+class LeaderboardKindFilterTests(TestCase):
+    """docs/17 #17 - like-with-like ``?kind=`` filter on /api/v1/leaderboard/weekly.
+
+    The leaderboard aggregates a single modality when ?kind is supplied, ignores
+    other modalities, rejects unknown kinds with 400, and advertises its kinds.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="alpha", password="pw")
+        self.other = User.objects.create_user(username="beta", password="pw")
+        # alpha: strength 100 + endurance 50; beta: endurance 80 + nutrition 30.
+        XPLedger.objects.create(user=self.user, modality="strength", amount=100, description="t")
+        XPLedger.objects.create(user=self.user, modality="endurance", amount=50, description="t")
+        XPLedger.objects.create(user=self.other, modality="endurance", amount=80, description="t")
+        XPLedger.objects.create(user=self.other, modality="nutrition", amount=30, description="t")
+
+    def _by_name(self, body):
+        return {row["username"]: row["total_xp"] for row in body["leaderboard"]}
+
+    def test_no_kind_returns_all_modalities(self):
+        resp = self.client.get("/api/v1/leaderboard/weekly")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["kind"], "all")
+        self.assertEqual(self._by_name(body), {"alpha": 150, "beta": 110})
+
+    def test_kind_filters_to_one_modality(self):
+        resp = self.client.get("/api/v1/leaderboard/weekly?kind=endurance")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["kind"], "endurance")
+        # Only endurance XP counts: alpha(50) and beta(80); neither alpha's
+        # strength(100) nor beta's nutrition(30) leaks onto the board.
+        self.assertEqual(self._by_name(body), {"alpha": 50, "beta": 80})
+
+    def test_nutrition_kind_only_counts_nutrition(self):
+        resp = self.client.get("/api/v1/leaderboard/weekly?kind=nutrition")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self._by_name(resp.json()), {"beta": 30})
+
+    def test_invalid_kind_returns_400(self):
+        resp = self.client.get("/api/v1/leaderboard/weekly?kind=bogus")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("error", resp.json())
+
+    def test_kinds_are_advertised(self):
+        body = self.client.get("/api/v1/leaderboard/weekly").json()
+        values = {k["value"] for k in body["kinds"]}
+        self.assertEqual(values, {value for value, _ in Modality.choices})
+
+    def test_rows_are_ranked(self):
+        body = self.client.get("/api/v1/leaderboard/weekly").json()
+        ranks = [row["rank"] for row in body["leaderboard"]]
+        self.assertEqual(ranks, [1, 2])  # alpha (150) first, beta (110) second
 
 
 class InsightsAPITests(TestCase):
@@ -2449,6 +2506,83 @@ class BattleFlowTests(TestCase):
         self.assertIn("stamina", err)
 
 
+class SiegeRankingTests(TestCase):
+    """docs/17 #33 (per-campaign siege leaderboard) + #34 (siege kill timeline).
+
+    The leaderboard aggregates BattleLog.total_damage against a specific boss
+    among the requester's friends/flock; the diary derives per-boss halved +
+    conquered milestones. Both only surface attacks attributed to a boss.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="sieger", password="pw")
+        self.friend = User.objects.create_user(username="sieger_friend", password="pw")
+        self.stranger = User.objects.create_user(username="sieger_stranger", password="pw")
+        Friendship.objects.create(
+            from_user=self.user, to_user=self.friend, status="accepted"
+        )
+        self.boss = CampaignBoss.objects.create(
+            campaign="strength", slug="rank_boss", name="Rank Boss",
+            hp_total=1000, element="strength", weaknesses=[], resistances=[],
+        )
+
+    def _log(self, user, damage, tokens=0, boss=None):
+        return BattleLog.objects.create(
+            user=user, campaign="strength", boss=boss or self.boss,
+            date=timezone.localdate(), total_damage=damage, tokens_won=tokens,
+        )
+
+    def test_leaderboard_ranks_friends_and_self_excludes_strangers(self):
+        self._log(self.user, 500)
+        self._log(self.friend, 700)
+        self._log(self.stranger, 900)  # not a friend / not in scope
+
+        resp = self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/battle/leaderboard/strength/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        names = [r["username"] for r in body["leaderboard"]]
+        self.assertEqual(names, ["sieger_friend", "sieger"])
+        self.assertNotIn("sieger_stranger", names)
+        self.assertEqual(body["leaderboard"][0]["damage"], 700)
+        self.assertEqual(body["my_rank"], 2)
+        self.assertEqual(body["my_damage"], 500)
+
+    def test_history_reports_halved_and_conquered(self):
+        self._log(self.user, 400)
+        self._log(self.user, 400)
+        self._log(self.user, 300, tokens=150)  # killing blow on the last attack
+
+        resp = self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/battle/history/strength/")
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(len(body["bosses"]), 1)
+        boss = body["bosses"][0]
+        self.assertEqual(boss["name"], "Rank Boss")
+        self.assertTrue(boss["halved"])
+        self.assertTrue(boss["conquered"])
+        self.assertEqual(boss["total_damage"], 1100)
+        self.assertEqual(len(boss["attacks"]), 3)
+
+    def test_history_skips_unattributed_rows(self):
+        # A legacy attack with no boss FK must not contaminate the diary.
+        BattleLog.objects.create(
+            user=self.user, campaign="strength", boss=None,
+            date=timezone.localdate(), total_damage=999,
+        )
+        resp = self.client.force_login(self.user)
+        resp = self.client.get("/api/v1/battle/history/strength/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["bosses"], [])
+
+    def test_leaderboard_auth_and_invalid_campaign(self):
+        self.assertEqual(self.client.get("/api/v1/battle/leaderboard/strength/").status_code, 302)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get("/api/v1/battle/leaderboard/bogus/").status_code, 400)
+        self.assertEqual(self.client.get("/api/v1/battle/history/bogus/").status_code, 400)
+
+
 class PvPFlowTests(TestCase):
     def setUp(self):
         self.attacker = User.objects.create_user(username="pvpatk", password="pw")
@@ -2924,5 +3058,34 @@ class Phase9CleanupTests(TestCase):
         loose_item = next(o for o in resp.json()["owned"] if o["slug"] == "loose_item")
         self.assertIsNone(loose_item["pack_name"])
         self.assertEqual(loose_item["description"], "A no-pack drop.")
+class OnboardingFlowTests(TestCase):
+    """docs/17 #91 - guided first-flight onboarding completion endpoint."""
 
+    def setUp(self):
+        self.user = User.objects.create_user(username="onb", password="pw")
+        self.client.login(username="onb", password="pw")
 
+    def test_onboarding_starts_unset_and_completes_idempotently(self):
+        # A fresh account has the flag off and it is reported to the dashboard.
+        r = self.client.get("/api/v1/dashboard/state")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json()["onboarded"])
+
+        # Finishing / skipping the walkthrough flips the flag on.
+        r = self.client.post("/api/v1/onboarded")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["onboarded"])
+
+        # The dashboard now reflects it so the tour will not re-trigger.
+        r = self.client.get("/api/v1/dashboard/state")
+        self.assertTrue(r.json()["onboarded"])
+
+        # Setting it again is a no-op (idempotent server-side).
+        r = self.client.post("/api/v1/onboarded")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["onboarded"])
+
+    def test_onboarding_requires_login(self):
+        self.client.logout()
+        r = self.client.post("/api/v1/onboarded")
+        self.assertIn(r.status_code, (302, 403))

@@ -63,6 +63,8 @@ from .combat import (  # noqa: F401
     award_tokens,
     additive_bonus,
     base_damage_for,
+    battle_history,
+    battle_leaderboard,
     battle_state,
     boss_vulnerability,
     bulk_price,

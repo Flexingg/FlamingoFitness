@@ -63,6 +63,14 @@
         // Not linked, or no data at all -> show the Link-Sparky CTA.
         if (!data.linked || (!data.today && !(data.history && data.history.length))) {
             content.classList.add('hidden');
+            window.showEmptyState(empty, {
+                icon: 'fa-glass-water',
+                title: 'No hydration data yet',
+                desc: 'Link SparkyFitness to start tracking your water intake and hit your daily goal.',
+                hint: 'Every glass you log moves your Hydration skill tree.',
+                ctaText: 'Link SparkyFitness',
+                ctaHref: '/profile/'
+            });
             empty.classList.remove('hidden');
             return;
         }

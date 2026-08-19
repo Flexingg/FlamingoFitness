@@ -1394,3 +1394,170 @@ body {
     border-radius: 16px;
 }
 
+/* ------------------------------------------------------------------
+   Consistent empty states (docs/17 #92) - shared by every panel.
+   A single, theme-aware "why no data + what to do" component driven
+   by window.showEmptyState() / window.emptyStateHTML() in dashboard.js.
+   ------------------------------------------------------------------ */
+.empty-state {
+    text-align: center;
+    padding: 26px 18px;
+    margin-top: 12px;
+    background: var(--bg-light);
+    border: 2px dashed var(--border-color);
+    border-radius: 20px;
+}
+.empty-state-icon {
+    width: 64px; height: 64px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem;
+    color: var(--text-muted);
+    background: var(--bg-card, var(--bg-light));
+    border: 2px solid var(--border-color);
+    box-shadow: inset 0 0 0 3px var(--bg-light);
+}
+.empty-state-title {
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+.empty-state-desc {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+.empty-state-hint {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    opacity: 0.8;
+    margin-bottom: 14px;
+}
+.empty-state-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 12px 20px;
+    border-radius: 16px;
+    border-bottom: 4px solid var(--border-color);
+    background: linear-gradient(135deg, var(--primary-orange, #FF5E9A), var(--primary-pink, #FF5E9A));
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.92rem;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.45);
+}
+.empty-state-cta:hover {
+    filter: brightness(1.08);
+}
+.empty-state-cta:active {
+    border-bottom-width: 0;
+    transform: translateY(2px);
+}
+/* Secondary / muted CTA for admin/config notes (never the primary Link). */
+.empty-state-cta.secondary {
+    background: var(--bg-light);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+    border-bottom: 4px solid var(--border-color);
+    box-shadow: none;
+}
+
+/* ------------------------------------------------------------------
+   Guided first-flight onboarding modal (docs/17 #91).
+   Built dynamically by dashboard.js; reuses .modal-overlay/.modal-content.
+   ------------------------------------------------------------------ */
+.onboarding-card {
+    text-align: center;
+    padding: 6px 4px;
+}
+.onboarding-icon {
+    width: 84px; height: 84px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.2rem;
+    background: linear-gradient(135deg, var(--primary-orange, #FF5E9A), var(--primary-pink, #FF5E9A));
+    color: #fff;
+    box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.5);
+}
+.onboarding-kicker {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.7rem;
+    font-weight: 900;
+    color: var(--primary-orange, #FF5E9A);
+    margin-bottom: 6px;
+}
+.onboarding-title {
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--text-main);
+    margin-bottom: 10px;
+    line-height: 1.25;
+}
+.onboarding-desc {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    line-height: 1.45;
+}
+.onboarding-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.onboarding-dot {
+    width: 8px; height: 8px;
+    border-radius: 999px;
+    background: var(--border-color);
+    transition: all 0.2s ease;
+}
+.onboarding-dot.active {
+    width: 22px;
+    background: linear-gradient(135deg, var(--primary-orange, #FF5E9A), var(--primary-pink, #FF5E9A));
+}
+.onboarding-actions {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+.onboarding-skip {
+    flex: 1;
+    padding: 12px 10px;
+    border-radius: 14px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.onboarding-next {
+    flex: 2;
+    padding: 12px 10px;
+    border-radius: 14px;
+    border: none;
+    border-bottom: 4px solid var(--border-color);
+    background: linear-gradient(135deg, var(--primary-orange, #FF5E9A), var(--primary-pink, #FF5E9A));
+    color: #fff;
+    font-weight: 900;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 6px 14px -6px rgba(0, 0, 0, 0.45);
+}
+.onboarding-next:active {
+    border-bottom-width: 0;
+    transform: translateY(2px);
+}

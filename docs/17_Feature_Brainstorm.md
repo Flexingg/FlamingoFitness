@@ -163,7 +163,7 @@ recovery/shop/loadout/battle/pvp/leagues/badges/router/theme.js`,
     **Integrate:** `SkillTree` + `PlayerProfile`; a rule in `apply_to_skill_tree`
     that mints `award_tokens` once `total_xp` crosses the cap.
 
-17. **Like-with-like effort leaderboard filter** [🟡] — Alongside the asymmetric
+17. **Like-with-like effort leaderboard filter** [🟡] ✅ Implemented (docs/02, docs/14) — Alongside the asymmetric
     XP board, let users compare only strength, only cardio, only hydration, etc.
     **Integrate:** `leaderboard_weekly` gains a `kind` filter over
     `RawActivityLog` / `XPLedger.modality`; a tab in the Leagues panel.
@@ -251,9 +251,12 @@ recovery/shop/loadout/battle/pvp/leagues/badges/router/theme.js`,
     **Integrate:** a shared `CampaignProgress` (or `GlobalRaid` model) +
     `BattleLog` aggregation; a loot-distribution task.
 
-33. **Per-campaign siege leaderboards** [🟢] — Rank most damage dealt to the
-    current boss among friends/flock.
-    **Integrate:** `BattleLog` aggregation + reuse `leagues.js` rank-row UI.
+33. **Per-campaign siege leaderboards** [🟢] ✅ Implemented (docs/17 #33) — Rank most damage dealt to the
+    current boss among friends + flock.
+    **Implemented:** new nullable `BattleLog.boss` FK (migration `0013`) so damage
+    is attributed to a boss; `GET /api/v1/battle/leaderboard/{campaign}` aggregates
+    `BattleLog.total_damage` among self + friends + flockmates via `_campaign_peers`;
+    `battle.js` "Leaderboard" button reuses the `leagues.js` rank-row UI.
 
 34. **Siege kill timeline / diary** [🟢] — A browsable history of boss conquests
     and halved bosses per campaign.
@@ -566,15 +569,21 @@ recovery/shop/loadout/battle/pvp/leagues/badges/router/theme.js`,
 
 ## 10. UI/UX, theme, polish & accessibility — items 91–95
 
-91. **Guided first-flight onboarding** [🟢] — A short walkthrough explaining the
+91. **Guided first-flight onboarding** [🟢] ✅ Implemented — A short walkthrough explaining the
     loop (skill trees → tokens → loot → sieges → PvP) so new users get oriented.
     **Integrate:** a modal sequence in `dashboard.js` + an `onboarded` flag;
     reuse existing panels.
+    **Implemented:** `PlayerProfile.onboarded` (migration `0014`) + `POST /api/v1/onboarded`; a 5-step
+    modal tour in `dashboard.js` (triggered from `onboarded === false`, deep-links to the Shop / Battle
+    / PvP panels) that persists completion on finish **or** skip.
 
-92. **Consistent empty states & "why no data" hints** [🟢] — Every panel tells
+92. **Consistent empty states & "why no data" hints** [🟢] ✅ Implemented — Every panel tells
     you *why* it's empty and what to link/do (docs/04 philosophy).
     **Integrate:** each `render*` empty branch in every controller + a
     "Link X" CTA.
+    **Implemented:** the shared `window.showEmptyState()` / `emptyStateHTML()` component (dashboard.js)
+    now drives the empty branch of every panel (skill trees + boss + recovery + badges + leagues + battle
+    + loadout + shop + pvp) with a consistent "why + Link X" card.
 
 93. **Reduced-motion + accessibility pass** [🟢] — Honor `prefers-reduced-motion`,
     add ARIA labels, and check contrast of the neon palette.
