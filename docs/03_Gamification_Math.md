@@ -63,22 +63,43 @@ unlocks the boss-fight 2x XP reward and +5 "Time Speed-ups".
 
 Recovery (Garmin Sleep / Body Battery) (`sleep_xp`, `body_battery_xp`)
 
-Sleep Goal: 8 hours = 50 XP. (Pro-rated: 5-8h = 20 XP, < 5 hours = 0 XP).
+Sleep XP (Tiered):
+- 8.0h+ = 50 XP (Optimal recovery)
+- 7.0 - 7.9h = 35 XP (Close to 8h goal)
+- 6.0 - 6.9h = 25 XP (Moderate rest)
+- 5.0 - 5.9h = 15 XP (Light rest)
+- < 5.0h = 0 XP (Below recovery threshold)
 
 Body Battery Charge: +1 XP for every point recovered overnight.
 
-Nutrition (SparkyFitness macros) (`nutrition_xp`)
+Nutrition (SparkyFitness macros) (`nutrition_xp`, `nutrition_tokens`)
 
-Perfect Macros: protein goal met AND under calorie limit = +50 XP (Nutrition Tree) and +10 Base Materials.
+Split into Protein Adherence (up to 25 XP) + Calorie Budget (up to 25 XP):
+- Protein Metric:
+  - >= 100% of goal: +25 XP
+  - 80% - 99% of goal: +15 XP
+  - 60% - 79% of goal: +10 XP
+  - < 60%: 0 XP
+- Calorie Metric:
+  - <= 100% of goal: +25 XP
+  - 101% - 110% of goal (<= 10% over): +15 XP
+  - 111% - 120% of goal (<= 20% over): +10 XP
+  - > 120%: 0 XP
+- Token Rewards:
+  - Perfection (Protein hit & under calories): +25 Tokens (`TOKEN_PERFECT_MACRO`)
+  - Strong Effort / Close (XP >= 35): +10 Tokens
+  - Single Milestone Hit (XP >= 20): +5 Tokens
 
-Hydration (SparkyFitness water intake) (`_handle_hydration`)
+Hydration (SparkyFitness water intake) (`hydration_xp`, `hydration_tokens`, `_handle_hydration`)
 
-Perfect Hydration = total water intake >= water goal.
-
-Reward: +30 XP (Hydration Tree) and +5 Base Materials per day.
+Tiered Water Intake Rewards:
+- >= 100% of water goal: +30 XP and +10 Tokens (`TOKEN_PERFECT_HYDRATION`)
+- 80% - 99% of water goal: +20 XP and +5 Tokens
+- 60% - 79% of water goal: +10 XP
+- < 60%: 0 XP
 
 Boss Fights & Perfect Lessons
 
-Perfect Macros: Hitting protein goal exactly while under calorie limit = +50 XP (Nutrition Tree) and generates 10 "Base Materials".
+Perfect Macros: Hitting protein goal while under calorie limit = +50 XP (Nutrition Tree) and 25 Tokens.
 
-Boss Fight (Weekly PR): Hitting a new 1RM or top 10% Peloton output yields a 2x multiplier for that workout's XP and generates 5 "Time Speed-ups" for the base-builder.
+Boss Fight (Weekly PR): Hitting a new 1RM or top 10% Peloton output yields a 2x multiplier for that workout's XP and generates 100 Tokens.

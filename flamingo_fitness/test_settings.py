@@ -15,6 +15,19 @@ DATABASES = {
     }
 }
 
-# Fast password hashing so the suite (which creates many users) runs in
-# seconds instead of minutes. Test-only - production keeps the real hashers.
-PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "test-default-cache",
+    },
+    "compressor_cache": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "test-compressor-cache",
+    },
+}
+
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
+

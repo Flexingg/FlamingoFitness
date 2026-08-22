@@ -1,173 +1,9 @@
-/* Strength detail panel controller (loaded after dashboard.js).
- * Opens from the purple Strength node (#node-strength) on the skill-tree plan.
- * Consumes GET /api/v1/strength/ (core/views.py strength_state).
- * Data comes from Liftosaur volume / duration / PR tracking (docs/11).
+/* Strength detail panel controller (Phase 6, docs/19 #22).
+ * Uses window.createModalityController() factory.
  */
 (function () {
     'use strict';
 
-    var STRENGTH_URL = '/api/v1/strength/';
-
-    // Return to the skill-tree plan from the strength panel.
-    window.backToStrengthPlan = function () {
-        var view = document.getElementById('strength-view');
-        if (view) view.classList.add('hidden');
-        // Use ensureSinglePanelVisible to hide all other panels first,
-        // then show only the skill tree (prevents stacking)
-        window.ensureSinglePanelVisible('skill-tree');
-    };
-
-    // Fetch + render the strength panel.
-    window.loadStrength = function () {
-        window.ffLog('[strength] loadStrength start');
-        if (window.closeModal) window.closeModal();
-        var view = document.getElementById('strength-view');
-        var content = document.getElementById('strength-content');
-        var empty = document.getElementById('strength-empty');
-        var tree = document.getElementById('skill-tree');
-        if (!view) {
-            window.ffWarn('[strength] strength-view not found, aborting');
-            return;
-        }
-        // Single-panel navigation: hide ALL panels, then show only this panel.
-        window.ensureSinglePanelVisible('strength-view');
-        content.classList.add('hidden');
-        empty.classList.add('hidden');
-        fetch(STRENGTH_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error('not-authenticated');
-                }
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) {
-                window.ffLog('[strength] data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
-                window.renderStrength(data);
-            })
-            .catch(function (err) {
-                window.ffError('[strength] fetch failed:', err);
-                content.classList.remove('hidden');
-                if (err && err.message === 'not-authenticated') {
-                    content.innerHTML = '<p class="error-hint">Please log in to view strength.</p>';
-                } else {
-                    content.innerHTML = '<p class="error-hint">Could not load strength data (error ' + err + ').</p>';
-                }
-            });
-    };
-// Render the strength panel from the /api/v1/strength/ payload.
-    window.renderStrength = function (data) {
-        var content = document.getElementById('strength-content');
-        var empty = document.getElementById('strength-empty');
-        if (!content) return;
-
-        if (!data.linked) {
-            content.classList.add('hidden');
-            window.showEmptyState(empty, {
-                icon: 'fa-dumbbell',
-                title: 'Link Liftosaur',
-                desc: 'No strength data yet. Connect Liftosaur to track your lifting volume.',
-                hint: 'Lifting volume, sets and reps earn Strength XP.',
-                ctaText: 'Link Liftosaur',
-                ctaHref: '/profile/'
-            });
-            empty.classList.remove('hidden');
-            return;
-        }
-        if (!data.today && !(data.history && data.history.length)) {
-            content.classList.add('hidden');
-            window.showEmptyState(empty, {
-                icon: 'fa-sync-alt',
-                title: 'Linked to Liftosaur, waiting for workouts',
-                desc: 'Once your Liftosaur workouts sync, your volume and XP will appear here. PRs live in the PR Boss panel.',
-                hint: 'Log a session in Liftosaur, then come back to claim your XP.',
-                secondary: true
-            });
-            empty.classList.remove('hidden');
-            return;
-        }
-
-        empty.classList.add('hidden');
-        content.classList.remove('hidden');
-        content.innerHTML = '';
-
-        // Strength skill tree progress section.
-        var st = data.skill_tree || {};
-        var skillSection = document.createElement('div');
-        skillSection.className = 'nutrition-skill-section';
-        var skillHeader = document.createElement('div');
-        skillHeader.className = 'nutrition-skill-header';
-        skillHeader.innerHTML = '<i class="fa-solid fa-dumbbell"></i> Strength Skill Tree';
-        skillSection.appendChild(skillHeader);
-
-        var skillInfo = document.createElement('div');
-        skillInfo.className = 'nutrition-skill-info';
-        skillInfo.innerHTML = 'Lv ' + (st.level || 1) + ' &bull; ' + (st.total_xp || 0) + ' Total XP';
-        skillSection.appendChild(skillInfo);
-
-        // XP progress bar.
-        var xpBarWrap = document.createElement('div');
-        xpBarWrap.className = 'nutrition-xp-bar-wrap';
-        var xpBar = document.createElement('div');
-        xpBar.className = 'nutrition-xp-bar';
-        var xpFill = document.createElement('div');
-        xpFill.className = 'nutrition-xp-fill';
-        var progressPct = Math.min(100, Math.max(0, st.progress_pct || 0));
-        xpFill.style.width = progressPct + '%';
-        xpBar.appendChild(xpFill);
-        xpBarWrap.appendChild(xpBar);
-        skillSection.appendChild(xpBarWrap);
-
-        var xpToNext = document.createElement('div');
-        xpToNext.className = 'nutrition-xp-to-next';
-        xpToNext.textContent = (st.xp || 0) + ' / 100 XP to next level';
-        skillSection.appendChild(xpToNext);
-
-        var guidance = document.createElement('div');
-        guidance.className = 'nutrition-guidance';
-        guidance.innerHTML = '<strong>How to earn XP:</strong> +1 XP per 1,000 lbs moved, +20 XP for finishing a program day, and +1 XP per 30 minutes in the gym.';
-        skillSection.appendChild(guidance);
-
-        content.appendChild(skillSection);
-
-        // Today / most-recent workout.
-        if (data.today) {
-            content.appendChild(buildStrengthCard(data.today, 'Today, ' + data.today.date));
-        }
-
-        // History list.
-        if (data.history && data.history.length) {
-            var wrap = document.createElement('div');
-            var title = document.createElement('div');
-            title.className = 'history-title';
-            title.innerHTML = '<i class="fa-solid fa-list"></i> History';
-            wrap.appendChild(title);
-            var ul = document.createElement('ul');
-            ul.className = 'history-list';
-            data.history.forEach(function (day) {
-                var li = document.createElement('li');
-                li.className = 'history-item' + (day.materials ? ' perfect' : '');
-                li.style.cursor = 'pointer';
-                li.addEventListener('click', function () { showStrengthDayDetailModal(day); });
-                var left = document.createElement('span');
-                left.className = 'hist-macros';
-                left.textContent = day.date + '  ' + Math.round(day.total_volume_lbs || 0) + ' lbs';
-                li.appendChild(left);
-                var right = document.createElement('span');
-                right.className = 'hist-reward';
-                right.textContent = (day.xp ? '+' + day.xp + ' XP' : '') + (day.materials ? ', ' + day.materials + ' mats' : '');
-                li.appendChild(right);
-                ul.appendChild(li);
-            });
-            wrap.appendChild(ul);
-            content.appendChild(wrap);
-        }
-
-        // Interactive Charts + Raw data views (FFInsights / Chart.js).
-        if (window.FFInsights) {
-            window.FFInsights.createInsights(content, 'strength', data);
-        }
-    };
-// Build a single workout day card (the today card).
     function buildStrengthCard(day, title) {
         var card = document.createElement('div');
         card.className = 'nutrition-day-card';
@@ -189,7 +25,6 @@
             card.appendChild(prog);
         }
 
-        // Rewards row.
         if (day.xp || day.materials) {
             var rewards = document.createElement('div');
             rewards.className = 'reward-row';
@@ -208,7 +43,6 @@
             card.appendChild(rewards);
         }
 
-        // Stats summary.
         var statsRow = document.createElement('div');
         statsRow.className = 'macro-row';
         statsRow.style.flexDirection = 'column';
@@ -236,7 +70,6 @@
         }
         card.appendChild(statsRow);
 
-        // Exercise list.
         if (day.exercises && day.exercises.length) {
             var exList = document.createElement('div');
             exList.style.marginTop = '10px';
@@ -278,7 +111,7 @@
 
         return card;
     }
-// Show a detailed day view in a modal for historical days.
+
     window.showStrengthDayDetailModal = function (day) {
         if (window.closeModal) window.closeModal();
 
@@ -329,11 +162,63 @@
         if (window.openModal) window.openModal();
     };
 
-    // Bind the purple Strength node on the skill-tree plan.
+    window.createModalityController({
+        name: 'strength',
+        title: 'Strength',
+        icon: 'fa-dumbbell',
+        apiUrl: '/api/v1/strength/',
+        guidanceText: '+1 XP per 1,000 lbs moved, +20 XP for finishing a program day, and +1 XP per 30 minutes in the gym.',
+        emptyState: {
+            icon: 'fa-dumbbell',
+            title: 'Link Liftosaur',
+            desc: 'No strength data yet. Connect Liftosaur to track your lifting volume.',
+            hint: 'Lifting volume, sets and reps earn Strength XP.',
+            ctaText: 'Link Liftosaur',
+            ctaHref: '/profile/'
+        },
+        renderCustomContent: function (content, data) {
+            // 1. Today's Summary Card
+            if (data.today) {
+                content.appendChild(buildStrengthCard(data.today, 'Today, ' + data.today.date));
+            }
+
+            // 2. Trends & Insights
+            if (window.FFInsights) {
+                window.FFInsights.createInsights(content, 'strength', data);
+            }
+
+            // 3. History List (at the very bottom)
+            if (data.history && data.history.length) {
+                var wrap = document.createElement('div');
+                var title = document.createElement('div');
+                title.className = 'history-title';
+                title.innerHTML = '<i class="fa-solid fa-list"></i> History';
+                wrap.appendChild(title);
+                var ul = document.createElement('ul');
+                ul.className = 'history-list';
+                data.history.forEach(function (day) {
+                    var li = document.createElement('li');
+                    li.className = 'history-item' + (day.materials ? ' perfect' : '');
+                    li.style.cursor = 'pointer';
+                    li.addEventListener('click', function () { window.showStrengthDayDetailModal(day); });
+                    var left = document.createElement('span');
+                    left.className = 'hist-macros';
+                    left.textContent = day.date + '  ' + Math.round(day.total_volume_lbs || 0) + ' lbs';
+                    li.appendChild(left);
+                    var right = document.createElement('span');
+                    right.className = 'hist-reward';
+                    right.textContent = (day.xp ? '+' + day.xp + ' XP' : '') + (day.materials ? ', ' + day.materials + ' mats' : '');
+                    li.appendChild(right);
+                    ul.appendChild(li);
+                });
+                wrap.appendChild(ul);
+                content.appendChild(wrap);
+            }
+        }
+    });
+
     var strNode = document.getElementById('node-strength');
     if (strNode) {
         strNode.addEventListener('click', function () { window.loadStrength(); });
-    } else {
-        window.ffWarn('[strength] node-strength NOT found in DOM');
     }
 })();

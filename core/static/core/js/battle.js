@@ -26,10 +26,22 @@ var LEADERBOARD_URL = '/api/v1/battle/leaderboard/';
         cardio: 'Cardio', strength: 'Weightlifting', nutrition: 'Nutrition',
         hydration: 'Hydration', sleep: 'Sleep'
     };
+    var CAMPAIGN_LOADER = {
+        cardio: 'loadEndurance',
+        strength: 'loadStrength',
+        nutrition: 'loadNutrition',
+        hydration: 'loadHydration',
+        sleep: 'loadRecovery'
+    };
 
     function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() { return window.csrfToken(); }
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
     function haptic(ms) { return window.haptic(ms); }
 
@@ -69,21 +81,36 @@ function avatarImg(className, a) {
 
     window.loadBattle = function () {
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('battle-view');
-        var content = document.getElementById('battle-content');
-        if (!view) { window.ffWarn('[battle] battle-view not found'); return; }
-        window.ensureSinglePanelVisible('battle-view');
-        if (window.setActiveNav) window.setActiveNav('nav-battle');
-        content.innerHTML = '<p class="text-slate-400">Assembling the party...</p>';
-        fetch(STATE_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) { window.renderBattle(data); })
-            .catch(function (err) {
-                content.innerHTML = '<p class="text-slate-400">Could not load the battle (error ' + esc(err) + ').</p>';
-            });
+
+        var runLoad = function () {
+            var view = document.getElementById('battle-view');
+            var content = document.getElementById('battle-content');
+            if (!view) { window.ffWarn('[battle] battle-view not found'); return; }
+            window.ensureSinglePanelVisible('battle-view');
+            if (window.setActiveNav) window.setActiveNav('nav-battle');
+            if (content) {
+                if (typeof window.renderSkeleton === 'function') {
+                    window.renderSkeleton(content, 3);
+                } else {
+                    content.innerHTML = '<p class="text-slate-400">Assembling the party...</p>';
+                }
+            }
+            fetch(STATE_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) { window.renderBattle(data); })
+                .catch(function (err) {
+                    if (content) content.innerHTML = '<p class="text-slate-400">Could not load the battle (error ' + esc(err) + ').</p>';
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('battle-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
 
     function hpPct(damage, total) {
@@ -99,7 +126,7 @@ function avatarImg(className, a) {
 
         var html = '<div class="flex items-center gap-2 mb-3">' +
             '<h2 class="text-xl font-black text-white flex-1">Siege camps</h2>' +
-            '<button type="button" class="help-trigger" data-help="Siege camps are how you fight the PvE bosses. Tap a camp to engage its boss, then Attack to deal damage. Each attack costs 1 stamina and stamina refills each morning. Your damage comes from today tracked activity - bigger or more consistent effort deals bigger hits. Fill the boss HP bar to zero to conquer it and earn tokens." aria-label="How siege camps work"><i class="fa-solid fa-circle-question"></i></button>' +
+            '<button type="button" class="help-trigger" data-help="Siege camps are how you fight the PvE bosses. Tap a camp to engage its boss, then Attack to deal damage. Each attack costs 1 stamina and stamina refills each morning. Your damage comes from today\'s tracked activity - bigger or more consistent effort deals bigger hits. Fill the boss HP bar to zero to conquer it and earn tokens." aria-label="How siege camps work"><i class="fa-solid fa-circle-question"></i></button>' +
             '</div>' +
             '<div class="flex items-center justify-between mb-4">' +
             '<p class="text-xs text-slate-400 font-semibold">Tap a camp to engage its boss and start fighting.</p>' +
@@ -119,18 +146,21 @@ function avatarImg(className, a) {
                     : 'No boss is engaged here yet. Tap the card to start a siege against the ' + esc(CAMPAIGN_LABEL[c.campaign] || c.campaign) + ' boss.');
             var bossName = (c.boss && c.boss.name) ? c.boss.name : (CAMPAIGN_LABEL[c.campaign] || c.label);
             var chip = vulnChip(c);
+            var baseTag = (c.today_base_damage > 0)
+                ? '<span class="text-emerald-400 font-bold ml-1.5"><i class="fa-solid fa-fire mr-0.5"></i>' + money(c.today_base_damage) + ' base</span>'
+                : '';
             var rightLine = c.conquered
                 ? '<span class="text-emerald-300 font-bold"><i class="fa-solid fa-check mr-1"></i>Done</span>'
                 : '<span class="text-slate-400 font-semibold">~' + money(c.est_damage_per_attack) + ' dmg/atk</span>';
 
-            html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 shadow-lg" data-campaign="' + esc(c.campaign) + '" role="button" tabindex="0" aria-label="' + esc(bossName) + '">' +
+            html += '<div class="bg-slate-800 border border-slate-600 rounded-[1.5rem] p-4 shadow-lg cursor-pointer hover:border-slate-500 transition-all" data-campaign="' + esc(c.campaign) + '" role="button" tabindex="0" aria-label="' + esc(bossName) + '">' +
                 '<div class="flex items-center gap-3">' +
                 '<div class="w-12 h-12 rounded-2xl bg-slate-700 flex items-center justify-center text-xl"><i class="fa-solid ' + (CAMPAIGN_ICON[c.campaign] || 'fa-dragon') + ' text-red-400"></i></div>' +
                 '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2"><h3 class="font-black text-white truncate">' + esc(bossName) + '</h3>' +
                 '<span class="text-xs font-black ' + stateColor + ' uppercase">' + stateLabel + '</span>' +
                 '<button type="button" class="help-trigger" data-help="' + stateHelp + '" aria-label="About this campaign"><i class="fa-solid fa-circle-info"></i></button></div>' +
-                '<div class="text-xs text-slate-400 font-semibold">' + esc(CAMPAIGN_LABEL[c.campaign] || c.campaign) + chip + '</div>' +
+                '<div class="text-xs text-slate-400 font-semibold flex items-center">' + esc(CAMPAIGN_LABEL[c.campaign] || c.campaign) + chip + baseTag + '</div>' +
                 '</div>' +
                 '<i class="fa-solid ' + stateIcon + ' text-slate-500"></i>' +
                 '</div>' +
@@ -160,12 +190,18 @@ function avatarImg(className, a) {
     function openCampaign(campaign) {
         haptic(20);
         var content = document.getElementById('battle-content');
-        content.innerHTML = '<p class="text-slate-400">Engaging boss...</p>';
+        if (content) {
+            if (typeof window.renderSkeleton === 'function') {
+                window.renderSkeleton(content, 2);
+            } else {
+                content.innerHTML = '<p class="text-slate-400">Engaging boss...</p>';
+            }
+        }
         fetch(CAMPAIGN_URL + campaign + '/', { credentials: 'same-origin' })
             .then(function (res) { return res.json(); })
             .then(function (data) { renderCampaignDetail(data); })
             .catch(function () {
-                content.innerHTML = '<p class="text-slate-400">Could not load this campaign.</p>';
+                if (content) content.innerHTML = '<p class="text-slate-400">Could not load this campaign.</p>';
             });
     }
 
@@ -181,6 +217,7 @@ function avatarImg(className, a) {
         var est = data.est_damage_per_attack || 0;
         var chip = vulnChip({ vulnerability: data.vulnerability });
         var campLabel = CAMPAIGN_LABEL[data.campaign] || data.campaign;
+        var loaderFn = CAMPAIGN_LOADER[data.campaign] || 'loadBattle';
 
         var mechNote = '';
         if (mech.heal_on_overage) mechNote += '<div class="text-xs text-red-300 font-semibold mt-1" data-help="This boss heals 500 HP when your logged calories go over your goal today. Keep calories at or under goal to stop the healing."><i class="fa-solid fa-triangle-exclamation mr-1"></i>Self-heals when calories over goal</div>';
@@ -203,7 +240,7 @@ function avatarImg(className, a) {
 
         html += '<div class="bg-slate-800 border border-slate-600 rounded-2xl p-3 mb-3 text-xs text-slate-300 font-semibold space-y-2">' +
             '<div class="font-black text-sm text-white flex items-center gap-2"><i class="fa-solid fa-flag-checkered text-red-400"></i> How to win this siege</div>' +
-            '<div class="flex items-start gap-2"><span class="badge-step">1</span><span>Build today power: log ' + esc(campLabel) + ' activity. Current base: <b class="text-white">' + money(data.today_base_damage) + '</b>.</span></div>' +
+            '<div class="flex items-start gap-2"><span class="badge-step">1</span><span>Build today\'s power: log ' + esc(campLabel) + ' activity. Current base: <b class="text-white">' + money(data.today_base_damage) + '</b>.</span></div>' +
             '<div class="flex items-start gap-2"><span class="badge-step">2</span><span>Attack with stamina (you have <b class="text-white">' + stamina + '</b>). Each attack deals ~<b class="text-white">' + money(est) + '</b> damage.</span></div>' +
             '<div class="flex items-start gap-2"><span class="badge-step">3</span><span>Drop the HP bar to zero to conquer the boss and earn <b class="text-white">+150 tokens</b>.</span></div>' +
             '</div>';
@@ -212,22 +249,35 @@ function avatarImg(className, a) {
         if (resistances) html += '<div class="text-xs text-slate-400 font-semibold" data-help="Resisted domains deal half damage. It may be best to spend stamina on another campaign while this persists."><i class="fa-solid fa-shield mr-1"></i>Resists: ' + resistances + '</div>';
         html += mechNote;
 
-        html += '<div class="bg-slate-800 border border-slate-600 rounded-2xl p-3 mt-3 text-xs text-slate-300 font-semibold">' +
-            'Attack power today: <b class="text-white">' + money(data.today_base_damage) + '</b> (base) &times; <b class="text-white">' + esc(data.gear_multiplier) + '</b> (gear) &times; <b class="text-white">' + roundMult(data.boss_multiplier) + '</b> (boss) = <b class="text-flamingo">~' + money(est) + '</b> per attack' +
-            '<button type="button" class="help-trigger" data-help="Damage for each attack is today tracked base damage, multiplied by your equipped gear, then by any boss weakness or resistance. Log more of this activity and equip stronger gear to deal bigger hits." aria-label="Damage formula"><i class="fa-solid fa-circle-question ml-1"></i></button></div>';
+        if (data.today_base_damage <= 0) {
+            html += '<div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 mt-3 text-xs text-amber-200 font-semibold space-y-1.5">' +
+                '<div class="font-black text-white flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-400"></i> No ' + esc(campLabel) + ' activity logged today yet</div>' +
+                '<p class="text-slate-300">Your attack power comes from real-world effort. Log your workouts or habits to deal big damage!</p>' +
+                '<button type="button" onclick="if (window.' + loaderFn + ') window.' + loaderFn + '(); return false;" class="text-flamingo font-black underline hover:text-red-300 inline-block mt-0.5"><i class="fa-solid fa-arrow-right mr-1"></i>Open ' + esc(campLabel) + ' panel to log</button>' +
+                '</div>';
+        } else {
+            var statLine = (data.stat_breakdown && data.stat_breakdown.tracked_label)
+                ? '<div class="text-xs text-emerald-400 font-bold mb-1.5 flex items-center gap-1.5"><i class="fa-solid fa-chart-line"></i><span>' + esc(data.stat_breakdown.tracked_label) + '</span></div>'
+                : '';
+            html += '<div class="bg-slate-800 border border-slate-600 rounded-2xl p-3 mt-3 text-xs text-slate-300 font-semibold">' +
+                statLine +
+                '<div class="text-xs text-slate-400 font-bold mb-1">Attack power formula:</div>' +
+                'Today base power: <b class="text-white">' + money(data.today_base_damage) + '</b> &times; <b class="text-white">' + esc(data.gear_multiplier) + '&times;</b> (gear) &times; <b class="text-white">' + roundMult(data.boss_multiplier) + '&times;</b> (boss) = <b class="text-flamingo text-sm">~' + money(est) + '</b> per attack' +
+                '<button type="button" class="help-trigger" data-help="Damage for each attack is today\'s tracked base damage, multiplied by your equipped gear, then by any boss weakness or resistance. Log more of this activity and equip stronger gear to deal bigger hits." aria-label="Damage formula"><i class="fa-solid fa-circle-question ml-1"></i></button></div>';
+        }
 
         html += '<div class="flex flex-col gap-3 mt-4">';
         if (!boss.conquered) {
             if (!boss.slug) {
-                html += '<button class="bg-red-500 text-white font-black py-3.5 rounded-2xl border-b-4 border-red-700 active:scale-95 transition-all" id="battle-engage">Engage this boss</button>';
+                html += '<button class="bg-red-500 text-white font-black py-3.5 rounded-2xl border-b-4 border-red-700 active:scale-95 transition-all shadow-lg hover:brightness-110" id="battle-engage">Engage this boss</button>';
             } else {
-                html += '<button class="bg-red-500 text-white font-black py-3.5 rounded-2xl border-b-4 border-red-700 active:scale-95 transition-all" id="battle-attack"><i class="fa-solid fa-bolt mr-1"></i>Attack (1 stamina) &middot; ~' + money(est) + ' dmg</button>';
+                html += '<button class="bg-red-500 text-white font-black py-3.5 rounded-2xl border-b-4 border-red-700 active:scale-95 transition-all shadow-lg hover:brightness-110" id="battle-attack"><i class="fa-solid fa-bolt mr-1"></i>Attack (1 stamina) &middot; ~' + money(est) + ' dmg</button>';
             }
         }
-        html += '<button class="bg-slate-700 text-slate-200 font-black py-3 rounded-2xl border-b-4 border-slate-900 active:scale-95 transition-all" id="battle-back-list"><i class="fa-solid fa-arrow-left mr-1"></i>Back to campaigns</button>';
+        html += '<button class="bg-slate-700 text-slate-200 font-black py-3 rounded-2xl border-b-4 border-slate-900 active:scale-95 transition-all hover:brightness-110" id="battle-back-list"><i class="fa-solid fa-arrow-left mr-1"></i>Back to campaigns</button>';
         html += '<div class="grid grid-cols-2 gap-2" id="battle-subnav">' +
-            '<button class="bg-slate-800 text-slate-200 font-bold py-2.5 rounded-2xl border border-slate-600 active:scale-95 transition-all" id="battle-leaderboard"><i class="fa-solid fa-ranking-star mr-1"></i>Leaderboard</button>' +
-            '<button class="bg-slate-800 text-slate-200 font-bold py-2.5 rounded-2xl border border-slate-600 active:scale-95 transition-all" id="battle-history"><i class="fa-solid fa-book-open mr-1"></i>Siege diary</button>' +
+            '<button class="bg-slate-800 text-slate-200 font-bold py-2.5 rounded-2xl border border-slate-600 active:scale-95 transition-all hover:border-slate-500" id="battle-leaderboard"><i class="fa-solid fa-ranking-star mr-1"></i>Leaderboard</button>' +
+            '<button class="bg-slate-800 text-slate-200 font-bold py-2.5 rounded-2xl border border-slate-600 active:scale-95 transition-all hover:border-slate-500" id="battle-history"><i class="fa-solid fa-book-open mr-1"></i>Siege diary</button>' +
             '</div>';
         html += '</div>';
 
@@ -251,30 +301,57 @@ function avatarImg(className, a) {
     // §11). Now that stamina has committed, vibrate before awaiting the fetch.
     function attack(campaign) {
         if (navigator.vibrate) navigator.vibrate([90, 30, 120, 50, 80]);
+        var btn = document.getElementById('battle-attack');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Attacking...';
+        }
         fetch(ATTACK_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ campaign: campaign })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { window.showToast(res.body.error || 'Attack failed.'); return; }
+                if (!res.body.ok) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fa-solid fa-bolt mr-1"></i>Attack (1 stamina)';
+                    }
+                    window.showToast(res.body.error || 'Attack failed.');
+                    return;
+                }
+                var dealt = Number(res.body.total_damage || res.body.base_damage || 0);
+                var left = Math.max(0, Number(res.body.total_hp || 0) - Number(res.body.damage_dealt || 0));
                 if (res.body.conquered) {
                     if (typeof confetti === 'function') confetti({ particleCount: 180, spread: 90, origin: { y: 0.5 } });
-                    window.showToast('BOSS CONQUERED! +' + (res.body.tokens_won || 150) + ' tokens');
+                    window.showToast('\uD83C\uDFC6 BOSS CONQUERED! +' + (res.body.tokens_won || 150) + ' tokens');
+                } else {
+                    window.showToast('\u2694\uFE0F Dealt ' + money(dealt) + ' damage! (' + money(left) + ' HP left)');
+                }
+                if (res.body.boss_heal && res.body.boss_heal > 0) {
+                    setTimeout(function () {
+                        window.showToast('\u26A0\uFE0F Boss healed +' + money(res.body.boss_heal) + ' HP from calorie overage!');
+                    }, 1200);
                 }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 if (window.refreshCampaignFocus) window.refreshCampaignFocus();
                 openCampaign(campaign);  // refetch fresh HP + wallet
             })
-            .catch(function () { window.showToast('Network error during the attack.'); });
+            .catch(function () {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-bolt mr-1"></i>Attack (1 stamina)';
+                }
+                window.showToast('Network error during the attack.');
+            });
     }
 
     function engage(campaign) {
         haptic(30);
         fetch(ENGAGE_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ campaign: campaign })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })

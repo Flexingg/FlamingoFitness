@@ -21,7 +21,12 @@
 
     function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() { return window.csrfToken(); }
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
     function haptic(ms) { return window.haptic(ms); }
 
@@ -40,21 +45,30 @@
 
     window.loadShop = function () {
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('shop-view');
-        var content = document.getElementById('shop-content');
-        if (!view) { window.ffWarn('[shop] shop-view not found'); return; }
-        window.ensureSinglePanelVisible('shop-view');
-        if (window.setActiveNav) window.setActiveNav('nav-shop');
-        content.innerHTML = '<p class="text-slate-400">Opening the shop…</p>';
-        fetch(STATE_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) { window.renderShop(data); })
-            .catch(function (err) {
-                content.innerHTML = '<p class="text-slate-400">Could not load the shop (error ' + esc(err) + ').</p>';
-            });
+
+        var runLoad = function () {
+            var view = document.getElementById('shop-view');
+            var content = document.getElementById('shop-content');
+            if (!view) { window.ffWarn('[shop] shop-view not found'); return; }
+            window.ensureSinglePanelVisible('shop-view');
+            if (window.setActiveNav) window.setActiveNav('nav-shop');
+            if (content) content.innerHTML = '<p class="text-slate-400">Opening the shop…</p>';
+            fetch(STATE_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) { window.renderShop(data); })
+                .catch(function (err) {
+                    if (content) content.innerHTML = '<p class="text-slate-400">Could not load the shop (error ' + esc(err) + ').</p>';
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('shop-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
     var BULK_TIERS = [1, 3, 5, 10];
     var BULK_DISCOUNT = { 1: 0, 3: 10, 5: 15, 10: 20 };
@@ -262,7 +276,7 @@
         haptic(30);
         fetch(OPEN_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ pack_slug: slug, quantity: quantity || 1 })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -314,7 +328,7 @@
         haptic(30);
         fetch(CONSUME_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gear_id: gearId })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -355,7 +369,7 @@
         haptic(30);
         fetch(SCRAP_RECYCLE_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gear_id: gearId, quantity: 1 })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -371,7 +385,7 @@
         haptic(30);
         fetch(SCRAP_BUY_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ item_slug: slug })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })

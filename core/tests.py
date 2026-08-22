@@ -13,6 +13,7 @@ from core.models import (
     BadgeDef,
     BattleLog,
     BossConfig,
+    Campaign,
     CampaignBoss,
     CampaignProgress,
     DailyReadiness,
@@ -35,10 +36,15 @@ from core.models import (
 from core.services.gamification import (
     XP_PER_LEVEL,
     body_battery_xp,
+    calorie_xp,
     endurance_xp,
+    hydration_tokens,
+    hydration_xp,
+    nutrition_tokens,
     nutrition_xp,
     process_log,
     process_payload,
+    protein_xp,
     session_time_xp,
     sleep_xp,
     strength_xp,
@@ -69,15 +75,52 @@ class XPMathTests(SimpleTestCase):
         self.assertEqual(strength_xp(0, completed=True), 20)
 
     def test_sleep_bands(self):
-        self.assertEqual(sleep_xp(8), 50)
-        self.assertEqual(sleep_xp(9), 50)
-        self.assertEqual(sleep_xp(6), 20)
+        self.assertEqual(sleep_xp(8.5), 50)
+        self.assertEqual(sleep_xp(8.0), 50)
+        self.assertEqual(sleep_xp(7.5), 35)
+        self.assertEqual(sleep_xp(7.0), 35)
+        self.assertEqual(sleep_xp(6.5), 25)
+        self.assertEqual(sleep_xp(6.0), 25)
+        self.assertEqual(sleep_xp(5.5), 15)
+        self.assertEqual(sleep_xp(5.0), 15)
         self.assertEqual(sleep_xp(4.5), 0)
 
     def test_body_battery_and_nutrition(self):
         self.assertEqual(body_battery_xp(62), 62)
+        # Legacy boolean support
         self.assertEqual(nutrition_xp(True), 50)
         self.assertEqual(nutrition_xp(False), 0)
+        # Granular protein & calorie calculations
+        self.assertEqual(protein_xp(180, 180), 25)  # 100%
+        self.assertEqual(protein_xp(160, 180), 15)  # 88.8%
+        self.assertEqual(protein_xp(120, 180), 10)  # 66.6%
+        self.assertEqual(protein_xp(90, 180), 0)    # 50%
+        
+        self.assertEqual(calorie_xp(2000, 2400), 25)  # under
+        self.assertEqual(calorie_xp(2400, 2400), 25)  # exact
+        self.assertEqual(calorie_xp(2500, 2400), 15)  # 104% (<=110%)
+        self.assertEqual(calorie_xp(2700, 2400), 10)  # 112.5% (<=120%)
+        self.assertEqual(calorie_xp(3000, 2400), 0)   # 125% (>120%)
+
+        # Combined nutrition XP
+        # Perfect
+        self.assertEqual(nutrition_xp(180, 2200, 180, 2400), 50)
+        # Protein hit, calories over
+        self.assertEqual(nutrition_xp(180, 3000, 180, 2400), 25)
+        # Calories on target, protein missed
+        self.assertEqual(nutrition_xp(90, 2000, 180, 2400), 25)
+        # Both close
+        self.assertEqual(nutrition_xp(160, 2500, 180, 2400), 30)
+
+    def test_hydration_xp_and_tokens(self):
+        self.assertEqual(hydration_xp(100, 100), 30)
+        self.assertEqual(hydration_xp(85, 100), 20)
+        self.assertEqual(hydration_xp(65, 100), 10)
+        self.assertEqual(hydration_xp(50, 100), 0)
+
+        self.assertEqual(hydration_tokens(100, 100), 10)
+        self.assertEqual(hydration_tokens(85, 100), 5)
+        self.assertEqual(hydration_tokens(65, 100), 0)
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +180,42 @@ class GamificationFlowTests(TestCase):
         self.assertEqual(entries[0].amount, 50)
         profile_obj = PlayerProfile.objects.get(user=self.user)
         self.assertEqual(profile_obj.tokens, 300 + 25)  # starter + perfect macro
+
+    def test_macro_partial_protein_only(self):
+        log = self._log(
+            "macro",
+            {"protein_hit": True, "under_calorie": False},
+            Provider.HOME_ASSISTANT,
+        )
+        entries = process_log(log)
+        self.assertEqual(entries[0].amount, 25)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)
+
+    def test_macro_partial_calorie_only(self):
+        log = self._log(
+            "macro",
+            {"protein_hit": False, "under_calorie": True},
+            Provider.HOME_ASSISTANT,
+        )
+        entries = process_log(log)
+        self.assertEqual(entries[0].amount, 25)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)
+
+    def test_hydration_tiered_flow(self):
+        log = self._log(
+            "hydration",
+            {
+                "water_goal": 100,
+                "water_intake_entries": [{"amount": 85}],
+            },
+            Provider.SPARKYFITNESS,
+        )
+        entries = process_log(log)
+        self.assertEqual(entries[0].amount, 20)  # 85% = 20 XP
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)  # 80%+ = +5 tokens
 
     def test_duplicate_log_is_idempotent(self):
         log = self._log("cardio", {"minutes": 30, "intensity": "zone3"})
@@ -411,6 +490,60 @@ class SparkyTests(TestCase):
         self.assertEqual(sum(e.amount for e in entries), 50)
         profile_obj = PlayerProfile.objects.get(user=self.user)
         self.assertEqual(profile_obj.tokens, 300 + 25)  # starter + perfect macro
+
+    def test_sparky_protein_only_awards_partial_xp_and_tokens(self):
+        log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            payload={
+                "food_entries": [
+                    {"protein": 90, "calories": 1500},
+                    {"protein": 95, "calories": 1500},
+                ],
+                "goals": {"protein": 180, "calories": 2400},
+            },
+        )
+        entries = process_log(log)
+        self.assertEqual(sum(e.amount for e in entries), 25)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)
+
+    def test_sparky_calories_only_awards_partial_xp_and_tokens(self):
+        log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            payload={
+                "food_entries": [
+                    {"protein": 40, "calories": 1000},
+                    {"protein": 40, "calories": 1000},
+                ],
+                "goals": {"protein": 180, "calories": 2400},
+            },
+        )
+        entries = process_log(log)
+        self.assertEqual(sum(e.amount for e in entries), 25)
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)
+
+    def test_sparky_close_macros_awards_partial_xp_and_tokens(self):
+        log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            payload={
+                "food_entries": [
+                    {"protein": 80, "calories": 1250},
+                    {"protein": 80, "calories": 1250},
+                ],
+                "goals": {"protein": 180, "calories": 2400},
+            },
+        )
+        entries = process_log(log)
+        self.assertEqual(sum(e.amount for e in entries), 30)  # 160g=15 XP + 2500cal=15 XP
+        profile_obj = PlayerProfile.objects.get(user=self.user)
+        self.assertEqual(profile_obj.tokens, 300 + 5)
 
     def test_not_perfect_macros_no_award(self):
         log = RawActivityLog.objects.create(
@@ -2350,7 +2483,12 @@ class AuthCookieSchemeTests(TestCase):
         ).group(1)
         resp = client.post(
             "/login/",
-            {"username": "securecookie", "password": "securecookie-pass", "next": "/"},
+            {
+                "csrfmiddlewaretoken": token,
+                "username": "securecookie",
+                "password": "securecookie-pass",
+                "next": "/",
+            },
             HTTP_REFERER="http://testserver/login/",
         )
         self.assertEqual(resp.status_code, 302, "login must redirect to the dashboard")
@@ -2369,7 +2507,7 @@ class AuthCookieSchemeTests(TestCase):
         from django.test import Client
 
         client = Client(secure=True)
-        resp = client.get("/login/")
+        resp = client.get("/login/", HTTP_X_FORWARDED_PROTO="https")
         self.assertEqual(resp.status_code, 200)
         csrf_cookie = resp.cookies[django_settings.CSRF_COOKIE_NAME]
         self.assertTrue(
@@ -2891,6 +3029,154 @@ class ScrapAndEffectTests(TestCase):
         self.assertEqual(match["scrap_value"], 40)      # epic
         self.assertEqual(match["total_scraps"], 80)     # 40 * 2
         self.assertEqual(body["wallet"]["scraps"], self.profile.scraps)
+
+
+class PvEDailyStatDamageTests(TestCase):
+    """Tests for PvE campaign damage calculations powered by daily tracked stats."""
+
+    def setUp(self):
+        from core.services.combat import profile
+
+        self.user = User.objects.create_user(username="pve_tester", password="pw")
+        self.client.login(username="pve_tester", password="pw")
+        self.profile = profile(self.user)
+        self.today = timezone.localdate()
+
+    def test_cardio_damage_aggregation(self):
+        from core.services.combat import base_damage_for
+
+        # Two cardio logs today: 300 cal and 250 cal = 550 cal -> 55 damage
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="endurance",
+            payload={"date": str(self.today), "total_calories_burned": 300.0, "total_duration_minutes": 30},
+            occurred_at=timezone.now(),
+        )
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.PELOTON,
+            event_type="cardio",
+            payload={"date": str(self.today), "calories": 250.0, "duration": 25},
+            occurred_at=timezone.now(),
+        )
+        dmg = base_damage_for(Campaign.CARDIO, self.user, on_date=self.today)
+        self.assertEqual(dmg, 55)
+
+    def test_strength_damage_aggregation(self):
+        from core.services.combat import base_damage_for
+
+        # Two strength sessions: 5,000 lbs and 3,500 lbs = 8,500 lbs -> 8 damage (round(8.5))
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.LIFTOSAUR,
+            event_type="strength",
+            payload={
+                "date": str(self.today),
+                "total_volume_lbs": 5000.0,
+                "exercises": [{"name": "Squat", "reps": 5, "sets": 5, "weight": 200}],
+            },
+            occurred_at=timezone.now(),
+        )
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="weightlifting",
+            payload={"date": str(self.today), "volume_lbs": 3500.0},
+            occurred_at=timezone.now(),
+        )
+        dmg = base_damage_for(Campaign.STRENGTH, self.user, on_date=self.today)
+        self.assertEqual(dmg, 8)
+
+    def test_hydration_damage_aggregation_and_perfect_bonus(self):
+        from core.services.combat import base_damage_for
+
+        # Hydration under goal: 60 oz with goal 100 oz -> 6 damage
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="hydration",
+            payload={
+                "date": str(self.today),
+                "water_goal": 100.0,
+                "water_intake_entries": [{"amount": 40.0}, {"amount": 20.0}],
+            },
+            occurred_at=timezone.now(),
+        )
+        dmg = base_damage_for(Campaign.HYDRATION, self.user, on_date=self.today)
+        self.assertEqual(dmg, 6)
+
+        # Add another 50 oz -> total 110 oz >= 100 oz goal -> 11 * 2 = 22 damage
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="water",
+            payload={"date": str(self.today), "water_goal": 100.0, "amount": 50.0},
+            occurred_at=timezone.now(),
+        )
+        dmg_perfect = base_damage_for(Campaign.HYDRATION, self.user, on_date=self.today)
+        self.assertEqual(dmg_perfect, 22)
+
+    def test_nutrition_damage_and_calorie_overage(self):
+        from core.services.combat import base_damage_for, _is_over_calories
+
+        # Nutrition: 120g protein with 150g goal, 1800 cals with 2000 goal
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            payload={
+                "date": str(self.today),
+                "goals": {"protein": 150.0, "calories": 2000.0},
+                "food_entries": [
+                    {"name": "Chicken", "protein": 90.0, "calories": 1200.0},
+                    {"name": "Shake", "protein": 30.0, "calories": 600.0},
+                ],
+            },
+            occurred_at=timezone.now(),
+        )
+        # Protein pct = 120/150 = 80% -> base damage = int(0.8 * (120 / 10)) = 9
+        dmg = base_damage_for(Campaign.NUTRITION, self.user, on_date=self.today)
+        self.assertEqual(dmg, 9)
+        self.assertFalse(_is_over_calories(self.user, on_date=self.today))
+
+        # Add food that pushes over calories -> 2300 cals > 2000 goal
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="food",
+            payload={"date": str(self.today), "calories": 500.0, "protein": 10.0},
+            occurred_at=timezone.now(),
+        )
+        self.assertTrue(_is_over_calories(self.user, on_date=self.today))
+
+    def test_sleep_damage_calculation(self):
+        from core.services.combat import base_damage_for
+
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="sleep",
+            payload={"date": str(self.today), "sleep_hours": 8.0, "rem_pct": 20, "deep_pct": 20},
+            occurred_at=timezone.now(),
+        )
+        dmg = base_damage_for(Campaign.SLEEP, self.user, on_date=self.today)
+        self.assertEqual(dmg, 10)
+
+    def test_campaign_api_includes_daily_base_damage(self):
+        # Create cardio activity
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="endurance",
+            payload={"date": str(self.today), "total_calories_burned": 500.0},
+            occurred_at=timezone.now(),
+        )
+        resp = self.client.get("/api/v1/battle/campaign/cardio/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["today_base_damage"], 50)
+        self.assertGreater(data["est_damage_per_attack"], 0)
 
 
 class Phase9CleanupTests(TestCase):

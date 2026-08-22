@@ -52,7 +52,7 @@ services:
     command: >
       sh -c "python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             python manage.py compress &&
+             (python manage.py compress --force || true) &&
              python manage.py create_demo_accounts &&
              gunicorn flamingo_fitness.wsgi:application --bind 0.0.0.0:8000 --workers 3 --forwarded-allow-ips='*'"
     ports:
@@ -71,6 +71,8 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       WEB_PORT: ${WEB_PORT:-8000}
     volumes:
+      - .:/app
+      - static_data:/app/staticfiles
       - media_data:/app/media
     depends_on:
       db:
@@ -89,6 +91,10 @@ services:
     build: .
     restart: unless-stopped
     command: celery -A flamingo_fitness worker -l INFO
+    volumes:
+      - .:/app
+      - static_data:/app/staticfiles
+      - media_data:/app/media
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-key-change-me}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
@@ -117,6 +123,8 @@ services:
     build: .
     restart: unless-stopped
     command: celery -A flamingo_fitness beat -l INFO
+    volumes:
+      - .:/app
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-secret-key-change-me}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-True}
@@ -143,6 +151,7 @@ services:
 
 volumes:
   postgres_data:
+  static_data:
   media_data:
 
 networks:

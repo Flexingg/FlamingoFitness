@@ -221,8 +221,8 @@ WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 # ---------------------------------------------------------------------------
 # django-compressor: bundle & minify JS/CSS (Phase 1, docs/19)
 # ---------------------------------------------------------------------------
-COMPRESS_ENABLED = True
-COMPRESS_OFFLINE = not DEBUG
+COMPRESS_ENABLED = env_bool("COMPRESS_ENABLED", True)
+COMPRESS_OFFLINE = env_bool("COMPRESS_OFFLINE", False)
 COMPRESS_ROOT = STATIC_ROOT
 # Use local-memory cache alias so compressor works without Redis running
 COMPRESS_CACHE_BACKEND = "compressor_cache"
@@ -246,7 +246,8 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # WhiteNoise compression settings (Phase 1, docs/19 #25).
-WHITENOISE_KEEP_ONLY_HASHED_FILES = True
+WHITENOISE_KEEP_ONLY_HASHED_FILES = False
+WHITENOISE_MANIFEST_STRICT = False
 # WHITENOISE_GZIP defaults to True — Brotli can be added later via brotli pip package.
 
 # ---------------------------------------------------------------------------

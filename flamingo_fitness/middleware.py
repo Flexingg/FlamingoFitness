@@ -29,7 +29,12 @@ class SchemeAwareSecureCookiesMiddleware:
 
     def __call__(self, request):
         response = self.get_response(request)
-        secure = request.is_secure()
+        secure = bool(
+            request.is_secure()
+            or request.scheme == "https"
+            or request.META.get("wsgi.url_scheme") == "https"
+            or request.META.get("HTTP_X_FORWARDED_PROTO") == "https"
+        )
         for name in self.cookie_names:
             if name in response.cookies:
                 # SimpleCookie omits the flag for any falsy value.

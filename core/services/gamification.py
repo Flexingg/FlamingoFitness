@@ -68,11 +68,25 @@ def session_time_xp(minutes):
 
 
 def sleep_xp(hours):
-    """8h = 50 XP; 5-8h = 20 XP; <5h = 0 XP."""
-    if hours >= 8:
+    """Tiered Sleep Recovery XP:
+    8.0h+ = 50 XP (optimal recovery)
+    7.0-7.9h = 35 XP (close to 8h goal)
+    6.0-6.9h = 25 XP (moderate rest)
+    5.0-5.9h = 15 XP (light rest)
+    <5.0h = 0 XP (below recovery threshold)
+    """
+    try:
+        h = float(hours or 0)
+    except (TypeError, ValueError):
+        return 0
+    if h >= 8.0:
         return 50
-    if hours >= 5:
-        return 20
+    if h >= 7.0:
+        return 35
+    if h >= 6.0:
+        return 25
+    if h >= 5.0:
+        return 15
     return 0
 
 
@@ -81,9 +95,118 @@ def body_battery_xp(charge):
     return int(round(float(charge or 0)))
 
 
-def nutrition_xp(perfect_macros):
-    """Perfect macros (protein hit + under calorie) = +50 Nutrition XP."""
-    return 50 if perfect_macros else 0
+def protein_xp(protein, protein_goal):
+    """XP for protein adherence (up to 25 XP):
+    >= 100% of goal = 25 XP
+    80% - 99% of goal = 15 XP
+    60% - 79% of goal = 10 XP
+    < 60% = 0 XP
+    """
+    if protein_goal is None or float(protein_goal) <= 0:
+        return 25 if float(protein or 0) > 0 else 0
+    ratio = float(protein or 0) / float(protein_goal)
+    if ratio >= 1.0:
+        return 25
+    if ratio >= 0.80:
+        return 15
+    if ratio >= 0.60:
+        return 10
+    return 0
+
+
+def calorie_xp(calories, calorie_goal):
+    """XP for calorie budget adherence (up to 25 XP):
+    <= 100% of goal = 25 XP
+    101% - 110% of goal (<= 10% over) = 15 XP
+    111% - 120% of goal (<= 20% over) = 10 XP
+    > 120% = 0 XP
+    """
+    if calorie_goal is None or float(calorie_goal) <= 0:
+        return 25 if float(calories or 0) > 0 else 0
+    cals = float(calories or 0)
+    goal = float(calorie_goal)
+    ratio = cals / goal
+    if ratio <= 1.0:
+        return 25
+    if ratio <= 1.10:
+        return 15
+    if ratio <= 1.20:
+        return 10
+    return 0
+
+
+def nutrition_xp(protein_or_perfect, calories=None, protein_goal=None, calorie_goal=None):
+    """Calculate Nutrition XP (up to 50 XP total).
+    Supports either:
+      - nutrition_xp(perfect_macros: bool) -> 50 if True, 0 if False (legacy / binary)
+      - nutrition_xp(protein, calories, protein_goal, calorie_goal) -> tiered sum of protein & calorie XP
+    """
+    if isinstance(protein_or_perfect, bool):
+        return 50 if protein_or_perfect else 0
+    if calories is None and protein_goal is None and calorie_goal is None:
+        if isinstance(protein_or_perfect, (int, float)):
+            return int(protein_or_perfect)
+        return 50 if bool(protein_or_perfect) else 0
+
+    p_xp = protein_xp(protein_or_perfect, protein_goal)
+    c_xp = calorie_xp(calories, calorie_goal)
+    return p_xp + c_xp
+
+
+def nutrition_tokens(protein, calories, protein_goal, calorie_goal):
+    """Calculate token reward for nutrition:
+    - Perfection (>= 100% protein AND <= 100% calories) = 25 tokens (TOKEN_PERFECT_MACRO)
+    - Strong effort / close (XP >= 35, e.g. both close or one hit + one close) = 10 tokens
+    - Single milestone hit / partial (XP >= 20, e.g. hit protein or hit calories) = 5 tokens
+    - Otherwise = 0 tokens
+    """
+    if protein_goal is None or calorie_goal is None:
+        return 0
+    pro_hit = float(protein or 0) >= float(protein_goal)
+    cal_hit = float(calories or 0) <= float(calorie_goal)
+    if pro_hit and cal_hit:
+        return TOKEN_PERFECT_MACRO
+    xp = nutrition_xp(protein, calories, protein_goal, calorie_goal)
+    if xp >= 35:
+        return 10
+    if xp >= 20:
+        return 5
+    return 0
+
+
+def hydration_xp(water, water_goal):
+    """Tiered Hydration XP (up to 30 XP):
+    >= 100% of goal = 30 XP
+    80% - 99% of goal = 20 XP
+    60% - 79% of goal = 10 XP
+    < 60% = 0 XP
+    """
+    if water_goal is None or float(water_goal) <= 0:
+        return 30 if float(water or 0) > 0 else 0
+    ratio = float(water or 0) / float(water_goal)
+    if ratio >= 1.0:
+        return 30
+    if ratio >= 0.80:
+        return 20
+    if ratio >= 0.60:
+        return 10
+    return 0
+
+
+def hydration_tokens(water, water_goal):
+    """Calculate token reward for hydration:
+    >= 100% of goal = 10 tokens (TOKEN_PERFECT_HYDRATION)
+    80% - 99% of goal = 5 tokens
+    < 80% = 0 tokens
+    """
+    if water_goal is None or float(water_goal) <= 0:
+        return 0
+    ratio = float(water or 0) / float(water_goal)
+    if ratio >= 1.0:
+        return TOKEN_PERFECT_HYDRATION
+    if ratio >= 0.80:
+        return 5
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -232,18 +355,33 @@ def _handle_body_battery(raw_log):
 
 @_register("macro")
 def _handle_macro(raw_log):
-    payload = raw_log.payload
-    perfect = bool(payload.get("protein_hit")) and bool(payload.get("under_calorie"))
-    xp = nutrition_xp(perfect)
-    if xp <= 0:
+    payload = raw_log.payload or {}
+    pro_hit = bool(payload.get("protein_hit"))
+    cal_hit = bool(payload.get("under_calorie"))
+
+    if pro_hit and cal_hit:
+        xp = 50
+        tokens = TOKEN_PERFECT_MACRO
+        desc = "Perfect macros: protein goal + under calories"
+    elif pro_hit:
+        xp = 25
+        tokens = 5
+        desc = "Protein goal hit"
+    elif cal_hit:
+        xp = 25
+        tokens = 5
+        desc = "Calorie target met"
+    else:
         return []
-    award_tokens(raw_log.user, TOKEN_PERFECT_MACRO)
+
+    if tokens > 0:
+        award_tokens(raw_log.user, tokens)
     return [
         XPLedger(
             user=raw_log.user,
             modality=Modality.NUTRITION,
             amount=xp,
-            description="Perfect macros: protein goal + under calories",
+            description=desc,
         )
     ]
 
@@ -254,29 +392,40 @@ def _handle_hydration(raw_log):
 
     Payload: {"date": ..., "water_intake_entries": [{"time": ..., "amount": ...}...],
               "water_goal": ...}.
-    Perfect hydration = total water intake >= water goal.
+    Tiered Hydration: 100%+ = 30 XP (+10 tokens), 80-99% = 20 XP (+5 tokens), 60-79% = 10 XP.
     """
-    payload = raw_log.payload
+    payload = raw_log.payload or {}
     entries = payload.get("water_intake_entries") or []
     water_goal = payload.get("water_goal")
 
-    total_water = sum(float(item.get("amount", 0) or 0) for item in entries)
+    if entries:
+        total_water = sum(float(item.get("amount", 0) or 0) for item in entries)
+    else:
+        direct_w = payload.get("water") or payload.get("water_oz") or payload.get("amount")
+        if direct_w is None and payload.get("water_ml"):
+            direct_w = float(payload.get("water_ml", 0) or 0) / 29.5735
+        total_water = float(direct_w or 0)
 
     if water_goal is None:
         return []
 
-    perfect = total_water >= float(water_goal)
-    if not perfect:
+    xp = hydration_xp(total_water, water_goal)
+    if xp <= 0:
         return []
 
-    award_tokens(raw_log.user, TOKEN_PERFECT_HYDRATION)
+    tokens = hydration_tokens(total_water, water_goal)
+    if tokens > 0:
+        award_tokens(raw_log.user, tokens)
+
+    perfect = float(total_water) >= float(water_goal)
+    desc_prefix = "Perfect hydration" if perfect else "Hydration progress"
     return [
         XPLedger(
             user=raw_log.user,
             modality=Modality.HYDRATION,
-            amount=30,
+            amount=xp,
             description=(
-                f"Perfect hydration: {int(total_water)} oz "
+                f"{desc_prefix}: {int(total_water)} oz "
                 f"goal {int(water_goal)} oz - SparkyFitness"
             ),
         )
@@ -286,24 +435,44 @@ def _handle_hydration(raw_log):
 def summarize_hydration(raw_log):
     """Build a UI-ready hydration summary for one RawActivityLog (SparkyFitness).
 
-    Returns water intake vs goal, percentage, the "perfect hydration" flag,
-    and the XP / Base Materials that the rulebook grants for it.
+    Returns water intake vs goal, percentage, status badges,
+    and the XP / tokens that the rulebook grants for it.
     """
     payload = raw_log.payload or {}
     entries = payload.get("water_intake_entries") or []
-    water_goal = payload.get("water_goal")
+    water_goal = payload.get("water_goal") or (payload.get("goals") or {}).get("water")
 
-    total_water = sum(float(e.get("amount", 0) or 0) for e in entries)
+    if entries:
+        total_water = sum(float(e.get("amount", 0) or 0) for e in entries)
+    else:
+        # Direct water amount keys on payload
+        direct_w = payload.get("water") or payload.get("water_oz") or payload.get("amount")
+        if direct_w is None and payload.get("water_ml"):
+            direct_w = float(payload.get("water_ml", 0) or 0) / 29.5735
+        total_water = float(direct_w or 0)
 
     water_goal_f = float(water_goal) if water_goal is not None else None
 
     perfect = bool(water_goal_f is not None and total_water >= water_goal_f)
-    xp = 30 if perfect else 0
-    tokens = TOKEN_PERFECT_HYDRATION if perfect else 0
+    xp = hydration_xp(total_water, water_goal_f)
+    tokens = hydration_tokens(total_water, water_goal_f)
 
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
     water_pct = int(round((total_water / water_goal_f) * 100)) if water_goal_f else 0
+
+    if perfect:
+        status = "perfect"
+        status_label = "ON TARGET"
+    elif water_pct >= 80:
+        status = "close"
+        status_label = "CLOSE"
+    elif water_pct >= 60:
+        status = "partial"
+        status_label = "PARTIAL"
+    else:
+        status = "needs_work"
+        status_label = "Needs work"
 
     return {
         "date": date_str,
@@ -311,6 +480,8 @@ def summarize_hydration(raw_log):
         "water_goal": round(water_goal_f, 1) if water_goal_f is not None else None,
         "water_pct": water_pct,
         "perfect": perfect,
+        "status": status,
+        "status_label": status_label,
         "xp": xp,
         "tokens": tokens,
         "water_intake_entries": [
@@ -329,8 +500,23 @@ def summarize_endurance(raw_log):
     """Build a UI-ready endurance summary for one RawActivityLog (SparkyFitness)."""
     payload = raw_log.payload or {}
     entries = payload.get("exercise_entries") or []
-    total_calories = float(payload.get("total_calories_burned", 0) or 0)
-    total_minutes = float(payload.get("total_duration_minutes", 0) or 0)
+    
+    # Check direct total_calories_burned, total_calories, calories, calories_burned, or sum entries
+    total_calories = float(
+        payload.get("total_calories_burned")
+        or payload.get("total_calories")
+        or payload.get("calories")
+        or payload.get("calories_burned")
+        or sum(float(e.get("calories_burned", e.get("calories", 0)) or 0) for e in entries)
+        or 0
+    )
+    total_minutes = float(
+        payload.get("total_duration_minutes")
+        or payload.get("duration_minutes")
+        or payload.get("minutes")
+        or sum(float(e.get("duration_minutes", e.get("minutes", 0)) or 0) for e in entries)
+        or 0
+    )
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
     # XP from the rulebook: 1 XP per 10 cal, min 10 XP
@@ -362,8 +548,14 @@ def summarize_strength(raw_log):
     """
     payload = raw_log.payload or {}
     exercises = payload.get("exercises") or []
-    volume = float(payload.get("total_volume_lbs", payload.get("volume_lbs", 0)) or 0)
-    duration = float(payload.get("duration_minutes", 0) or 0)
+    
+    calc_volume = sum(float(e.get("volume_lbs", (float(e.get("weight", 0) or 0) * float(e.get("reps", 0) or 0) * max(1, int(e.get("sets", 1) or 1)))) or 0) for e in exercises)
+    volume = float(payload.get("total_volume_lbs") or payload.get("volume_lbs") or payload.get("volume") or calc_volume or 0)
+    
+    calc_sets = sum(int(e.get("sets", 1) or 1) for e in exercises)
+    total_sets = int(payload.get("total_sets") or payload.get("sets") or calc_sets or 0)
+    
+    duration = float(payload.get("duration_minutes") or payload.get("minutes") or 0)
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
     xp = strength_xp(volume, payload.get("completed", False))
@@ -377,7 +569,7 @@ def summarize_strength(raw_log):
         "day_name": payload.get("day_name", ""),
         "duration_minutes": round(duration, 1),
         "total_volume_lbs": round(volume, 1),
-        "total_sets": int(payload.get("total_sets", payload.get("sets", 0)) or 0),
+        "total_sets": total_sets,
         "exercise_count": len(exercises),
         "xp": xp,
         "tokens": tokens,
@@ -401,19 +593,38 @@ def summarize_strength(raw_log):
 def summarize_sleep(raw_log):
     """Build a UI-ready sleep summary for one RawActivityLog (SparkyFitness).
 
-    Returns hours slept, deep/REM percentages, and the Recovery XP the rulebook
-    (docs/03) grants for it (8h+ = 50 XP, 5-8h = 20 XP).
+    Returns hours slept, deep/REM percentages, status, and the Recovery XP the rulebook
+    grants for it (8h+ = 50 XP, 7h+ = 35 XP, 6h+ = 25 XP, 5h+ = 15 XP).
     """
     payload = raw_log.payload or {}
-    hours = float(payload.get("sleep_hours", 0) or 0)
+    hours = float(payload.get("sleep_hours") or payload.get("hours") or payload.get("duration_hours") or 0)
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
+    xp = sleep_xp(hours)
+
+    if hours >= 8.0:
+        status = "perfect"
+        status_label = "OPTIMAL"
+    elif hours >= 7.0:
+        status = "close"
+        status_label = "GOOD"
+    elif hours >= 6.0:
+        status = "partial"
+        status_label = "MODERATE"
+    elif hours >= 5.0:
+        status = "light"
+        status_label = "LIGHT"
+    else:
+        status = "needs_work"
+        status_label = "LOW"
 
     return {
         "date": date_str,
         "sleep_hours": round(hours, 1),
         "deep_pct": int(payload.get("deep_pct", 0) or 0),
         "rem_pct": int(payload.get("rem_pct", 0) or 0),
-        "xp": sleep_xp(hours),
+        "xp": xp,
+        "status": status,
+        "status_label": status_label,
     }
 
 
@@ -423,32 +634,41 @@ def _handle_nutrition(raw_log):
 
     Payload: {"date": ..., "food_entries": [{protein, calories}...],
               "goals": {"protein": ..., "calories": ...}}.
-    Perfect macros = protein goal met AND under the calorie cap.
+    Tiered rewards for protein adherence + calorie budget management.
     """
-    payload = raw_log.payload
+    payload = raw_log.payload or {}
     entries = payload.get("food_entries") or []
     goals = payload.get("goals") or {}
 
-    total_pro = sum(float(item.get("protein", 0) or 0) for item in entries)
-    total_cals = sum(float(item.get("calories", 0) or 0) for item in entries)
+    if entries:
+        total_pro = sum(float(item.get("protein", 0) or 0) for item in entries)
+        total_cals = sum(float(item.get("calories", 0) or 0) for item in entries)
+    else:
+        total_pro = float(payload.get("protein", 0) or 0)
+        total_cals = float(payload.get("calories", 0) or 0)
 
-    pro_goal = goals.get("protein")
-    cal_goal = goals.get("calories")
+    pro_goal = goals.get("protein") or payload.get("protein_goal")
+    cal_goal = goals.get("calories") or payload.get("calorie_goal")
     if pro_goal is None or cal_goal is None:
         return []
 
-    perfect = total_pro >= float(pro_goal) and total_cals <= float(cal_goal)
-    if not perfect:
+    xp = nutrition_xp(total_pro, total_cals, pro_goal, cal_goal)
+    if xp <= 0:
         return []
 
-    award_tokens(raw_log.user, TOKEN_PERFECT_MACRO)
+    tokens = nutrition_tokens(total_pro, total_cals, pro_goal, cal_goal)
+    if tokens > 0:
+        award_tokens(raw_log.user, tokens)
+
+    perfect = total_pro >= float(pro_goal) and total_cals <= float(cal_goal)
+    desc_prefix = "Perfect macros" if perfect else "Nutrition progress"
     return [
         XPLedger(
             user=raw_log.user,
             modality=Modality.NUTRITION,
-            amount=50,
+            amount=xp,
             description=(
-                f"Perfect macros: {int(total_pro)}g protein "
+                f"{desc_prefix}: {int(total_pro)}g protein "
                 f"({int(total_cals)} kcal) - SparkyFitness"
             ),
         )
@@ -457,35 +677,51 @@ def _handle_nutrition(raw_log):
 def summarize_nutrition(raw_log):
     """Build a UI-ready nutrition summary for one RawActivityLog (SparkyFitness).
 
-    Returns protein/calories vs goals, macro percentages, the "perfect macros"
-    flag, and the XP / Base Materials that the rulebook (docs/03) grants for it.
+    Returns protein/calories vs goals, macro percentages, status flags,
+    and the XP / tokens that the rulebook grants for it.
     """
     payload = raw_log.payload or {}
     entries = payload.get("food_entries") or []
     goals = payload.get("goals") or {}
 
-    total_pro = sum(float(e.get("protein", 0) or 0) for e in entries)
-    total_cals = sum(float(e.get("calories", 0) or 0) for e in entries)
+    if entries:
+        total_pro = sum(float(e.get("protein", 0) or 0) for e in entries)
+        total_cals = sum(float(e.get("calories", 0) or 0) for e in entries)
+    else:
+        total_pro = float(payload.get("protein", 0) or 0)
+        total_cals = float(payload.get("calories", 0) or 0)
 
-    pro_goal = goals.get("protein")
-    cal_goal = goals.get("calories")
+    pro_goal = goals.get("protein") or payload.get("protein_goal")
+    cal_goal = goals.get("calories") or payload.get("calorie_goal")
     pro_goal_f = float(pro_goal) if pro_goal is not None else None
     cal_goal_f = float(cal_goal) if cal_goal is not None else None
 
-    # Perfect macros = protein goal met (at/over) AND under the calorie cap.
     perfect = bool(
         pro_goal_f is not None
         and cal_goal_f is not None
         and total_pro >= pro_goal_f
         and total_cals <= cal_goal_f
     )
-    xp = nutrition_xp(perfect)
-    tokens = TOKEN_PERFECT_MACRO if perfect else 0
+    xp = nutrition_xp(total_pro, total_cals, pro_goal_f, cal_goal_f)
+    tokens = nutrition_tokens(total_pro, total_cals, pro_goal_f, cal_goal_f)
 
     date_str = payload.get("date") or raw_log.occurred_at.date().isoformat()
 
     protein_pct = int(round((total_pro / pro_goal_f) * 100)) if pro_goal_f else 0
     calorie_pct = int(round((total_cals / cal_goal_f) * 100)) if cal_goal_f else 0
+
+    if perfect:
+        status = "perfect"
+        status_label = "PERFECT"
+    elif xp >= 35:
+        status = "close"
+        status_label = "CLOSE"
+    elif xp >= 15:
+        status = "partial"
+        status_label = "PARTIAL"
+    else:
+        status = "needs_work"
+        status_label = "Needs work"
 
     return {
         "date": date_str,
@@ -496,6 +732,8 @@ def summarize_nutrition(raw_log):
         "protein_pct": protein_pct,
         "calorie_pct": calorie_pct,
         "perfect": perfect,
+        "status": status,
+        "status_label": status_label,
         "xp": xp,
         "tokens": tokens,
         "food_entries": [

@@ -12,9 +12,11 @@
 (function () {
     'use strict';
 
-    var ChartJS = null;
-    if (typeof window !== 'undefined') {
-        ChartJS = window.Chart || null;
+    function getChartJS() {
+        if (typeof window !== 'undefined' && window.Chart) {
+            return window.Chart;
+        }
+        return null;
     }
 
     function isoDate(offsetDays) {
@@ -89,6 +91,7 @@
             icon: 'fa-apple-whole',
             accent: '#a78bfa',
             chart: {
+                dualAxis: true,
                 series: [
                     {
                         key: 'protein', label: 'Protein', color: '#a78bfa',
@@ -120,6 +123,7 @@
             icon: 'fa-bicycle',
             accent: '#60a5fa',
             chart: {
+                dualAxis: true,
                 series: [
                     {
                         key: 'total_calories_burned', label: 'Calories burned',
@@ -150,6 +154,7 @@
             icon: 'fa-dumbbell',
             accent: '#a78bfa',
             chart: {
+                dualAxis: true,
                 series: [
                     {
                         key: 'total_volume_lbs', label: 'Volume',
@@ -280,16 +285,43 @@
     }
 
     function buildChart(canvas, cfg, rows) {
+        var ChartJS = getChartJS();
         if (!ChartJS) {
-            var msg = el('div', 'insights-note', 'Chart library not available \u2014 try reloading.');
-            canvas.parentNode.insertBefore(msg, canvas);
-            canvas.style.display = 'none';
+            if (canvas.parentNode) {
+                var existingMsg = canvas.parentNode.querySelector('.insights-chart-loading');
+                if (!existingMsg) {
+                    var msg = el('div', 'insights-note insights-chart-loading', 'Loading chart...');
+                    canvas.parentNode.insertBefore(msg, canvas);
+                    canvas.style.display = 'none';
+
+                    var pollCount = 0;
+                    var timer = setInterval(function () {
+                        pollCount++;
+                        if (getChartJS()) {
+                            clearInterval(timer);
+                            if (msg.parentNode) msg.parentNode.removeChild(msg);
+                            canvas.style.display = '';
+                            buildChart(canvas, cfg, rows);
+                        } else if (pollCount > 40) {
+                            clearInterval(timer);
+                            msg.textContent = 'Chart library not available \u2014 try reloading.';
+                        }
+                    }, 100);
+                }
+            }
             return null;
         }
+
+        if (canvas.parentNode) {
+            var oldMsg = canvas.parentNode.querySelector('.insights-chart-loading');
+            if (oldMsg && oldMsg.parentNode) oldMsg.parentNode.removeChild(oldMsg);
+        }
+        canvas.style.display = '';
         var asc = chronological(rows);
         var labels = asc.map(function (d) { return d.date || '\u2014'; });
         var perfectArr = asc.map(function (d) { return cfg.goodDay(d); });
 
+        var dualAxis = !!(cfg.chart && cfg.chart.dualAxis && cfg.chart.series.length > 1);
         var datasets = [];
         cfg.chart.series.forEach(function (s, idx) {
             var values = asc.map(function (d) { return num(d[s.key]) || 0; });
@@ -298,10 +330,12 @@
                 var on = single || perfectArr[i];
                 return hexToRgba(s.color, on ? 0.95 : 0.38);
             });
+            var yAxisID = dualAxis ? (idx === 0 ? 'y' : 'y1') : 'y';
             datasets.push({
                 label: s.label + (s.unit ? ' (' + s.unit + ')' : ''),
                 data: values,
                 type: 'bar',
+                yAxisID: yAxisID,
                 backgroundColor: bg,
                 hoverBackgroundColor: hexToRgba(mixTowardWhite(s.color, 0.15), 0.98),
                 borderColor: hexToRgba(s.color, 0.9),
@@ -323,6 +357,7 @@
                     label: s.goalLabel || 'Goal',
                     data: goalKeep,
                     type: 'line',
+                    yAxisID: yAxisID,
                     borderColor: hexToRgba(mixTowardWhite(s.color, 0.4), 0.95),
                     borderWidth: 2,
                     borderDash: [6, 5],
@@ -334,7 +369,66 @@
                 });
             }
         });
-            return new ChartJS(canvas.getContext('2d'), {
+
+        var s0 = cfg.chart.series[0];
+        var s1 = cfg.chart.series[1];
+        var chartScales = {
+            x: {
+                grid: { display: false },
+                ticks: { color: '#94a3b8', maxTicksLimit: 8, font: { family: 'Nunito', weight: '700' } }
+            },
+            y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
+                beginAtZero: true,
+                grid: { color: 'rgba(148,163,184,0.12)' },
+                ticks: {
+                    color: (dualAxis && s0) ? s0.color : '#94a3b8',
+                    font: { family: 'Nunito', weight: '700' },
+                    callback: function (value) {
+                        if (dualAxis && s0 && s0.unit) {
+                            return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value + (s0.unit === 'g' ? 'g' : '');
+                        }
+                        return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value;
+                    }
+                },
+                title: (dualAxis && s0) ? {
+                    display: true,
+                    text: s0.label + (s0.unit ? ' (' + s0.unit + ')' : ''),
+                    color: s0.color,
+                    font: { family: 'Nunito', weight: '800', size: 10 }
+                } : undefined
+            }
+        };
+
+        if (dualAxis && s1) {
+            chartScales.y1 = {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                beginAtZero: true,
+                grid: { drawOnChartArea: false },
+                ticks: {
+                    color: s1.color,
+                    font: { family: 'Nunito', weight: '700' },
+                    callback: function (value) {
+                        if (s1.unit) {
+                            return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value + (s1.unit === 'g' ? 'g' : '');
+                        }
+                        return value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value;
+                    }
+                },
+                title: {
+                    display: true,
+                    text: s1.label + (s1.unit ? ' (' + s1.unit + ')' : ''),
+                    color: s1.color,
+                    font: { family: 'Nunito', weight: '800', size: 10 }
+                }
+            };
+        }
+
+        return new ChartJS(canvas.getContext('2d'), {
             type: 'bar',
             data: { labels: labels, datasets: datasets },
             options: {
@@ -362,17 +456,7 @@
                         bodyFont: { family: 'Nunito', weight: '700' }
                     }
                 },
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#94a3b8', maxTicksLimit: 8, font: { family: 'Nunito', weight: '700' } }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: 'rgba(148,163,184,0.12)' },
-                        ticks: { color: '#94a3b8', font: { family: 'Nunito', weight: '700' } }
-                    }
-                }
+                scales: chartScales
             }
         });
     }

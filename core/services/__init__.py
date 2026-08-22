@@ -12,8 +12,15 @@ from .sparky_client import SparkyFitnessClient  # noqa: F401
 from .liftosaur_client import LiftosaurClient  # noqa: F401
 from .gamification import (  # noqa: F401
     XP_PER_LEVEL,
+    calorie_xp,
+    hydration_tokens,
+    hydration_xp,
+    nutrition_tokens,
+    nutrition_xp,
     process_log,
     process_payload,
+    protein_xp,
+    sleep_xp,
     summarize_endurance,
     summarize_hydration,
     summarize_nutrition,
@@ -87,6 +94,7 @@ from .combat import (  # noqa: F401
     set_defense,
     spend_tokens,
     stamina_cap,
+    stat_breakdown_for,
     streak_multiplier,
     tick_combat_daily,
     token_dividend,

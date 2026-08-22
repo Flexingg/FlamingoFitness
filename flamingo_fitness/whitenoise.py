@@ -39,14 +39,25 @@ class MediaServingWhiteNoise(WhiteNoiseMiddleware):
     """WhiteNoise middleware serving /static/ plus freshly-uploaded /media/."""
 
     def __init__(self, get_response=None, **kwargs):
-        super().__init__(get_response=get_response, **kwargs)
+        try:
+            super().__init__(get_response=get_response, **kwargs)
+        except (FileNotFoundError, OSError):
+            self.get_response = get_response
+            self.static_root = getattr(django_settings, "STATIC_ROOT", None)
+            self.static_prefix = getattr(django_settings, "STATIC_URL", "/static/")
+            self.files = {}
+            self.directories = []
         self.media_prefix = _media_url_prefix()
         media_root = getattr(django_settings, "MEDIA_ROOT", None)
         if not media_root:
             return
 
         # Startup snapshot: lets already-existing media use the fast dict path.
-        self.add_files(root=media_root, prefix=self.media_prefix)
+        if os.path.exists(media_root):
+            try:
+                self.add_files(root=media_root, prefix=self.media_prefix)
+            except (FileNotFoundError, OSError):
+                pass
 
         # Register the real directory so find_file() can stat MEDIA_ROOT at
         # request time. WhiteNoise's self.files is a startup-time snapshot and

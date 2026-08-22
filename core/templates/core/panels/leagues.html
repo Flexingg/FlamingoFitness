@@ -1,0 +1,25 @@
+<section class="hidden p-4 min-h-full bg-slate-900" id="leagues-view">
+    <div class="flex items-center gap-4 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+        <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="leagues-back" onclick="backToLeaguesPlan()">
+            <i class="fa-solid fa-arrow-left text-xl"></i>
+        </button>
+        <h2 class="text-2xl font-black text-white flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved text-blue-400"></i> Leagues
+        </h2>
+    </div>
+
+    <!-- Sub-tabs: Leaderboard / Challenges / Flock (leagues.js toggles .active) -->
+    <div class="leagues-tabs flex bg-slate-800 rounded-2xl p-1.5 mb-6 border border-slate-600 shadow-inner" id="leagues-tabs">
+        <button class="leagues-tab active flex-1 py-2.5 text-sm font-bold text-white rounded-xl transition-all" data-tab="leaderboard" onclick="switchLeaguesTab('leaderboard')">
+            <i class="fa-solid fa-ranking-star mr-1"></i> Board
+        </button>
+        <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="challenges" onclick="switchLeaguesTab('challenges')">
+            <i class="fa-solid fa-fire-flame-curved mr-1"></i> Challenge
+        </button>
+        <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="flock" onclick="switchLeaguesTab('flock')">
+            <i class="fa-solid fa-dove mr-1"></i> Flock
+        </button>
+    </div>
+
+    <div id="leagues-content"></div>
+</section>

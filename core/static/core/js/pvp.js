@@ -23,7 +23,12 @@
 
     function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() { return window.csrfToken(); }
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
     function haptic(ms) { return window.haptic(ms); }
 
@@ -42,21 +47,30 @@
 
     window.loadPvP = function () {
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('pvp-view');
-        var content = document.getElementById('pvp-content');
-        if (!view) { window.ffWarn('[pvp] pvp-view not found'); return; }
-        window.ensureSinglePanelVisible('pvp-view');
-        if (window.setActiveNav) window.setActiveNav('nav-pvp');
-        content.innerHTML = '<p class="text-slate-400">Scouting the arena…</p>';
-        fetch(STATE_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) { window.renderPvP(data); })
-            .catch(function (err) {
-                content.innerHTML = '<p class="text-slate-400">Could not load PvP (error ' + esc(err) + ').</p>';
-            });
+
+        var runLoad = function () {
+            var view = document.getElementById('pvp-view');
+            var content = document.getElementById('pvp-content');
+            if (!view) { window.ffWarn('[pvp] pvp-view not found'); return; }
+            window.ensureSinglePanelVisible('pvp-view');
+            if (window.setActiveNav) window.setActiveNav('nav-pvp');
+            content.innerHTML = '<p class="text-slate-400">Scouting the arena…</p>';
+            fetch(STATE_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) { window.renderPvP(data); })
+                .catch(function (err) {
+                    if (content) content.innerHTML = '<p class="text-slate-400">Could not load PvP (error ' + esc(err) + ').</p>';
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('pvp-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
     window.renderPvP = function (data) {
         var content = document.getElementById('pvp-content');
@@ -199,7 +213,7 @@
         haptic(30);
         fetch(DEFEND_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ terrain: terrain, name: name })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -215,7 +229,7 @@
         if (navigator.vibrate) navigator.vibrate([70, 40, 90]);
         fetch(ATTACK_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gym_id: gymId })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })

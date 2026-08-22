@@ -27,7 +27,6 @@
     };
 
     window.ffError = function () {
-        // Errors are always reported even in production
         Function.prototype.apply.call(console.error, console, arguments);
     };
 
@@ -51,22 +50,30 @@
     window.escHtml = function (s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/\"/g, '&quot;');
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     };
 
     // ------------------------------------------------------------------
-    // CSRF token from <meta name="csrf-token">
+    // CSRF token from <meta name="csrf-token"> with cookie fallback
     // ------------------------------------------------------------------
     window.csrfToken = function () {
         var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
     };
 
     // ------------------------------------------------------------------
     // Haptic feedback (vibration)
     // ------------------------------------------------------------------
     window.haptic = function (ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 50);
+        if (navigator.vibrate) {
+            try {
+                navigator.vibrate(ms || 50);
+            } catch (e) {
+                // Ignore
+            }
+        }
     };
 
     // ------------------------------------------------------------------
@@ -110,7 +117,8 @@
                 (secondary ? ' secondary' : '') + '">' + window.escHtml(ctaText) + '</button>' : '') +
             '</div>';
     };
-// ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
     // Render empty state into a container
     // ------------------------------------------------------------------
     window.showEmptyState = function (container, opts) {
@@ -148,6 +156,107 @@
             'animation:toast-in 0.2s ease-out;';
         document.body.appendChild(toast);
         setTimeout(function () { toast.remove(); }, 3500);
+    };
+
+    // ------------------------------------------------------------------
+    // Panel lazy-loading (Phase 2, docs/19 #12)
+    // Fetches server-side HTML partial for a panel and injects it into <main>
+    // ------------------------------------------------------------------
+    window._panelCache = window._panelCache || {};
+    window.ensurePanelLoaded = function (panelId) {
+        var cleanName = panelId.replace('-view', '');
+        var targetId = cleanName + '-view';
+        var el = document.getElementById(targetId);
+        if (el) {
+            return Promise.resolve(el);
+        }
+        if (window._panelCache[cleanName]) {
+            var main = document.querySelector('main');
+            if (main) {
+                var temp = document.createElement('div');
+                temp.innerHTML = window._panelCache[cleanName];
+                var node = temp.firstElementChild;
+                if (node) main.appendChild(node);
+                return Promise.resolve(node || document.getElementById(targetId));
+            }
+        }
+        return fetch('/panel/' + encodeURIComponent(cleanName) + '/', { credentials: 'same-origin' })
+            .then(function (res) {
+                if (!res.ok) throw new Error('Panel fetch failed: ' + res.status);
+                return res.text();
+            })
+            .then(function (html) {
+                window._panelCache[cleanName] = html;
+                var main = document.querySelector('main');
+                if (main) {
+                    var temp = document.createElement('div');
+                    temp.innerHTML = html;
+                    var node = temp.firstElementChild;
+                    if (node) {
+                        main.appendChild(node);
+                        return node;
+                    }
+                }
+                return document.getElementById(targetId);
+            });
+    };
+
+    // ------------------------------------------------------------------
+    // Skeleton loading state generator (Phase 3, docs/19 #13)
+    // ------------------------------------------------------------------
+    window.skeletonCardHTML = function () {
+        return '<div class="skeleton-card p-4 rounded-2xl mb-4">' +
+            '<div class="flex items-center gap-3 mb-3">' +
+            '<div class="skeleton-circle w-10 h-10 rounded-full"></div>' +
+            '<div class="flex-1">' +
+            '<div class="skeleton-bar h-4 w-3/4 rounded mb-2"></div>' +
+            '<div class="skeleton-bar h-3 w-1/2 rounded"></div>' +
+            '</div>' +
+            '</div>' +
+            '<div class="skeleton-bar h-20 w-full rounded-xl mb-3"></div>' +
+            '<div class="skeleton-bar h-8 w-full rounded-xl"></div>' +
+            '</div>';
+    };
+
+    window.renderSkeleton = function (container, count) {
+        if (!container) return;
+        var n = count || 2;
+        var html = '<div class="skeleton-wrapper py-2">';
+        for (var i = 0; i < n; i++) {
+            html += window.skeletonCardHTML();
+        }
+        html += '</div>';
+        container.innerHTML = html;
+        container.classList.remove('hidden');
+    };
+
+    // ------------------------------------------------------------------
+    // Animated number roll-up helper
+    // ------------------------------------------------------------------
+    window.animateNumber = function (el, startVal, endVal, duration) {
+        if (!el) return;
+        var start = Number(startVal) || 0;
+        var end = Number(endVal) || 0;
+        if (start === end) {
+            el.textContent = end;
+            return;
+        }
+        var startTime = null;
+        var dur = duration || 400;
+
+        function step(timestamp) {
+            if (!startTime) startTime = timestamp;
+            var progress = Math.min((timestamp - startTime) / dur, 1);
+            var ease = 1 - Math.pow(1 - progress, 3); // cubic ease-out
+            var current = Math.round(start + (end - start) * ease);
+            el.textContent = current;
+            if (progress < 1) {
+                window.requestAnimationFrame(step);
+            } else {
+                el.textContent = end;
+            }
+        }
+        window.requestAnimationFrame(step);
     };
 
 })();

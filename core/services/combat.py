@@ -8,7 +8,7 @@ mutations are atomic; saves use ``update_fields``.
 
 import logging
 import random
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db import transaction
 from django.db.models import Sum
@@ -105,10 +105,10 @@ WEEKDAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 _CAMPAIGN_EVENT_TYPES = {
     Campaign.CARDIO: ("cardio", "endurance"),
-    Campaign.STRENGTH: ("strength",),
-    Campaign.NUTRITION: ("nutrition",),
-    Campaign.HYDRATION: ("hydration",),
-    Campaign.SLEEP: ("sleep",),
+    Campaign.STRENGTH: ("strength", "weightlifting", "workout"),
+    Campaign.NUTRITION: ("nutrition", "food"),
+    Campaign.HYDRATION: ("hydration", "water"),
+    Campaign.SLEEP: ("sleep", "recovery"),
 }
 # ---------------------------------------------------------------------------
 # Wallet (PlayerProfile) - docs/15 §5.1
@@ -309,10 +309,16 @@ def _run_pulls(user, pack, draws, rng):
         # items linked via the pack FK (a pack FK ties gear to a single pack).
         candidates = list(qs)
     else:
-        qs = qs.filter(pack=pack)
+        pack_qs = qs.filter(pack=pack)
         if pack.domains:
-            qs = qs.filter(effect_domain__in=pack.domains) | qs.filter(is_consumable=True)
-        candidates = list(qs)
+            pack_qs = pack_qs.filter(effect_domain__in=pack.domains) | qs.filter(is_consumable=True, pack=pack)
+        candidates = list(pack_qs)
+        if not candidates and pack.domains:
+            # Fallback: drop from any active items matching the pack's domain or consumables
+            candidates = list(qs.filter(effect_domain__in=pack.domains) | qs.filter(is_consumable=True))
+        if not candidates:
+            # Fallback for general packs with no specific FK links (e.g. Starter Pack)
+            candidates = list(qs)
     if not candidates:
         return False, "This pack has no items configured yet.", []
     weights = rarity_weights(user.streak)
@@ -417,52 +423,162 @@ def _summarize(name, raw_log):
     return fns[name](raw_log)
 
 
+def _normalize_date(on_date):
+    if on_date is None:
+        return timezone.localdate()
+    if isinstance(on_date, str):
+        try:
+            return date.fromisoformat(on_date[:10])
+        except (ValueError, TypeError):
+            return timezone.localdate()
+    if isinstance(on_date, timezone.datetime):
+        return timezone.localtime(on_date).date()
+    return on_date
+
+
+def _get_campaign_logs_for_date(campaign, user, on_date=None):
+    """Retrieve all RawActivityLog entries for a campaign on a given date.
+
+    If on_date is None (or today) and no logs exist for today yet, falls back
+    to the user's most recent day's logs (matching the modality views behavior).
+    """
+    target_date = _normalize_date(on_date)
+    is_today_query = (on_date is None or target_date == timezone.localdate())
+    target_str = target_date.isoformat()
+    event_types = _CAMPAIGN_EVENT_TYPES.get(campaign, (campaign,))
+
+    qs = RawActivityLog.objects.filter(
+        user=user, event_type__in=event_types
+    ).order_by("-occurred_at")
+
+    all_logs = list(qs)
+    if not all_logs:
+        return []
+
+    def _log_date(l):
+        p_date = (l.payload or {}).get("date")
+        if p_date and isinstance(p_date, str):
+            return p_date[:10]
+        try:
+            return timezone.localtime(l.occurred_at).date().isoformat()
+        except Exception:
+            return l.occurred_at.date().isoformat()
+
+    # Filter for target_date
+    matching = [l for l in all_logs if _log_date(l) == target_str]
+    if matching:
+        return matching
+
+    # If today query has no entries for today, fallback to the most recent day's logs
+    if is_today_query and all_logs:
+        latest_day = _log_date(all_logs[0])
+        return [l for l in all_logs if _log_date(l) == latest_day]
+
+    return []
+
+
 def base_damage_for(campaign, user, on_date=None):
     """Base damage for a campaign from today's real tracked data (docs/15 §2)."""
-    on_date = on_date or timezone.localdate()
-    event_types = _CAMPAIGN_EVENT_TYPES.get(campaign, (campaign,))
-    log = (
-        RawActivityLog.objects.filter(
-            user=user, event_type__in=event_types, occurred_at__date=on_date
+    logs = _get_campaign_logs_for_date(campaign, user, on_date=on_date)
+    if not logs:
+        return 0
+
+    scale = BOSS_HP_SCALE.get(campaign, 1)
+
+    if campaign == Campaign.CARDIO:
+        total_calories = sum(
+            float(_summarize("endurance", l).get("total_calories_burned", 0) or 0)
+            for l in logs
         )
-        .order_by("-occurred_at")
-        .first()
-    )
+        return int(total_calories / scale)
+
+    if campaign == Campaign.STRENGTH:
+        total_volume = sum(
+            float(_summarize("strength", l).get("total_volume_lbs", 0) or 0)
+            for l in logs
+        )
+        return int(total_volume / scale)
+
+    if campaign == Campaign.NUTRITION:
+        total_protein = 0.0
+        protein_goal = 0.0
+        for l in logs:
+            s = _summarize("nutrition", l)
+            total_protein += float(s.get("protein", 0) or 0)
+            if not protein_goal and s.get("protein_goal"):
+                protein_goal = float(s.get("protein_goal") or 0)
+        adherence = min(1.5, (total_protein / protein_goal)) if protein_goal > 0 else 1.0
+        return int(adherence * (total_protein / scale))
+
+    if campaign == Campaign.HYDRATION:
+        total_water = 0.0
+        water_goal = 0.0
+        for l in logs:
+            s = _summarize("hydration", l)
+            total_water += float(s.get("water", 0) or 0)
+            if not water_goal and s.get("water_goal"):
+                water_goal = float(s.get("water_goal") or 0)
+        if not water_goal:
+            water_goal = 64.0
+        perfect = total_water >= water_goal
+        multiplier = 2 if perfect else 1
+        return int((total_water / scale) * multiplier) if total_water > 0 else 0
+
+    if campaign == Campaign.SLEEP:
+        total_hours = sum(
+            float(_summarize("sleep", l).get("sleep_hours", 0) or 0)
+            for l in logs
+        )
+        return int((total_hours * 10) / scale)
+
+    return 0
+
+
+def stat_breakdown_for(campaign, user, on_date=None):
+    """Human-readable detail of the tracked activity that generated base damage."""
+    target_date = _normalize_date(on_date)
+    logs = _get_campaign_logs_for_date(campaign, user, on_date=target_date)
+    if not logs:
+        return {"tracked_label": "No activity logged today yet", "raw_value": 0, "scale_note": ""}
     scale = BOSS_HP_SCALE.get(campaign, 1)
     if campaign == Campaign.CARDIO:
-        return int((_summarize("endurance", log)["total_calories_burned"]) / scale) if log else 0
+        cals = sum(float(_summarize("endurance", l).get("total_calories_burned", 0) or 0) for l in logs)
+        return {"tracked_label": f"{int(cals):,} kcal burned today", "raw_value": cals, "scale_note": "1 base dmg per 10 kcal"}
     if campaign == Campaign.STRENGTH:
-        return int((_summarize("strength", log)["total_volume_lbs"]) / scale) if log else 0
-    if campaign == Campaign.NUTRITION and log:
-        s = _summarize("nutrition", log)
-        goal = s.get("protein_goal") or 0
-        base = int(min(1.5, (s.get("protein", 0) / goal if goal else 1)) * (s.get("protein", 0) / scale))
-        return base
-    if campaign == Campaign.HYDRATION and log:
-        s = _summarize("hydration", log)
-        goal = s.get("water_goal") or 96
-        water = s.get("water", 0)
-        return int((water / scale) * (2 if goal else 1)) if water else 0
-    if campaign == Campaign.SLEEP and log:
-        s = _summarize("sleep", log)
-        hours = s.get("sleep_hours") or 0
-        return int((hours * 10) / scale)
-    return 0
+        vol = sum(float(_summarize("strength", l).get("total_volume_lbs", 0) or 0) for l in logs)
+        return {"tracked_label": f"{int(vol):,} lbs volume lifted today", "raw_value": vol, "scale_note": "1 base dmg per 1,000 lbs"}
+    if campaign == Campaign.NUTRITION:
+        prot = sum(float(_summarize("nutrition", l).get("protein", 0) or 0) for l in logs)
+        return {"tracked_label": f"{int(prot)}g protein today", "raw_value": prot, "scale_note": "Scaled by protein goal adherence"}
+    if campaign == Campaign.HYDRATION:
+        water = sum(float(_summarize("hydration", l).get("water", 0) or 0) for l in logs)
+        return {"tracked_label": f"{int(water)} oz water logged today", "raw_value": water, "scale_note": "2x multiplier when goal met"}
+    if campaign == Campaign.SLEEP:
+        hours = sum(float(_summarize("sleep", l).get("sleep_hours", 0) or 0) for l in logs)
+        return {"tracked_label": f"{hours:.1f} hrs sleep recorded", "raw_value": hours, "scale_note": "Scaled vs 8hr target"}
+    return {"tracked_label": "", "raw_value": 0, "scale_note": ""}
 
 
 def _last_night_sleep_hours(user, on_date=None):
     """Most recent sleep log's sleep_hours before/on on_date (for synergy gates)."""
-    on_date = on_date or timezone.localdate()
+    target_date = _normalize_date(on_date)
+    logs = _get_campaign_logs_for_date(Campaign.SLEEP, user, on_date=target_date)
+    if logs:
+        return sum(
+            float(_summarize("sleep", l).get("sleep_hours", 0) or 0.0)
+            for l in logs
+        )
+
     log = (
         RawActivityLog.objects.filter(
-            user=user, event_type="sleep", occurred_at__date__lte=on_date
+            user=user, event_type__in=_CAMPAIGN_EVENT_TYPES[Campaign.SLEEP]
         )
         .order_by("-occurred_at")
         .first()
     )
     if not log:
         return 0.0
-    return _summarize("sleep", log).get("sleep_hours") or 0.0
+    return float(_summarize("sleep", log).get("sleep_hours", 0) or 0.0)
 
 
 def _buff_gate_passes(item, user, on_date=None):
@@ -609,20 +725,18 @@ def boss_vulnerability(boss, campaign):
 
 
 def _is_over_calories(user, on_date=None):
-    on_date = on_date or timezone.localdate()
-    log = (
-        RawActivityLog.objects.filter(
-            user=user, event_type="nutrition", occurred_at__date=on_date
-        )
-        .order_by("-occurred_at")
-        .first()
-    )
-    if not log:
+    target_date = _normalize_date(on_date)
+    logs = _get_campaign_logs_for_date(Campaign.NUTRITION, user, on_date=target_date)
+    if not logs:
         return False
-    s = _summarize("nutrition", log)
-    cal = s.get("calories") or 0
-    goal = s.get("calorie_goal")
-    return bool(goal and cal > int(goal))
+    total_cals = 0.0
+    cal_goal = 0.0
+    for l in logs:
+        s = _summarize("nutrition", l)
+        total_cals += float(s.get("calories", 0) or 0)
+        if not cal_goal and s.get("calorie_goal"):
+            cal_goal = float(s.get("calorie_goal") or 0)
+    return bool(cal_goal and total_cals > cal_goal)
 
 
 def _first_boss(campaign):

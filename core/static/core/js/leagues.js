@@ -42,12 +42,17 @@
 
     function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() { return window.csrfToken(); }
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
     function postJson(url, body) {
         return fetch(url, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify(body || {})
         }).then(function (res) {
             return res.json().catch(function () { return {}; }).then(function (data) {
@@ -140,11 +145,17 @@
     window.loadLeagues = function () {
         window.ffLog('[leagues] loadLeagues start');
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('leagues-view');
-        if (!view) { window.ffWarn('[leagues] leagues-view not found, aborting'); return; }
-        // Single-panel navigation: hide ALL panels, then show only leagues.
-        window.ensureSinglePanelVisible('leagues-view');
-        window.switchLeaguesTab(currentTab || 'leaderboard');
+        var runLoad = function () {
+            var view = document.getElementById('leagues-view');
+            if (!view) { window.ffWarn('[leagues] leagues-view not found, aborting'); return; }
+            window.ensureSinglePanelVisible('leagues-view');
+            window.switchLeaguesTab(currentTab || 'leaderboard');
+        };
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('leagues-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
 
     window.switchLeaguesTab = function (tab) {

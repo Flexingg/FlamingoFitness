@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Service worker version (Phase 1, docs/19 #24) -->
-    <meta name="ff-sw-version" content="5">
+    <meta name="ff-sw-version" content="7">
     <!-- DEBUG flag for guarded logging (Phase 1, docs/19 #11) -->
     <script>window.ffDEBUG = {% if DEBUG %}true{% else %}false{% endif %};</script>
     <!-- Shared utility functions (Phase 1, docs/19 #21) -->
@@ -32,14 +32,10 @@
     <!-- Fonts and Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Existing dashboard.css styles the JS-injected dynamic content
-         (nutrition/base/badges/leagues/stat-history/friend-picker etc.).
-         Left untouched so no backend behaviour changes. -->
+    <!-- Unified dashboard.css with CSS-variable palette (Phase 4 docs/19 #16) -->
     <link rel="stylesheet" href="{% static 'core/css/dashboard.css' %}">
-    <!-- Light palette layer (no-op unless html.light is active) -->
-    <link rel="stylesheet" href="{% static 'core/css/theme.css' %}">
 
-    <!-- Tailwind CSS: bubbly dark-slate look (matches example_html/dashboard.html) -->
+    <!-- Tailwind CSS: bubbly look -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -72,168 +68,54 @@
     </script>
     <style>
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-
+        ::-webkit-scrollbar-track { background: var(--bg-app); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .hidden { display: none !important; }
 
-        /* Dark mode palette variables for JS-injected components */
-        :root {
-            --bg-light: #1e293b;
-            --bg-app: #0f172a;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-            --bg-sky: #0f172a;
-        }
-
         .stat-clickable { cursor: pointer; }
 
-        /* Mobile browser chrome: use the dynamic/small viewport height so the bottom
-           tab bar sits ABOVE the browser's own UI when not installed as a PWA
-           (100vh extends underneath it). Browsers without dvh/svh support ignore
-           these and fall back to Tailwind's h-screen (100vh). */
-        body { height: 100dvh !important; height: 100svh !important; }
-
-        .nav-item { color: #94a3b8; }
-        .nav-item:hover { color: #e2e8f0; }
-        .nav-item.active { color: #FF5E9A; }
-
-        /* Center "Game" FAB + menu (docs/15 cleanup: keep the bottom bar a single
-           short row on mobile instead of two stacked rows). */
-        .nav-game-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; color: #94a3b8; }
-        .nav-game-btn:hover { color: #e2e8f0; }
-        .nav-game-btn .nav-game-fab { width: 32px; height: 32px; margin-top: 0; border-radius: 50%;
-            background: linear-gradient(135deg, #FF5E9A, #D83A73); color: #fff;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 6px 16px rgba(255, 94, 154, 0.5); border: 2px solid #0f172a;
-            transition: transform 0.18s ease; }
-        .nav-game-btn .nav-game-fab i { font-size: 13px; }
-        .nav-game-btn.active { color: #FF5E9A; }
-        .nav-game-btn.open .nav-game-fab { transform: rotate(135deg); }
-        #game-menu { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
-            z-index: 70; display: flex; gap: 6px; padding: 8px;
-            background: #1e293b; border: 1px solid #334155; border-radius: 18px;
-            box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6); }
-        #game-menu button { width: 58px; height: 58px; border-radius: 14px; display: flex;
-            flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-            font-size: 10.5px; font-weight: 800; color: #e2e8f0; background: #0f172a;
-            border: 1px solid #334155; transition: all 0.12s ease; }
-        #game-menu button:hover { color: #FF5E9A; transform: translateY(-2px); }
-        #game-menu button i { font-size: 18px; }
+        /* Mobile browser chrome: use dynamic/small viewport height */
+        body { height: 100dvh !important; height: 100svh !important; background-color: var(--bg-outer); color: var(--text-main); }
 
         /* Leagues sub-tabs */
-        .leagues-tabs { background: #1e293b !important; border: 1px solid #334155 !important; }
-        .leagues-tab { color: #94a3b8 !important; background: transparent !important; border: none !important; transition: all 0.15s ease; }
-        .leagues-tab:hover { color: #e2e8f0 !important; }
-        .leagues-tab.active { background: #334155 !important; color: #ffffff !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important; }
+        .leagues-tabs { background: var(--bg-light) !important; border: 1px solid var(--border-color) !important; }
+        .leagues-tab { color: var(--text-muted) !important; background: transparent !important; border: none !important; transition: all 0.15s ease; }
+        .leagues-tab:hover { color: var(--text-main) !important; }
+        .leagues-tab.active { background: var(--border-color) !important; color: var(--text-main) !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2) !important; }
 
         /* Modals & explainer popups */
         .modal-overlay { display: none; opacity: 0; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
         .modal-overlay.show-modal { display: flex; opacity: 1; }
-        .modal-content { background-color: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important; }
-        .modal-title, .modal-desc { color: #f8fafc !important; }
+        .modal-content { background-color: var(--bg-light) !important; border: 1px solid var(--border-color) !important; color: var(--text-main) !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important; }
+        .modal-title, .modal-desc { color: var(--text-main) !important; }
 
-        /* 1. Streak / Materials / Energy modal & dropdown cards */
-        .stat-modal-content { background: #1e293b !important; color: #f8fafc !important; border: 1px solid #334155 !important; }
-        .stat-modal-title { color: #ffffff !important; }
-        .stat-modal-desc { color: #cbd5e1 !important; }
-        .stat-acc { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 14px !important; margin-bottom: 8px !important; }
-        .stat-acc-head { color: #f8fafc !important; font-weight: 700 !important; }
+        /* Stat explainer modal */
+        .stat-modal-content { background: var(--bg-light) !important; color: var(--text-main) !important; border: 1px solid var(--border-color) !important; }
+        .stat-modal-title { color: var(--text-main) !important; }
+        .stat-modal-desc { color: var(--text-muted) !important; }
+        .stat-acc { background: var(--bg-app) !important; border: 1px solid var(--border-color) !important; color: var(--text-main) !important; border-radius: 14px !important; margin-bottom: 8px !important; }
+        .stat-acc-head { color: var(--text-main) !important; font-weight: 700 !important; }
         .stat-acc-head:hover { background: rgba(255, 255, 255, 0.05) !important; }
-        .stat-acc-count { background: #334155 !important; color: #94a3b8 !important; border-radius: 9999px !important; }
-        .stat-acc-body { background: #0f172a !important; color: #cbd5e1 !important; }
-        .stat-fact-row { border-color: #334155 !important; color: #cbd5e1 !important; }
-        .stat-fact-value { color: #f8fafc !important; font-weight: 800 !important; }
-        .stat-howto { color: #cbd5e1 !important; }
-        .stat-history-row { border-color: #334155 !important; }
-        .stat-history-label { color: #f8fafc !important; font-weight: 700 !important; }
-        .stat-history-detail, .stat-history-date { color: #94a3b8 !important; }
+        .stat-acc-count { background: var(--border-color) !important; color: var(--text-muted) !important; border-radius: 9999px !important; }
+        .stat-acc-body { background: var(--bg-app) !important; color: var(--text-muted) !important; }
+        .stat-fact-row { border-color: var(--border-color) !important; color: var(--text-muted) !important; }
+        .stat-fact-value { color: var(--text-main) !important; font-weight: 800 !important; }
+        .stat-howto { color: var(--text-muted) !important; }
+        .stat-history-row { border-color: var(--border-color) !important; }
+        .stat-history-label { color: var(--text-main) !important; font-weight: 700 !important; }
+        .stat-history-detail, .stat-history-date { color: var(--text-muted) !important; }
         .stat-show-more { color: #FF5E9A !important; background: transparent !important; }
-        .stat-modal-empty { color: #94a3b8 !important; }
+        .stat-modal-empty { color: var(--text-muted) !important; }
 
-        /* 2 & 3. Skill tree cards & history text */
-        .nutrition-skill-section, .nutrition-day-card,
-        .hydration-skill-section, .hydration-day-card,
-        .endurance-skill-section, .endurance-day-card,
-        .strength-skill-section, .strength-day-card,
-        .boss-section, .boss-card,
-        .recovery-skill-section, .recovery-day-card,
-        .card, .detail-card, .xp-card, .today-card, .history-card {
-            background: #1e293b !important;
-            border: 1px solid #334155 !important;
-            color: #f8fafc !important;
-            border-radius: 20px !important;
-        }
-        .nutrition-skill-header, .day-date, .history-title, .base-section-title, .stat-section-title { color: #f8fafc !important; }
-        .nutrition-skill-info, .nutrition-xp-to-next, .nutrition-guidance, .food-list-title { color: #94a3b8 !important; }
-        .nutrition-xp-bar-wrap, .nutrition-xp-bar, .macro-bar { background: #0f172a !important; border: 1px solid #334155 !important; }
-        .food-list { border-color: #334155 !important; }
-        .food-item, .food-name { color: #f8fafc !important; }
-        .food-cals, .macro-label, .macro-val { color: #cbd5e1 !important; }
-        .history-item { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
-        .history-item:hover { background: #1e293b !important; }
-        .history-item.perfect { background: rgba(255, 94, 154, 0.12) !important; border-color: rgba(255, 94, 154, 0.3) !important; }
-        .hist-macros, .hist-date, .history-item .hist-macros { color: #cbd5e1 !important; }
-        .hist-reward { color: #FF5E9A !important; font-weight: 800 !important; }
-        .exercise-item, .set-row, .workout-item, .boss-history-item, .sleep-stage-card { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
-        .exercise-name, .set-detail, .boss-name, .boss-desc { color: #f8fafc !important; }
-
-        /* 4. Leagues page cards and buttons */
-        .league-week-card { background: linear-gradient(135deg, #1e1b4b, #831843) !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
-        .league-board { background: #1e293b !important; border: 1px solid #334155 !important; border-radius: 20px !important; overflow: hidden !important; }
-        .league-row { border-color: #334155 !important; color: #f8fafc !important; }
-        .league-row.row-you { background: rgba(255, 94, 154, 0.15) !important; }
-        .league-name, .league-xp { color: #f8fafc !important; }
-        .league-history-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
-        .league-history-week, .league-history-rank, .league-history-xp { color: #f8fafc !important; }
-        .challenge-card, .flock-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
-        .challenge-title, .challenge-desc, .challenge-meta, .challenge-target { color: #f8fafc !important; }
-        .challenge-sub, .flock-invite-text, .flock-total { color: #cbd5e1 !important; }
-        .friend-row { border-color: #334155 !important; color: #f8fafc !important; }
-        .friend-row.row-you { background: rgba(255, 94, 154, 0.15) !important; }
-        .friend-name { color: #f8fafc !important; }
-        .social-search input { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; }
-        .btn-flamingo { background-color: var(--primary-pink) !important; color: #ffffff !important; border-bottom: 4px solid var(--dark-pink) !important; }
-        .btn-flamingo.btn-purple { background-color: var(--primary-purple) !important; border-bottom-color: var(--dark-purple) !important; }
-        .btn-flamingo.btn-orange { background-color: var(--primary-orange) !important; border-bottom-color: var(--dark-orange) !important; }
-        .btn-flamingo.btn-teal { background-color: var(--primary-cyan) !important; border-bottom-color: var(--dark-cyan) !important; }
-
-        /* 5. Badges detail pop ups & grid */
-        .badge-grid { background: transparent !important; }
-        .badge-tile { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
-        .badge-tile.earned { background: linear-gradient(135deg, #1e293b, #334155) !important; border-color: var(--primary-orange) !important; box-shadow: 0 0 15px rgba(255, 153, 51, 0.2) !important; }
-        .badge-tile.locked { background: #0f172a !important; border-color: #1e293b !important; opacity: 0.5 !important; }
-        .badge-name { color: #f8fafc !important; }
-        .badge-cat { color: #94a3b8 !important; }
-        .badge-detail { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 20px !important; }
-        .badge-detail.earned { border-color: var(--primary-orange) !important; }
-        .badge-detail-name { color: #f8fafc !important; }
-        .badge-detail-desc { color: #cbd5e1 !important; }
-        .badge-detail-meta { color: #94a3b8 !important; }
-        .badge-detail-icon { background: #0f172a !important; border: 1px solid #334155 !important; border-radius: 16px !important; }
-        .badges-summary { color: #f8fafc !important; }
-        .badges-new { background: rgba(255, 94, 154, 0.15) !important; border: 1px solid rgba(255, 94, 154, 0.3) !important; color: #f8fafc !important; border-radius: 14px !important; }
-
-        /* 6. Base shop cards and purchased cards */
-        .building-card { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
-        .building-card.building-locked { background: #0f172a !important; opacity: 0.6 !important; }
-        .building-card.building-built { border-color: var(--primary-green) !important; }
-        .building-card.building-constructing { border-color: var(--primary-orange) !important; }
-        .building-name { color: #f8fafc !important; }
-        .building-desc, .building-status, .building-cost { color: #94a3b8 !important; }
-        .building-level { color: #cbd5e1 !important; }
-        .base-wallet { color: #f8fafc !important; }
-        .base-resource-pill { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 12px !important; }
-        .shop-card, .branch-choice { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 16px !important; }
-        .friend-picker-content { background: #1e293b !important; border: 1px solid #334155 !important; color: #f8fafc !important; }
-        .friend-picker-row { background: #0f172a !important; border: 1px solid #334155 !important; color: #f8fafc !important; border-radius: 14px !important; }
-        .friend-picker-row:hover { border-color: var(--primary-pink) !important; background: #151e2e !important; }
+        /* Buttons */
+        .btn-flamingo { background-color: var(--primary-pink, #FF5E9A) !important; color: #ffffff !important; border-bottom: 4px solid var(--dark-pink, #D83A73) !important; }
+        .friend-picker-content { background: var(--bg-light) !important; border: 1px solid var(--border-color) !important; color: var(--text-main) !important; }
+        .friend-picker-row { background: var(--bg-app) !important; border: 1px solid var(--border-color) !important; color: var(--text-main) !important; border-radius: 14px !important; }
+        .friend-picker-row:hover { border-color: #FF5E9A !important; }
         .milestone-toast { opacity: 0; }
         .milestone-toast.show { opacity: 1; }
     </style>
@@ -254,23 +136,22 @@
 
 <body class="bg-black text-slate-100 font-sans antialiased h-screen w-screen overflow-hidden flex justify-center">
 
-    <!-- Mobile App Container (constrained width on desktop, full-width on mobile) -->
+    <!-- Mobile App Container -->
     <div class="w-full max-w-md h-full bg-slate-900 flex flex-col relative shadow-[0_0_50px_rgba(0,0,0,0.5)]">
 
-        <!-- Top Nav (Stats) - badges are clickable: they explain the stat and show
-             recent history of earning it (stat_info.js). -->
+        <!-- Top Nav (Stats) -->
         <header class="flex items-center justify-between p-4 bg-slate-900/95 backdrop-blur-md z-40 sticky top-0 border-b border-slate-700 shadow-sm">
             <div class="flex gap-2">
                 <div class="stat-clickable stat-streak flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
-                     id="stat-streak" data-stat="streak" role="button" tabindex="0" title="About your streak">
+                     id="stat-streak" data-stat="streak" role="button" tabindex="0" title="About your streak" onclick="showStatInfo('streak')">
                     <i class="fa-solid fa-fire text-orange-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
                 <div class="stat-clickable stat-tokens flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
-                     id="stat-tokens" data-stat="tokens" role="button" tabindex="0" title="About tokens">
+                     id="stat-tokens" data-stat="tokens" role="button" tabindex="0" title="About tokens" onclick="showStatInfo('tokens')">
                     <i class="fa-solid fa-coins text-yellow-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
                 <div class="stat-clickable stat-stamina flex items-center gap-1.5 bg-slate-800 border border-slate-600 rounded-2xl px-3 py-1.5 cursor-pointer hover:bg-slate-700 transition-colors active:scale-95 shadow-inner"
-                     id="stat-stamina" data-stat="stamina" role="button" tabindex="0" title="About stamina">
+                     id="stat-stamina" data-stat="stamina" role="button" tabindex="0" title="About stamina" onclick="showStatInfo('stamina')">
                     <i class="fa-solid fa-bolt text-yellow-400"></i> <span class="font-bold text-slate-100">-</span>
                 </div>
             </div>
@@ -288,7 +169,7 @@
         </header>
 
         <!-- Main Scrolling Content -->
-        <main class="flex-1 overflow-y-auto no-scrollbar pb-10 relative">
+        <main class="flex-1 overflow-y-auto no-scrollbar pb-10 relative" id="main-scroller">
 
             <div class="flex justify-center items-center py-2 text-slate-300 text-sm font-bold" id="loading-hint">
                 <i class="fa-solid fa-spinner fa-spin mr-2 text-flamingo"></i> Syncing your flock...
@@ -296,14 +177,26 @@
             <div class="hidden mx-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-bold text-center" id="error-hint"></div>
 
             <!-- Skill Tree -->
-            <section class="relative py-8 px-4 flex flex-col gap-8 min-h-[480px] hidden" id="skill-tree">
-                <div class="absolute left-1/2 top-4 bottom-4 w-3 bg-slate-800 -translate-x-1/2 rounded-full border border-slate-700 z-0"></div>
+            <section class="relative py-8 px-4 flex flex-col gap-8 min-h-[560px] hidden" id="skill-tree">
+                <!-- S-Curve connector SVG -->
+                <svg class="skill-tree-path-svg absolute inset-0 w-full h-full pointer-events-none z-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" preserveAspectRatio="none">
+                    <path class="skill-path-bg" d="M 300 50 C 200 80, 200 130, 200 150 C 200 170, 100 220, 100 250 C 100 280, 200 330, 200 350 C 200 370, 300 420, 300 450 C 300 480, 200 530, 200 560" />
+                    <path class="skill-path-fg" id="skill-path-fg" d="M 300 50 C 200 80, 200 130, 200 150 C 200 170, 100 220, 100 250 C 100 280, 200 330, 200 350 C 200 370, 300 420, 300 450 C 300 480, 200 530, 200 560" />
+                </svg>
 
                 <!-- Row: Nutrition (Right) -->
                 <div class="relative z-10 w-full flex justify-end pr-8">
                     <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-nutrition" onclick="loadNutrition()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-green-500 border-b-[6px] border-green-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-apple-whole drop-shadow-md"></i>
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-nutrition" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-green, #22c55e);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-green-500 border-b-[6px] border-green-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-apple-whole drop-shadow-md"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-nutrition">Lv 1</span>
+                            <span class="node-badge-complete hidden" id="node-check-nutrition"><i class="fa-solid fa-check"></i></span>
                         </div>
                         <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Nutrition</span>
                     </button>
@@ -312,8 +205,16 @@
                 <!-- Row: Hydration (Center) -->
                 <div class="relative z-10 w-full flex justify-center">
                     <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-hydration" onclick="loadHydration()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-cyan-500 border-b-[6px] border-cyan-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-glass-water drop-shadow-md"></i>
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-hydration" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-cyan, #06b6d4);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-cyan-500 border-b-[6px] border-cyan-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-glass-water drop-shadow-md"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-hydration">Lv 1</span>
+                            <span class="node-badge-complete hidden" id="node-check-hydration"><i class="fa-solid fa-check"></i></span>
                         </div>
                         <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Hydration</span>
                     </button>
@@ -322,8 +223,16 @@
                 <!-- Row: Endurance (Left) -->
                 <div class="relative z-10 w-full flex justify-start pl-8">
                     <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-endurance" onclick="loadEndurance()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-blue-500 border-b-[6px] border-blue-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-bicycle drop-shadow-md"></i>
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-endurance" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-blue, #3b82f6);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-blue-500 border-b-[6px] border-blue-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-bicycle drop-shadow-md"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-endurance">Lv 1</span>
+                            <span class="node-badge-complete hidden" id="node-check-endurance"><i class="fa-solid fa-check"></i></span>
                         </div>
                         <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Endurance</span>
                     </button>
@@ -332,323 +241,141 @@
                 <!-- Row: Strength (Center) -->
                 <div class="relative z-10 w-full flex justify-center">
                     <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-strength" onclick="loadStrength()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-flamingo border-b-[6px] border-flamingo-dark text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-dumbbell drop-shadow-lg"></i>
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-strength" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-pink, #FF5E9A);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-flamingo border-b-[6px] border-flamingo-dark text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-dumbbell drop-shadow-lg"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-strength">Lv 1</span>
+                            <span class="node-badge-complete hidden" id="node-check-strength"><i class="fa-solid fa-check"></i></span>
                         </div>
                         <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Strength</span>
                     </button>
                 </div>
 
-                <!-- Row: Boss (Right) -->
+                <!-- Row: Recovery (Right) -->
                 <div class="relative z-10 w-full flex justify-end pr-8">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-boss" onclick="loadBoss()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-purple-600 border-b-[6px] border-purple-800 text-white flex items-center justify-center text-3xl shadow-lg relative hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-crown text-yellow-300 absolute -top-4 -right-2 text-2xl rotate-12 drop-shadow-lg"></i>
-                            <i class="fa-solid fa-skull drop-shadow-md"></i>
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-recovery" onclick="loadRecovery()">
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-recovery" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-green, #10b981);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-emerald-500 border-b-[6px] border-emerald-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-bed drop-shadow-md"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-recovery">Lv 1</span>
+                            <span class="node-badge-complete hidden" id="node-check-recovery"><i class="fa-solid fa-check"></i></span>
                         </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">PR Boss</span>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Recovery</span>
                     </button>
                 </div>
 
-                <!-- Row: Recovery (Center) -->
+                <!-- Row: Boss (Center) -->
                 <div class="relative z-10 w-full flex justify-center">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-recovery" onclick="loadRecovery()">
-                        <div class="node-circle w-20 h-20 rounded-full bg-emerald-500 border-b-[6px] border-emerald-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                            <i class="fa-solid fa-bed drop-shadow-md"></i>
+                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-boss" onclick="loadBoss()">
+                        <div class="node-wrapper relative inline-flex items-center justify-center">
+                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
+                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
+                                <circle class="node-ring-fg" id="node-ring-boss" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-purple, #9333ea);" />
+                            </svg>
+                            <div class="node-circle w-20 h-20 rounded-full bg-purple-600 border-b-[6px] border-purple-800 text-white flex items-center justify-center text-3xl shadow-lg relative hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
+                                <i class="fa-solid fa-crown text-yellow-300 absolute -top-4 -right-2 text-2xl rotate-12 drop-shadow-lg"></i>
+                                <i class="fa-solid fa-skull drop-shadow-md"></i>
+                            </div>
+                            <span class="node-badge-level" id="node-lvl-boss">Boss</span>
+                            <span class="node-badge-complete hidden" id="node-check-boss"><i class="fa-solid fa-trophy"></i></span>
                         </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Recovery</span>
+                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">PR Boss</span>
                     </button>
                 </div>
                 <!-- Active campaign / what to focus on to beat the boss (dashboard.js) -->
                 <div class="relative z-10 w-full mt-6" id="path-campaign-focus"></div>
             </section>
 
-            <!-- Nutrition Detail Panel (opened from the Nutrition node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="nutrition-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="nutrition-back" onclick="backToNutritionPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-apple-whole text-green-400"></i> Nutrition
-                    </h2>
-                </div>
-
-                <div id="nutrition-content"></div>
-
-                <!-- Empty state / Link-Sparky CTA -->
-                <div id="nutrition-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-green-400/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-apple-whole"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No nutrition data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your macros.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Hydration Detail Panel (opened from the Hydration node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="hydration-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="hydration-back" onclick="backToHydrationPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-glass-water text-blue-400"></i> Hydration
-                    </h2>
-                </div>
-
-                <div id="hydration-content"></div>
-
-                <!-- Empty state / Link-Sparky CTA -->
-                <div id="hydration-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-blue-400/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-glass-water"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No hydration data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your water intake.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Endurance Detail Panel (opened from the Endurance node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="endurance-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="endurance-back" onclick="backToEndurancePlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-bicycle text-blue-400"></i> Endurance
-                    </h2>
-                </div>
-
-                <div id="endurance-content"></div>
-
-                <!-- Empty state / Link-Sparky CTA -->
-                <div id="endurance-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-blue-400/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-bicycle"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No endurance data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to start tracking your workouts.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Strength Detail Panel (opened from the Strength node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="strength-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="strength-back" onclick="backToStrengthPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-dumbbell text-flamingo"></i> Strength
-                    </h2>
-                </div>
-
-                <div id="strength-content"></div>
-
-                <!-- Empty state / Link-Liftosaur CTA -->
-                <div id="strength-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-flamingo/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-dumbbell"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No strength data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link Liftosaur to track your lifting volume. PRs live in the PR Boss panel.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link Liftosaur</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- PR Boss Detail Panel (opened from the PR Boss node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="boss-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="boss-back" onclick="backToBossPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-crown text-yellow-400"></i> PR Boss
-                    </h2>
-                </div>
-
-                <div id="boss-content"></div>
-
-                <!-- Empty state / Link CTA -->
-                <div id="boss-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-purple-500/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-skull"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No boss data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link Liftosaur and track your bodyweight in SparkyFitness to challenge the bosses.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-purple-600 text-white font-bold py-4 rounded-2xl border-b-4 border-purple-800 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link Providers</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Recovery Detail Panel (opened from the green Recovery node) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="recovery-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="recovery-back" onclick="backToRecoveryPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-bed text-indigo-400"></i> Recovery
-                    </h2>
-                </div>
-
-                <div id="recovery-content"></div>
-
-                <!-- Empty state / Link-Sparky CTA -->
-                <div id="recovery-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-indigo-400/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-bed"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No recovery data yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link SparkyFitness to track your sleep and readiness.</p>
-                        <a href="{% url 'profile' %}" class="w-full bg-indigo-500 text-white font-bold py-4 rounded-2xl border-b-4 border-indigo-700 hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link SparkyFitness</a>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Shop (Gacha) panel (Phase 9, docs/15) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="shop-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="shop-back" onclick="backToShopPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-box-open text-yellow-400"></i> Shop
-                    </h2>
-                </div>
-                <div id="shop-content"></div>
-            </section>
-
-            <!-- Loadout panel (Phase 9, docs/15) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="loadout-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="loadout-back" onclick="backToLoadoutPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-shirt text-indigo-400"></i> Inventory
-                    </h2>
-                </div>
-                <div id="loadout-content"></div>
-            </section>
-
-            <!-- Battle (PvE sieges) panel (Phase 9, docs/15) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="battle-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="battle-back" onclick="backToBattlePlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-dragon text-red-400"></i> Battle
-                    </h2>
-                </div>
-                <div id="battle-content"></div>
-            </section>
-
-            <!-- PvP Gym panel (Phase 9, docs/15) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="pvp-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="pvp-back" onclick="backToPvPPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-fist-raised text-green-400"></i> PvP
-                    </h2>
-                </div>
-                <div id="pvp-content"></div>
-            </section>
-
-            <!-- Leagues / Challenges / Flock panel (Phase 8, docs/13) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="leagues-view">
-                <div class="flex items-center gap-4 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="leagues-back" onclick="backToLeaguesPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-shield-halved text-blue-400"></i> Leagues
-                    </h2>
-                </div>
-
-                <!-- Sub-tabs: Leaderboard / Challenges / Flock (leagues.js toggles .active) -->
-                <div class="leagues-tabs flex bg-slate-800 rounded-2xl p-1.5 mb-6 border border-slate-600 shadow-inner" id="leagues-tabs">
-                    <button class="leagues-tab active flex-1 py-2.5 text-sm font-bold text-white rounded-xl transition-all" data-tab="leaderboard" onclick="switchLeaguesTab('leaderboard')">
-                        <i class="fa-solid fa-ranking-star mr-1"></i> Board
-                    </button>
-                    <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="challenges" onclick="switchLeaguesTab('challenges')">
-                        <i class="fa-solid fa-fire-flame-curved mr-1"></i> Challenge
-                    </button>
-                    <button class="leagues-tab flex-1 py-2.5 text-sm font-bold rounded-xl transition-all" data-tab="flock" onclick="switchLeaguesTab('flock')">
-                        <i class="fa-solid fa-dove mr-1"></i> Flock
-                    </button>
-                </div>
-
-                <div id="leagues-content"></div>
-            </section>
-
-            <!-- Achievement Badges panel (Roadmap idea #5) -->
-            <section class="hidden p-4 min-h-full bg-slate-900" id="badges-view">
-                <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-                    <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="badges-back" onclick="backToBadgesPlan()">
-                        <i class="fa-solid fa-arrow-left text-xl"></i>
-                    </button>
-                    <h2 class="text-2xl font-black text-white flex items-center gap-2">
-                        <i class="fa-solid fa-medal text-yellow-400"></i> Badges
-                    </h2>
-                </div>
-
-                <div id="badges-content"></div>
-
-                <!-- Empty / Link-Provider CTA -->
-                <div id="badges-empty" class="hidden">
-                    <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
-                        <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-yellow-500/50 mb-6 border-4 border-slate-800 shadow-inner">
-                            <i class="fa-solid fa-medal"></i>
-                        </div>
-                        <p class="text-xl font-bold text-white mb-3">No badges yet.</p>
-                        <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Keep logging activities and leveling up - earned badges appear here.</p>
-                    </div>
-                </div>
-            </section>
+            <!-- Panel views are lazy-loaded on demand from /panel/<name>/ (docs/19 #12) -->
         </main>
 
-        <!-- Bottom Tab Nav -->
-        <nav class="bottom-nav w-full bg-slate-900 border-t border-slate-700 pb-safe z-50 rounded-t-3xl shadow-[0_-10px_30px_rgba(0,0,0,0.6)]">
-            <div class="flex justify-around items-center gap-1 px-2 py-1">
-                <a href="#/" class="nav-item active flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-path" onclick="showPath(); return false;">
-                    <i class="fa-solid fa-map-location-dot text-base mb-0.5 drop-shadow-sm"></i>
-                    <span class="text-[10px] tracking-wide">Path</span>
+        <!-- Bottom Tab Nav (Duolingo styled, tactile & space optimized) -->
+        <nav class="bottom-nav w-full">
+            <div class="bottom-nav-container relative">
+                <!-- Path -->
+                <a href="#/" class="nav-item active" id="nav-path" onclick="showPath(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-map-location-dot"></i></div>
+                    <span class="nav-label">Path</span>
                 </a>
-                <a href="#/leagues" class="nav-item flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-leagues" onclick="loadLeagues(); return false;">
-                    <i class="fa-solid fa-shield-halved text-base mb-0.5 drop-shadow-sm"></i>
-                    <span class="text-[10px] tracking-wide">Leagues</span>
+                <!-- Leagues -->
+                <a href="#/leagues" class="nav-item" id="nav-leagues" onclick="loadLeagues(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-shield-halved"></i></div>
+                    <span class="nav-label">Leagues</span>
                 </a>
-                <a href="#/badges" class="nav-item flex flex-col items-center py-0.5 font-bold active:scale-95 transition-all w-14" id="nav-badges" onclick="loadBadges(); return false;">
-                    <i class="fa-solid fa-medal text-base mb-0.5 drop-shadow-sm"></i>
-                    <span class="text-[10px] tracking-wide">Badges</span>
+                <!-- Badges -->
+                <a href="#/badges" class="nav-item" id="nav-badges" onclick="loadBadges(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-medal"></i></div>
+                    <span class="nav-label">Badges</span>
                 </a>
-                <div class="relative w-12 h-11 flex items-center justify-center" id="game-btn-wrap">
-                    <button class="nav-game-btn" id="nav-game" onclick="toggleGameMenu(event); return false;" aria-haspopup="true" aria-expanded="false" aria-label="Game menu" title="Shop, Inventory, Battle, PvP">
-                        <span class="nav-game-fab"><i class="fa-solid fa-dice-d6"></i></span>
-                        <span class="text-[10px] tracking-wide">Game</span>
+                <!-- Game Hub Button -->
+                <div class="flex items-center justify-center" id="game-btn-wrap">
+                    <button class="nav-game-fab-btn" id="nav-game" onclick="toggleGameMenu(event); return false;" aria-haspopup="true" aria-expanded="false" aria-label="Game menu">
+                        <div class="nav-icon-wrap game-fab"><i class="fa-solid fa-dice-d6"></i></div>
+                        <span class="nav-label">Game</span>
                     </button>
-                    <div id="game-menu" class="game-menu hidden" role="menu" aria-label="Game menu">
-                        <button role="menuitem" onclick="gotoGame('loadShop'); return false;"><i class="fa-solid fa-box-open"></i><span>Shop</span></button>
-                        <button role="menuitem" onclick="gotoGame('loadLoadout'); return false;"><i class="fa-solid fa-shirt"></i><span>Inventory</span></button>
-                        <button role="menuitem" onclick="gotoGame('loadBattle'); return false;"><i class="fa-solid fa-dragon"></i><span>Battle</span></button>
-                        <button role="menuitem" onclick="gotoGame('loadPvP'); return false;"><i class="fa-solid fa-fist-raised"></i><span>PvP</span></button>
+                </div>
+
+                <!-- Centered Duolingo-style 4-Row Game Hub Card -->
+                <div id="game-menu" class="duo-game-menu hidden" role="menu" aria-label="Game menu">
+                    <div class="duo-menu-header flex items-center justify-between pb-2 mb-2 border-b border-slate-700/60">
+                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Game Modes</span>
+                        <span class="text-[11px] font-bold text-flamingo flex items-center gap-1"><i class="fa-solid fa-sparkles text-xs"></i> Select Mode</span>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <!-- Shop -->
+                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadShop'); return false;">
+                            <div class="duo-row-icon bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                <i class="fa-solid fa-basket-shopping"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="duo-row-title text-white">Shop</div>
+                                <div class="duo-row-sub text-slate-400">Gacha packs &amp; gear catalog</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
+                        </button>
+                        <!-- Gear / Inventory -->
+                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadLoadout'); return false;">
+                            <div class="duo-row-icon bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                <i class="fa-solid fa-shirt"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="duo-row-title text-white">Inventory</div>
+                                <div class="duo-row-sub text-slate-400">Equip gear &amp; manage loadout</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
+                        </button>
+                        <!-- Battle / Boss -->
+                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadBattle'); return false;">
+                            <div class="duo-row-icon bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                                <i class="fa-solid fa-dragon"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="duo-row-title text-white">Boss Raids</div>
+                                <div class="duo-row-sub text-slate-400">Campaign co-op battles</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
+                        </button>
+                        <!-- PvP Arena -->
+                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadPvP'); return false;">
+                            <div class="duo-row-icon bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                <i class="fa-solid fa-fist-raised"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="duo-row-title text-white">PvP Arena</div>
+                                <div class="duo-row-sub text-slate-400">Duel players in async combat</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -660,6 +387,7 @@
     <!-- Action modal (dashboard.js uses #actionModal / #modal-title / #modal-desc / #modal-action) -->
     <div class="modal-overlay" id="actionModal">
         <div class="modal-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <div class="sheet-handle"></div>
             <div class="flex flex-col items-center text-center">
                 <div class="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center text-4xl text-flamingo mb-5 border-4 border-slate-800 shadow-inner">
                     <i class="fa-solid fa-dumbbell drop-shadow-md"></i>
@@ -674,6 +402,7 @@
     <!-- Stat explainer modal (opened by clicking a top-nav stat badge) -->
     <div class="modal-overlay" id="statModal">
         <div class="modal-content stat-modal-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <div class="sheet-handle"></div>
             <div class="modal-icon stat-modal-icon flex items-center justify-center w-20 h-20 mx-auto bg-slate-700 rounded-full text-4xl mb-4 border-4 border-slate-800 shadow-inner" id="stat-modal-icon">
                 <i class="fa-solid fa-fire"></i>
             </div>
@@ -688,6 +417,7 @@
     <!-- Generic friend picker modal (Phase 8: base staffing + flock invites) -->
     <div class="modal-overlay" id="friendPickerModal">
         <div class="modal-content friend-picker-content rounded-[2rem] p-6 border border-slate-600 shadow-2xl w-[90%] max-w-sm m-auto">
+            <div class="sheet-handle"></div>
             <h2 class="text-2xl font-black text-white mb-3" id="friend-picker-title">Pick a friend</h2>
             <div class="friend-picker-list" id="friend-picker-list"></div>
             <button class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" onclick="closeFriendPicker()" type="button">Cancel</button>
@@ -696,7 +426,8 @@
 
     <!-- CDN scripts: async (order independent, Phase 1 docs/19 #3) -->
     <script async src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
-    <!-- Chart.js (UMD) powers the skill-tree Graph views; insights.js is the shared wrapper -->
+    <!-- Chart.js (local bundle + CDN fallback) powers the skill-tree Graph views -->
+    <script src="{% static 'core/js/chart.umd.min.js' %}"></script>
     <script async src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
     {% compress js %}
@@ -704,6 +435,7 @@
     <script defer src="{% static 'core/js/router.js' %}"></script>
     <script defer src="{% static 'core/js/dashboard.js' %}"></script>
     <script defer src="{% static 'core/js/insights.js' %}"></script>
+    <script defer src="{% static 'core/js/modality-factory.js' %}"></script>
     <!-- Modality controllers (deferred) -->
     <script defer src="{% static 'core/js/nutrition.js' %}"></script>
     <script defer src="{% static 'core/js/hydration.js' %}"></script>
@@ -725,16 +457,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -22,38 +22,47 @@
     window.loadBoss = function () {
         window.ffLog('[boss] loadBoss start');
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('boss-view');
-        var content = document.getElementById('boss-content');
-        var empty = document.getElementById('boss-empty');
-        var tree = document.getElementById('skill-tree');
-        if (!view) {
-            window.ffWarn('[boss] boss-view not found, aborting');
-            return;
+
+        var runLoad = function () {
+            var view = document.getElementById('boss-view');
+            var content = document.getElementById('boss-content');
+            var empty = document.getElementById('boss-empty');
+            if (!view) {
+                window.ffWarn('[boss] boss-view not found, aborting');
+                return;
+            }
+            window.ensureSinglePanelVisible('boss-view');
+            if (content) content.classList.add('hidden');
+            if (empty) empty.classList.add('hidden');
+            fetch(BOSS_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) {
+                        throw new Error('not-authenticated');
+                    }
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) {
+                    window.ffLog('[boss] data.bodyweight=', data.bodyweight, 'bosses=', data.bosses && data.bosses.length);
+                    window.renderBoss(data);
+                })
+                .catch(function (err) {
+                    window.ffError('[boss] fetch failed:', err);
+                    if (content) {
+                        content.classList.remove('hidden');
+                        if (err && err.message === 'not-authenticated') {
+                            content.innerHTML = '<p class="error-hint">Please log in to view the PR Boss.</p>';
+                        } else {
+                            content.innerHTML = '<p class="error-hint">Could not load boss data (error ' + err + ').</p>';
+                        }
+                    }
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('boss-view').then(runLoad);
+        } else {
+            return runLoad();
         }
-        // Single-panel navigation: hide ALL panels, then show only this panel.
-        window.ensureSinglePanelVisible('boss-view');
-        content.classList.add('hidden');
-        empty.classList.add('hidden');
-        fetch(BOSS_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error('not-authenticated');
-                }
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) {
-                window.ffLog('[boss] data.bodyweight=', data.bodyweight, 'bosses=', data.bosses && data.bosses.length);
-                window.renderBoss(data);
-            })
-            .catch(function (err) {
-                window.ffError('[boss] fetch failed:', err);
-                content.classList.remove('hidden');
-                if (err && err.message === 'not-authenticated') {
-                    content.innerHTML = '<p class="error-hint">Please log in to view the PR Boss.</p>';
-                } else {
-                    content.innerHTML = '<p class="error-hint">Could not load boss data (error ' + err + ').</p>';
-                }
-            });
     };
 // Render the boss panel from the /api/v1/boss/ payload.
     window.renderBoss = function (data) {
@@ -94,22 +103,22 @@
 
         // Intro card: bodyweight.
         var intro = document.createElement('div');
-        intro.className = 'nutrition-skill-section';
-        var head = document.createElement('div');
-        head.className = 'nutrition-skill-header';
-        head.innerHTML = '<i class="fa-solid fa-crown"></i> PR Boss';
-        intro.appendChild(head);
-
-        var info = document.createElement('div');
-        info.className = 'nutrition-skill-info';
-        info.textContent = 'Bodyweight: ' + Math.round(data.bodyweight) +
-            ' lbs \u2014 earn Boss Fights by lifting a multiple of it!';
-        intro.appendChild(info);
-
-        var guidance = document.createElement('div');
-        guidance.className = 'nutrition-guidance';
-        guidance.innerHTML = '<strong>Boss Fight:</strong> beat a bodyweight-based lift benchmark to earn a 2x XP reward and Time Speed-ups for your base. Configure benchmarks in the admin panel.';
-        intro.appendChild(guidance);
+        intro.className = 'modality-skill-section boss-skill-section';
+        intro.innerHTML = 
+            '<div class="skill-card-head">' +
+                '<div class="skill-card-title">' +
+                    '<span class="skill-icon-wrap boss-icon-wrap"><i class="fa-solid fa-crown"></i></span>' +
+                    '<div>' +
+                        '<div class="skill-card-name">PR Boss Challenge</div>' +
+                        '<div class="skill-card-sub">Bodyweight Multipliers & Benchmarks</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="skill-level-badge boss-level-badge">' + (data.bodyweight ? Math.round(data.bodyweight) + ' lbs' : 'PR') + '</div>' +
+            '</div>' +
+            '<div class="skill-guidance-box boss-guidance">' +
+                '<i class="fa-solid fa-trophy"></i>' +
+                '<span>Beat a bodyweight-based lift benchmark to earn bonus XP and Time Speed-ups for your base!</span>' +
+            '</div>';
         content.appendChild(intro);
 
         // Personal Records (moved here from the Strength panel).

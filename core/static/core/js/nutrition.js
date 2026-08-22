@@ -1,183 +1,73 @@
-/* Nutrition detail panel controller (loaded after dashboard.js).
- * Opens from the red Nutrition node (#node-nutrition) on the skill-tree plan.
- * Consumes GET /api/v1/nutrition/ (core/views.py nutrition_state, docs/02 + docs/10).
+/* Nutrition detail panel controller (Phase 6, docs/19 #22).
+ * Uses window.createModalityController() factory.
  */
 (function () {
     'use strict';
 
-    var NUTRITION_URL = '/api/v1/nutrition/';
-
-    // Return to the skill-tree plan from the nutrition panel.
-    window.backToNutritionPlan = function () {
-        var view = document.getElementById('nutrition-view');
-        if (view) view.classList.add('hidden');
-        // Use ensureSinglePanelVisible to hide all other panels first,
-        // then show only the skill tree (prevents stacking)
-        window.ensureSinglePanelVisible('skill-tree');
-    };
-
-    // Fetch + render the nutrition panel.
-    window.loadNutrition = function () {
-        window.ffLog('[nutrition] loadNutrition start');
-        if (window.closeModal) window.closeModal();
-        var view = document.getElementById('nutrition-view');
-        var content = document.getElementById('nutrition-content');
-        var empty = document.getElementById('nutrition-empty');
-        var tree = document.getElementById('skill-tree');
-        window.ffLog('[nutrition] view=', !!view, 'tree=', !!tree);
-        if (!view) {
-            window.ffWarn('[nutrition] nutrition-view not found, aborting');
-            return;
-        }
-        // Single-panel navigation: hide ALL panels, then show only this panel.
-        window.ensureSinglePanelVisible('nutrition-view');
-        content.classList.add('hidden');
-        empty.classList.add('hidden');
-        window.ffLog('[nutrition] fetching', NUTRITION_URL);
-        fetch(NUTRITION_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                window.ffLog('[nutrition] fetch response status:', res.status);
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error('not-authenticated');
-                }
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) {
-                window.ffLog('[nutrition] renderNutrition data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
-                window.renderNutrition(data);
-            })
-            .catch(function (err) {
-                window.ffError('[nutrition] fetch failed:', err);
-                content.classList.remove('hidden');
-                if (err && err.message === 'not-authenticated') {
-                    content.innerHTML = '<p class="error-hint">Please log in to view nutrition.</p>';
-                } else {
-                    content.innerHTML = '<p class="error-hint">Could not load nutrition data (error ' + err + ').</p>';
-                }
-            });
-    };
-
-    // Render the nutrition panel from the /api/v1/nutrition/ payload.
-    window.renderNutrition = function (data) {
-        var content = document.getElementById('nutrition-content');
-        var empty = document.getElementById('nutrition-empty');
-        if (!content) return;
-
-        // Not linked, or no data at all -> show the Link-Sparky CTA.
-        if (!data.linked || (!data.today && !(data.history && data.history.length))) {
-            content.classList.add('hidden');
-            window.showEmptyState(empty, {
-                icon: 'fa-apple-whole',
-                title: 'No nutrition data yet',
-                desc: 'Link SparkyFitness to start tracking your macros and hitting your protein goals.',
-                hint: 'Nutrition XP flows in once your food syncs.',
-                ctaText: 'Link SparkyFitness',
-                ctaHref: '/profile/'
-            });
-            empty.classList.remove('hidden');
-            return;
-        }
-
-        empty.classList.add('hidden');
-        content.classList.remove('hidden');
-        content.innerHTML = '';
-
-        // Nutrition skill tree progress section.
-        var st = data.skill_tree || {};
-        var skillSection = document.createElement('div');
-        skillSection.className = 'nutrition-skill-section';
-        var skillHeader = document.createElement('div');
-        skillHeader.className = 'nutrition-skill-header';
-        skillHeader.innerHTML = '<i class="fa-solid fa-star"></i> Nutrition Skill Tree';
-        skillSection.appendChild(skillHeader);
-        
-        var skillInfo = document.createElement('div');
-        skillInfo.className = 'nutrition-skill-info';
-        skillInfo.innerHTML = 'Lv ' + (st.level || 1) + ' &bull; ' + (st.total_xp || 0) + ' Total XP';
-        skillSection.appendChild(skillInfo);
-        
-        // XP progress bar.
-        var xpBarWrap = document.createElement('div');
-        xpBarWrap.className = 'nutrition-xp-bar-wrap';
-        var xpBar = document.createElement('div');
-        xpBar.className = 'nutrition-xp-bar';
-        var xpFill = document.createElement('div');
-        xpFill.className = 'nutrition-xp-fill';
-        var progressPct = Math.min(100, Math.max(0, st.progress_pct || 0));
-        xpFill.style.width = progressPct + '%';
-        xpBar.appendChild(xpFill);
-        xpBarWrap.appendChild(xpBar);
-        skillSection.appendChild(xpBarWrap);
-        
-        var xpToNext = document.createElement('div');
-        xpToNext.className = 'nutrition-xp-to-next';
-        var currentXp = st.xp || 0;
-        xpToNext.textContent = currentXp + ' / 100 XP to next level';
-        skillSection.appendChild(xpToNext);
-        
-        // How to earn XP guidance.
-        var guidance = document.createElement('div');
-        guidance.className = 'nutrition-guidance';
-        guidance.innerHTML = '<strong>How to earn XP:</strong> Hit your protein goal and stay under your calorie cap for +50 XP and +10 Materials per day!';
-        skillSection.appendChild(guidance);
-        
-        content.appendChild(skillSection);
-
-        // Today / most-recent day.
-        if (data.today) {
-            content.appendChild(buildDayCard(data.today, 'Today, ' + data.today.date));
-        }
-
-        // History list.
-        if (data.history && data.history.length) {
-            var wrap = document.createElement('div');
-            var title = document.createElement('div');
-            title.className = 'history-title';
-            title.innerHTML = '<i class="fa-solid fa-list"></i> History';
-            wrap.appendChild(title);
-            var ul = document.createElement('ul');
-            ul.className = 'history-list';
-            data.history.forEach(function (day) {
-                var li = document.createElement('li');
-                li.className = 'history-item' + (day.perfect ? ' perfect' : '');
-                li.style.cursor = 'pointer';
-                li.addEventListener('click', function () {
-                    showDayDetailModal(day);
-                });
-                var left = document.createElement('span');
-                left.className = 'hist-macros';
-                left.textContent = day.date + '  ' + formatMacro(day.protein, day.protein_goal) + '  ' + formatMacro(day.calories, day.calorie_goal);
-                li.appendChild(left);
-                var right = document.createElement('span');
-                right.className = 'hist-reward';
-                right.textContent = (day.perfect ? 'PERFECT ' : '') + (day.xp ? '+' + day.xp + ' XP' : '') + (day.materials ? ', ' + day.materials + ' mats' : '');
-                li.appendChild(right);
-                ul.appendChild(li);
-            });
-            wrap.appendChild(ul);
-            content.appendChild(wrap);
-        }
-
-        // Nutrition skill summary.
-        var st = data.skill_tree || {};
-        var skill = document.createElement('div');
-        skill.className = 'reward';
-        skill.style.marginTop = '18px';
-        skill.style.justifyContent = 'center';
-        skill.textContent = (st.level ? 'Nutrition Lv ' + st.level : 'Nutrition') + '  ' + (st.total_xp || 0) + ' XP';
-        content.appendChild(skill);
-
-        // Interactive Charts + Raw data views (FFInsights / Chart.js).
-        if (window.FFInsights) {
-            window.FFInsights.createInsights(content, 'nutrition', data);
-        }
-    };
-
     function formatMacro(value, goal) {
         return Math.round(value || 0) + (goal !== undefined ? '/' + Math.round(goal || 0) : '');
-        }
+    }
 
-    // Build a single day card (the today card).
+    function buildMacroBar(label, pct, goal, color) {
+        var row = document.createElement('div');
+        row.className = 'macro-bar';
+        var lbl = document.createElement('span');
+        lbl.className = 'macro-label';
+        lbl.textContent = label;
+        row.appendChild(lbl);
+        var track = document.createElement('div');
+        track.className = 'bar';
+        var fill = document.createElement('div');
+        fill.className = 'bar-fill';
+        fill.style.width = Math.min(100, Math.max(0, pct || 0)) + '%';
+        fill.style.backgroundColor = color;
+        track.appendChild(fill);
+        row.appendChild(track);
+        var g = document.createElement('span');
+        g.className = 'macro-goal';
+        g.textContent = goal;
+        row.appendChild(g);
+        return row;
+    }
+
+    function buildMacroDonut(protein, calories) {
+        var p = Math.max(0, protein || 0);
+        var c = Math.max(0, calories || 0);
+        var pCal = p * 4;
+        var total = Math.max(c, pCal) || 1;
+        var pPct = Math.min(100, Math.round((pCal / total) * 100));
+
+        var pOffset = 251.2 * (1 - pPct / 100);
+
+        var wrap = document.createElement('div');
+        wrap.className = 'macro-donut-wrap flex items-center justify-between my-3 p-3 bg-slate-800/60 rounded-xl border border-slate-700/50';
+        wrap.innerHTML = '<div class="relative w-16 h-16 flex items-center justify-center">' +
+            '<svg class="w-16 h-16 -rotate-90" viewBox="0 0 100 100">' +
+            '<circle cx="50" cy="50" r="40" fill="none" stroke="rgba(244, 63, 94, 0.4)" stroke-width="12" />' +
+            '<circle cx="50" cy="50" r="40" fill="none" stroke="#9333ea" stroke-width="12" stroke-dasharray="251.2" stroke-dashoffset="' + pOffset + '" stroke-linecap="round" />' +
+            '</svg>' +
+            '<span class="absolute text-[11px] font-black text-slate-200">' + pPct + '%</span>' +
+            '</div>' +
+            '<div class="flex-1 pl-4 text-xs font-bold">' +
+            '<div class="flex items-center gap-1.5 text-purple-400 mb-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Protein: ' + Math.round(p) + 'g (' + pCal + ' kcal)</div>' +
+            '<div class="flex items-center gap-1.5 text-rose-400"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Total: ' + Math.round(c) + ' kcal</div>' +
+            '</div>';
+        return wrap;
+    }
+
+    function getStatusBadge(day) {
+        if (day.perfect) {
+            return { cls: 'perfect-badge', text: 'PERFECT' };
+        }
+        if (day.status === 'close' || (day.xp >= 35)) {
+            return { cls: 'close-badge', text: 'NEAR GOAL' };
+        }
+        if (day.status === 'partial' || (day.xp > 0)) {
+            return { cls: 'partial-badge', text: 'PROGRESS' };
+        }
+        return { cls: 'imperfect-badge', text: 'Needs work' };
+    }
+
     function buildDayCard(day, title) {
         var card = document.createElement('div');
         card.className = 'nutrition-day-card';
@@ -188,14 +78,15 @@
         date.className = 'day-date';
         date.textContent = title;
         head.appendChild(date);
+        var badgeInfo = getStatusBadge(day);
         var badge = document.createElement('span');
-        badge.className = day.perfect ? 'perfect-badge' : 'imperfect-badge';
-        badge.textContent = day.perfect ? 'PERFECT' : 'Needs work';
+        badge.className = badgeInfo.cls;
+        badge.textContent = badgeInfo.text;
         head.appendChild(badge);
         card.appendChild(head);
 
-        // Rewards row.
-        if (day.xp || day.materials) {
+        var rewardTokens = day.tokens !== undefined ? day.tokens : day.materials;
+        if (day.xp || rewardTokens) {
             var rewards = document.createElement('div');
             rewards.className = 'reward-row';
             if (day.xp) {
@@ -204,20 +95,21 @@
                 xp.textContent = '+' + day.xp + ' XP';
                 rewards.appendChild(xp);
             }
-            if (day.materials) {
+            if (rewardTokens) {
                 var mat = document.createElement('span');
                 mat.className = 'reward mat';
-                mat.textContent = '+' + day.materials + ' mats';
+                mat.textContent = '+' + rewardTokens + ' tokens';
                 rewards.appendChild(mat);
             }
             card.appendChild(rewards);
         }
 
-        // Macro progress bars.
+        // Macro Mini-Donut distribution
+        card.appendChild(buildMacroDonut(day.protein, day.calories));
+
         card.appendChild(buildMacroBar('Protein', day.protein_pct || 0, Math.round(day.protein || 0) + '/' + Math.round(day.protein_goal || 0), 'var(--primary-purple)'));
         card.appendChild(buildMacroBar('Calories', day.calorie_pct || 0, Math.round(day.calories || 0) + '/' + Math.round(day.calorie_goal || 0), 'var(--primary-red)'));
 
-        // Meals.
         if (day.food_entries && day.food_entries.length) {
             var list = document.createElement('div');
             list.className = 'food-list';
@@ -248,29 +140,6 @@
         return card;
     }
 
-    function buildMacroBar(label, pct, goal, color) {
-        var row = document.createElement('div');
-        row.className = 'macro-bar';
-        var lbl = document.createElement('span');
-        lbl.className = 'macro-label';
-        lbl.textContent = label;
-        row.appendChild(lbl);
-        var track = document.createElement('div');
-        track.className = 'bar';
-        var fill = document.createElement('div');
-        fill.className = 'bar-fill';
-        fill.style.width = Math.min(100, Math.max(0, pct || 0)) + '%';
-        fill.style.backgroundColor = color;
-        track.appendChild(fill);
-        row.appendChild(track);
-        var g = document.createElement('span');
-        g.className = 'macro-goal';
-        g.textContent = goal;
-        row.appendChild(g);
-        return row;
-    }
-
-    // Show a detailed day view in a modal for historical days.
     window.showDayDetailModal = function (day) {
         if (window.closeModal) window.closeModal();
         
@@ -288,20 +157,21 @@
             };
         }
         
-        // Build the day detail HTML.
+        var badgeInfo = getStatusBadge(day);
         var detailHtml = '<div style="text-align: left;">';
         detailHtml += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">';
         detailHtml += '<span style="font-weight: 800; font-size: 1.1rem; color: var(--text-main);">' + day.date + '</span>';
-        detailHtml += '<span class="' + (day.perfect ? 'perfect-badge' : 'imperfect-badge') + '" style="font-size: 0.8rem;">' + (day.perfect ? 'PERFECT' : 'Needs work') + '</span>';
+        detailHtml += '<span class="' + badgeInfo.cls + '" style="font-size: 0.8rem;">' + badgeInfo.text + '</span>';
         detailHtml += '</div>';
         
-        if (day.xp || day.materials) {
+        var rewardTokens = day.tokens !== undefined ? day.tokens : day.materials;
+        if (day.xp || rewardTokens) {
             detailHtml += '<div style="display: flex; gap: 14px; margin-bottom: 12px; flex-wrap: wrap;">';
             if (day.xp) {
                 detailHtml += '<span class="reward xp" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800;"><i class="fa-solid fa-star"></i> +' + day.xp + ' XP</span>';
             }
-            if (day.materials) {
-                detailHtml += '<span class="reward mat" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800;"><i class="fa-solid fa-gem"></i> +' + day.materials + ' mats</span>';
+            if (rewardTokens) {
+                detailHtml += '<span class="reward mat" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 800;"><i class="fa-solid fa-gem"></i> +' + rewardTokens + ' tokens</span>';
             }
             detailHtml += '</div>';
         }
@@ -328,16 +198,69 @@
         if (window.openModal) window.openModal();
     };
 
-    // Bind the red Nutrition node on the skill-tree plan.
+    window.createModalityController({
+        name: 'nutrition',
+        title: 'Nutrition',
+        icon: 'fa-apple-whole',
+        apiUrl: '/api/v1/nutrition/',
+        guidanceText: 'Hit your protein goal and calorie budget for max XP (+50) & tokens (+25). Being close or hitting individual goals earns tiered rewards!',
+        emptyState: {
+            icon: 'fa-apple-whole',
+            title: 'No nutrition data yet',
+            desc: 'Link SparkyFitness to start tracking your macros and hitting your protein goals.',
+            hint: 'Nutrition XP flows in once your food syncs.',
+            ctaText: 'Link SparkyFitness',
+            ctaHref: '/profile/'
+        },
+        renderCustomContent: function (content, data) {
+            // 1. Today's Summary Card
+            if (data.today) {
+                content.appendChild(buildDayCard(data.today, 'Today, ' + data.today.date));
+            }
+
+            // 2. Trends & Insights
+            if (window.FFInsights) {
+                window.FFInsights.createInsights(content, 'nutrition', data);
+            }
+
+            // 3. History List (at the very bottom)
+            if (data.history && data.history.length) {
+                var wrap = document.createElement('div');
+                var title = document.createElement('div');
+                title.className = 'history-title';
+                title.innerHTML = '<i class="fa-solid fa-list"></i> History';
+                wrap.appendChild(title);
+                var ul = document.createElement('ul');
+                ul.className = 'history-list';
+                data.history.forEach(function (day) {
+                    var li = document.createElement('li');
+                    li.className = 'history-item' + (day.perfect ? ' perfect' : '');
+                    li.style.cursor = 'pointer';
+                    li.addEventListener('click', function () {
+                        window.showDayDetailModal(day);
+                    });
+                    var left = document.createElement('span');
+                    left.className = 'hist-macros';
+                    left.textContent = day.date + '  ' + formatMacro(day.protein, day.protein_goal) + '  ' + formatMacro(day.calories, day.calorie_goal);
+                    li.appendChild(left);
+                    var right = document.createElement('span');
+                    right.className = 'hist-reward';
+                    var badgeInfo = getStatusBadge(day);
+                    var tok = day.tokens !== undefined ? day.tokens : day.materials;
+                    right.textContent = badgeInfo.text + ' ' + (day.xp ? '+' + day.xp + ' XP' : '') + (tok ? ', ' + tok + ' tok' : '');
+                    li.appendChild(right);
+                    ul.appendChild(li);
+                });
+                wrap.appendChild(ul);
+                content.appendChild(wrap);
+            }
+        }
+    });
+
     var nutNode = document.getElementById('node-nutrition');
     if (nutNode) {
-        window.ffLog('[nutrition] node-nutrition found, binding click');
         nutNode.addEventListener('click', function () {
-            window.ffLog('[nutrition] node-nutrition clicked');
             window.loadNutrition();
         });
-    } else {
-        window.ffWarn('[nutrition] node-nutrition NOT found in DOM');
     }
 })();
-

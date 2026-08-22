@@ -17,7 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
-from django.http import JsonResponse
+from django.http import HttpResponseNotFound, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -313,6 +313,33 @@ def avatar_upload(request):
 def dashboard_page(request):
     """Serve the vanilla JS dashboard template (Step 19)."""
     return render(request, "core/dashboard.html")
+
+
+_VALID_PANELS = {
+    "nutrition",
+    "hydration",
+    "endurance",
+    "strength",
+    "boss",
+    "recovery",
+    "shop",
+    "loadout",
+    "battle",
+    "pvp",
+    "leagues",
+    "badges",
+}
+
+
+@login_required
+def panel_view(request, name):
+    """GET /panel/<name>/ (docs/19 #12)
+    Serve a single lazy-loaded panel partial HTML for vanilla JS consumption.
+    """
+    clean_name = name.strip().lower().replace("-view", "").replace(".html", "")
+    if clean_name not in _VALID_PANELS:
+        return HttpResponseNotFound("Panel not found")
+    return render(request, f"core/panels/{clean_name}.html")
 
 
 @login_required
@@ -741,6 +768,7 @@ def battle_campaign(request, campaign):
         additive_bonus,
         base_damage_for,
         boss_vulnerability,
+        stat_breakdown_for,
         total_gear_multiplier,
     )
 
@@ -756,6 +784,7 @@ def battle_campaign(request, campaign):
     vuln = boss_vulnerability(ref, campaign) if ref else 1.0
     buff_mult = active_buff_multiplier(profile_obj, campaign)
     est_damage = int(base * gear_mult * vuln * buff_mult)
+    stat_info = stat_breakdown_for(campaign, request.user)
     return JsonResponse({
         "campaign": campaign,
         "boss": {
@@ -770,6 +799,7 @@ def battle_campaign(request, campaign):
             "mechanics": ref.mechanics if ref else {},
         },
         "today_base_damage": base,
+        "stat_breakdown": stat_info,
         "flat_bonus": flat,
         "gear_multiplier": round(gear_mult, 2),
         "boss_multiplier": round(buff_mult * vuln, 2),

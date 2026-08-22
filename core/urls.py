@@ -63,7 +63,8 @@ urlpatterns = [
     path("loadout/unequip", views.loadout_unequip, name="loadout_unequip"),
     path("pvp/state", views.pvp_state, name="pvp_state"),
     path("pvp/defend", views.pvp_defend, name="pvp_defend"),
-    path("pvp/attack", views.pvp_attack, name="pvp_attack"),
+    # Panel HTML partials (docs/19 #12)
+    path("panel/<str:name>/", views.panel_view, name="panel_view"),
     # Dashboard page (Step 19)
     path("", views.dashboard_page, name="dashboard"),
 ]

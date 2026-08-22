@@ -25,37 +25,43 @@
     window.loadBadges = function () {
         window.ffLog('[badges] loadBadges start');
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('badges-view');
-        var content = document.getElementById('badges-content');
-        var empty = document.getElementById('badges-empty');
-        if (!view) { window.ffWarn('[badges] badges-view not found, aborting'); return; }
-        // Single-panel navigation: hide ALL panels first, then show only badges.
-        // (Fixes opening Badges from Leagues / Base, whose panels used to stay
-        // visible and stack underneath the badges view.)
-        window.ensureSinglePanelVisible('badges-view');
-        if (window.setActiveNav) window.setActiveNav('nav-badges');
-        if (content) content.classList.add('hidden');
-        if (empty) empty.classList.add('hidden');
-        fetch(BADGES_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) {
-                window.ffLog('[badges] earned=', data.earned, 'of', data.total);
-                lastData = data;
-                window.renderBadges(data);
-            })
-            .catch(function (err) {
-                window.ffError('[badges] fetch failed:', err);
-                if (content) {
-                    content.classList.remove('hidden');
-                    content.innerHTML = err && err.message === 'not-authenticated'
-                        ? '<p class="error-hint">Please log in to view your badges.</p>'
-                        : '<p class="error-hint">Could not load badges (error ' + err + ').</p>';
-                }
-                if (empty) empty.classList.add('hidden');
-            });
+
+        var runLoad = function () {
+            var view = document.getElementById('badges-view');
+            var content = document.getElementById('badges-content');
+            var empty = document.getElementById('badges-empty');
+            if (!view) { window.ffWarn('[badges] badges-view not found, aborting'); return; }
+            window.ensureSinglePanelVisible('badges-view');
+            if (window.setActiveNav) window.setActiveNav('nav-badges');
+            if (content) content.classList.add('hidden');
+            if (empty) empty.classList.add('hidden');
+            fetch(BADGES_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) {
+                    window.ffLog('[badges] earned=', data.earned, 'of', data.total);
+                    lastData = data;
+                    window.renderBadges(data);
+                })
+                .catch(function (err) {
+                    window.ffError('[badges] fetch failed:', err);
+                    if (content) {
+                        content.classList.remove('hidden');
+                        content.innerHTML = err && err.message === 'not-authenticated'
+                            ? '<p class="error-hint">Please log in to view your badges.</p>'
+                            : '<p class="error-hint">Could not load badges (error ' + err + ').</p>';
+                    }
+                    if (empty) empty.classList.add('hidden');
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('badges-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
 
     // Badge grid. Every tile is clickable -> showBadgeDetail().

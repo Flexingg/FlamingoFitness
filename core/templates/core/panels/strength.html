@@ -1,0 +1,24 @@
+<section class="hidden p-4 min-h-full bg-slate-900" id="strength-view">
+    <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+        <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="strength-back" onclick="backToStrengthPlan()">
+            <i class="fa-solid fa-arrow-left text-xl"></i>
+        </button>
+        <h2 class="text-2xl font-black text-white flex items-center gap-2">
+            <i class="fa-solid fa-dumbbell text-flamingo"></i> Strength
+        </h2>
+    </div>
+
+    <div id="strength-content"></div>
+
+    <!-- Empty state / Link-Liftosaur CTA -->
+    <div id="strength-empty" class="hidden">
+        <div class="flex flex-col items-center justify-center text-center mt-4 p-8 bg-slate-800 rounded-[2rem] border border-slate-600 shadow-xl">
+            <div class="w-24 h-24 bg-slate-700 rounded-full flex items-center justify-center text-5xl text-flamingo/50 mb-6 border-4 border-slate-800 shadow-inner">
+                <i class="fa-solid fa-dumbbell"></i>
+            </div>
+            <p class="text-xl font-bold text-white mb-3">No strength data yet.</p>
+            <p class="text-slate-300 font-semibold mb-8 leading-relaxed">Link Liftosaur to track your lifting volume. PRs live in the PR Boss panel.</p>
+            <a href="{% url 'profile' %}" class="w-full bg-flamingo text-white font-bold py-4 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg text-center">Link Liftosaur</a>
+        </div>
+    </div>
+</section>

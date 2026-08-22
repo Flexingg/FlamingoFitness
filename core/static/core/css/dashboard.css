@@ -270,33 +270,85 @@ body {
     margin-top: 2px;
 }
 
-/* Bottom navigation */
+/* Bottom navigation (Duolingo style, space optimized) */
 .bottom-nav {
     position: relative;
     left: 0;
     width: 100%;
-    display: flex;
-    justify-content: space-around;
     flex-shrink: 0;
-    padding: 6px 10px;
-    padding-bottom: calc(6px + env(safe-area-inset-bottom));
     background-color: var(--bg-light);
     border-top: 2px solid var(--border-color);
-    z-index: 10;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom);
 }
-.nav-item {
+.bottom-nav-container {
+    max-width: 480px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+}
+.nav-item, .nav-game-fab-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 16px;
     color: var(--text-muted);
     text-decoration: none;
-    font-size: 0.75rem;
-    font-weight: 700;
-    transition: color 0.2s;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
-.nav-item i { font-size: 1.5rem; }
-.nav-item.active { color: var(--primary-pink); }
+.nav-icon-wrap {
+    width: 38px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 1.15rem;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nav-label {
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+    transition: color 0.15s ease;
+}
+.nav-item.active,
+.nav-game-fab-btn.active {
+    color: var(--primary-pink);
+}
+.nav-item.active .nav-icon-wrap,
+.nav-game-fab-btn.active .nav-icon-wrap {
+    background: rgba(255, 94, 154, 0.16);
+    border: 1.5px solid rgba(255, 94, 154, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 94, 154, 0.2);
+}
+.nav-item:active,
+.nav-game-fab-btn:active {
+    transform: scale(0.92);
+}
+.nav-icon-wrap.game-fab {
+    color: #f43f5e;
+}
+.nav-game-fab-btn.open .nav-icon-wrap.game-fab {
+    background: var(--primary-pink);
+    color: #ffffff;
+    transform: translateY(-2px) rotate(15deg);
+    box-shadow: 0 4px 14px rgba(255, 94, 154, 0.4);
+}
 
 /* Modal */
 .modal-overlay {
@@ -406,10 +458,26 @@ body {
 }
 .day-date { font-weight: 800; color: var(--text-main); }
 .perfect-badge {
-    color: var(--primary-red);
+    color: #10b981;
     font-weight: 900;
     font-size: .85rem;
-    background: rgba(255, 77, 77, .08);
+    background: rgba(16, 185, 129, .15);
+    padding: 4px 10px;
+    border-radius: 50px;
+}
+.close-badge {
+    color: #38bdf8;
+    font-weight: 800;
+    font-size: .85rem;
+    background: rgba(56, 189, 248, .15);
+    padding: 4px 10px;
+    border-radius: 50px;
+}
+.partial-badge {
+    color: #fbbf24;
+    font-weight: 800;
+    font-size: .85rem;
+    background: rgba(251, 191, 36, .15);
     padding: 4px 10px;
     border-radius: 50px;
 }
@@ -511,66 +579,159 @@ body {
 
 .nutrition-empty { text-align: center; padding: 18px; }
 
-/* Nutrition skill tree section */
-.nutrition-skill-section {
-    background: var(--bg-light);
+/* Universal Modality Skill Section */
+.modality-skill-section {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+    border: 1px solid rgba(71, 85, 105, 0.45);
     border-radius: 20px;
-    padding: 18px;
-    box-shadow: 0 6px 0 var(--border-color);
-    margin-bottom: 18px;
+    padding: 18px 20px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
 }
-.nutrition-skill-header {
-    font-size: 1.1rem;
-    font-weight: 900;
-    color: var(--text-main);
-    margin-bottom: 8px;
+.skill-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.skill-card-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
 }
-.nutrition-skill-header i {
-    color: var(--primary-pink);
+.skill-icon-wrap {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
-.nutrition-skill-info {
-    font-weight: 800;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-    font-size: 0.95rem;
+.skill-card-name {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: #f8fafc;
+    line-height: 1.2;
 }
-.nutrition-xp-bar-wrap {
-    width: 100%;
-    height: 10px;
-    background: var(--bg-app);
-    border-radius: 5px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-    margin-bottom: 6px;
-}
-.nutrition-xp-bar {
-    width: 100%;
-    height: 100%;
-}
-.nutrition-xp-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--primary-pink), var(--primary-orange));
-    border-radius: 5px;
-    transition: width 0.4s ease;
-}
-.nutrition-xp-to-next {
-    font-size: 0.8rem;
+.skill-card-sub {
+    font-size: 0.72rem;
     font-weight: 700;
-    color: var(--text-muted);
-    margin-bottom: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
 }
-.nutrition-guidance {
+.skill-level-badge {
+    color: #ffffff;
+    font-weight: 900;
+    font-size: 0.95rem;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    letter-spacing: 0.02em;
+}
+.skill-xp-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-main);
-    background: rgba(255, 94, 154, 0.08);
-    padding: 10px;
-    border-radius: 12px;
-    border-left: 4px solid var(--primary-pink);
+    font-weight: 700;
+    margin-bottom: 8px;
 }
+.skill-total-xp {
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.skill-total-xp i {
+    color: #fbbf24;
+}
+.skill-xp-fraction {
+    color: #94a3b8;
+}
+.skill-xp-fraction strong {
+    color: #f8fafc;
+    font-weight: 800;
+}
+.skill-pct {
+    color: #38bdf8;
+    font-weight: 800;
+    margin-left: 2px;
+}
+.skill-xp-track {
+    width: 100%;
+    height: 12px;
+    background: rgba(15, 23, 42, 0.85);
+    border-radius: 9999px;
+    overflow: hidden;
+    border: 1px solid rgba(51, 65, 85, 0.7);
+    margin-bottom: 14px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.skill-xp-fill {
+    height: 100%;
+    border-radius: 9999px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.skill-guidance-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(30, 41, 59, 0.65);
+    padding: 10px 14px;
+    border-radius: 12px;
+    line-height: 1.45;
+    border: 1px solid rgba(71, 85, 105, 0.3);
+}
+.skill-guidance-box i {
+    font-size: 0.95rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* Modality Specific Accents */
+.nutrition-icon-wrap { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.35); }
+.nutrition-level-badge { background: linear-gradient(135deg, #a855f7, #ec4899); box-shadow: 0 4px 12px rgba(168, 85, 247, 0.35); }
+.nutrition-xp-fill { background: linear-gradient(90deg, #a855f7, #ec4899); box-shadow: 0 0 12px rgba(236, 72, 153, 0.5); }
+.nutrition-guidance { border-left: 3.5px solid #a855f7; }
+.nutrition-guidance i { color: #c084fc; }
+
+.hydration-icon-wrap { background: rgba(6, 182, 212, 0.18); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.35); }
+.hydration-level-badge { background: linear-gradient(135deg, #06b6d4, #3b82f6); box-shadow: 0 4px 12px rgba(6, 182, 212, 0.35); }
+.hydration-xp-fill { background: linear-gradient(90deg, #06b6d4, #3b82f6); box-shadow: 0 0 12px rgba(56, 189, 248, 0.5); }
+.hydration-guidance { border-left: 3.5px solid #06b6d4; }
+.hydration-guidance i { color: #38bdf8; }
+
+.recovery-icon-wrap { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); }
+.recovery-level-badge { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35); }
+.recovery-xp-fill { background: linear-gradient(90deg, #10b981, #06b6d4); box-shadow: 0 0 12px rgba(52, 211, 153, 0.5); }
+.recovery-guidance { border-left: 3.5px solid #10b981; }
+.recovery-guidance i { color: #34d399; }
+
+.endurance-icon-wrap { background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.35); }
+.endurance-level-badge { background: linear-gradient(135deg, #f43f5e, #e11d48); box-shadow: 0 4px 12px rgba(244, 63, 94, 0.35); }
+.endurance-xp-fill { background: linear-gradient(90deg, #f43f5e, #fb923c); box-shadow: 0 0 12px rgba(244, 63, 94, 0.5); }
+.endurance-guidance { border-left: 3.5px solid #f43f5e; }
+.endurance-guidance i { color: #fb7185; }
+
+.strength-icon-wrap { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); }
+.strength-level-badge { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35); }
+.strength-xp-fill { background: linear-gradient(90deg, #f59e0b, #ef4444); box-shadow: 0 0 12px rgba(245, 158, 11, 0.5); }
+.strength-guidance { border-left: 3.5px solid #f59e0b; }
+.strength-guidance i { color: #fbbf24; }
+
+.boss-icon-wrap { background: rgba(251, 191, 36, 0.18); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.35); }
+.boss-level-badge { background: linear-gradient(135deg, #fbbf24, #f59e0b); box-shadow: 0 4px 12px rgba(251, 191, 36, 0.35); color: #0f172a; }
+.boss-guidance { border-left: 3.5px solid #fbbf24; }
+.boss-guidance i { color: #fbbf24; }
 
 /* Clickable history items */
 .history-item {
@@ -1561,3 +1722,446 @@ body {
     border-bottom-width: 0;
     transform: translateY(2px);
 }
+
+/* ============================================================
+   Phase 3: UI Polish (docs/19 #13, #15, #18, #20)
+   ============================================================ */
+
+/* #13 Skeleton loading shimmer */
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+.skeleton-box, .skeleton-card, .skeleton-circle, .skeleton-bar {
+    background: linear-gradient(90deg, var(--bg-light) 25%, var(--border-color) 50%, var(--bg-light) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.skeleton-card {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.skeleton-circle {
+    border-radius: 50%;
+}
+
+.skeleton-bar {
+    border-radius: 8px;
+}
+
+/* #15 Panel transitions */
+@media (prefers-reduced-motion: no-preference) {
+    .panel-view-enter {
+        animation: panelSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .panel-view-back {
+        animation: panelSlideBack 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+}
+
+@keyframes panelSlideIn {
+    0% { opacity: 0; transform: translateX(18px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes panelSlideBack {
+    0% { opacity: 0; transform: translateX(-18px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* #18 Pull-to-refresh */
+.ptr-indicator {
+    position: absolute;
+    top: 8px;
+    left: 0;
+    right: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 30;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    opacity: 0;
+    transform: translateY(-100%);
+}
+
+.ptr-indicator.ptr-pulling {
+    opacity: 0.85;
+}
+
+.ptr-indicator.ptr-refreshing {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.ptr-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-pink);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    font-size: 14px;
+}
+
+/* #20 Empty state animations */
+.empty-state {
+    animation: fadeIn 0.35s ease-out forwards;
+}
+
+.empty-state-icon i {
+    animation: bounceSlight 3s ease-in-out infinite;
+}
+
+/* ============================================================
+   Phase 4: Light/Dark Theme Overhaul (docs/19 #16)
+   Clean CSS-variable driven light palette replacing legacy theme.css
+   ============================================================ */
+
+:root {
+    --bg-outer: #000000;
+}
+
+html.light {
+    --bg-outer: #e8edf4;
+    --bg-light: #ffffff;
+    --bg-app: #f8fafc;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --border-color: #cbd5e1;
+    --bg-sky: #e2e8f0;
+    --neon-color: #FF5E9A;
+    --neon-glow: 0 0 12px var(--neon-color);
+}
+
+html.light body {
+    background-color: var(--bg-outer);
+    color: var(--text-main);
+}
+
+/* Light mode utility & component adjustments */
+html.light .bg-black { background-color: #e8edf4 !important; }
+html.light .bg-slate-900 { background-color: #f8fafc !important; }
+html.light .bg-slate-900\/95 { background-color: rgb(248 250 252 / 0.95) !important; }
+html.light .bg-slate-800 { background-color: #ffffff !important; }
+html.light .bg-slate-700 { background-color: #e2e8f0 !important; }
+html.light .bg-slate-600 { background-color: #cbd5e1 !important; }
+
+html.light .text-white { color: #0f172a !important; }
+html.light .text-slate-100 { color: #0f172a !important; }
+html.light .text-slate-200 { color: #1e293b !important; }
+html.light .text-slate-300 { color: #475569 !important; }
+html.light .text-slate-400 { color: #64748b !important; }
+
+html.light .border-slate-500,
+html.light .border-slate-600,
+html.light .border-slate-700,
+html.light .border-slate-800 { border-color: #cbd5e1 !important; }
+
+/* Keep white text on solid color buttons / nodes */
+html.light .node-circle,
+html.light .bg-flamingo,
+html.light .bg-purple-600,
+html.light .bg-indigo-500,
+html.light .bg-green-500,
+html.light .bg-emerald-500,
+html.light .bg-cyan-500,
+html.light .bg-blue-500,
+html.light .bg-red-500,
+html.light .btn-flamingo,
+html.light .onboarding-next {
+    color: #ffffff !important;
+}
+
+html.light .bottom-nav {
+    box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ============================================================
+   UI Polish: Skill Tree, Bottom Sheets, Streaks, Micro-Visuals
+   ============================================================ */
+
+/* 1. Skill tree S-curve & progress rings */
+.skill-tree-path-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+.skill-path-bg {
+    fill: none;
+    stroke: var(--border-color);
+    stroke-width: 10px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.6;
+}
+.skill-path-fg {
+    fill: none;
+    stroke: #FF5E9A;
+    stroke-width: 10px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 14 10;
+    animation: pathDash 25s linear infinite;
+    opacity: 0.8;
+}
+@keyframes pathDash {
+    to { stroke-dashoffset: -1000; }
+}
+
+.node-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.node-ring-svg {
+    transform: rotate(-90deg);
+    pointer-events: none;
+    position: absolute;
+}
+.node-ring-bg {
+    fill: none;
+    stroke: var(--border-color);
+    stroke-width: 5px;
+    opacity: 0.5;
+}
+.node-ring-fg {
+    fill: none;
+    stroke-width: 5px;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.node-badge-level {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    background: var(--bg-app);
+    color: var(--text-main);
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 7px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    z-index: 20;
+}
+.node-badge-complete {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #10b981;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 900;
+    border: 2px solid var(--bg-app);
+    box-shadow: 0 3px 8px rgba(16, 185, 129, 0.5);
+    z-index: 20;
+    animation: bounceSlight 2.5s infinite;
+}
+
+/* 2. Mobile Bottom Sheet Styling */
+@media (max-width: 640px) {
+    .modal-overlay {
+        align-items: flex-end !important;
+        padding: 0 !important;
+    }
+    .modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        border-bottom-left-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+        border-top-left-radius: 2rem !important;
+        border-top-right-radius: 2rem !important;
+        margin: 0 !important;
+        max-height: 85vh;
+        overflow-y: auto;
+        transform: translateY(100%);
+        transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .modal-overlay.show-modal .modal-content {
+        transform: translateY(0);
+    }
+}
+.sheet-handle {
+    width: 44px;
+    height: 5px;
+    background: var(--border-color);
+    border-radius: 999px;
+    margin: 0 auto 16px auto;
+}
+
+/* Duolingo Centered Floating Game Hub Card */
+.duo-game-menu {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.92) translateY(12px);
+    width: calc(100% - 24px);
+    max-width: 360px;
+    background: var(--bg-light);
+    border: 2px solid var(--border-color);
+    border-radius: 24px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    padding: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.18s ease;
+    z-index: 60;
+}
+
+.duo-game-menu:not(.hidden) {
+    transform: translateX(-50%) scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.duo-row-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-app);
+    border: 1.5px solid var(--border-color);
+    border-bottom-width: 3.5px;
+    border-radius: 18px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    width: 100%;
+}
+
+.duo-row-item:hover {
+    border-color: var(--primary-pink);
+    transform: translateY(-2px);
+}
+
+.duo-row-item:active {
+    transform: translateY(2px);
+    border-bottom-width: 1.5px;
+}
+
+.duo-row-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.duo-row-title {
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.duo-row-sub {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: 1px;
+}
+
+html.light .duo-game-menu {
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.15);
+}
+html.light .duo-row-title {
+    color: #0f172a !important;
+}
+html.light .duo-row-sub {
+    color: #64748b !important;
+}
+
+/* 3. Streak Flame Tiers */
+.streak-tier-1 i { color: #fb923c !important; }
+.streak-tier-2 i {
+    color: #f43f5e !important;
+    filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.7));
+    animation: flamePulse 1.8s infinite alternate ease-in-out;
+}
+.streak-tier-3 i {
+    color: #c084fc !important;
+    filter: drop-shadow(0 0 10px rgba(192, 132, 252, 0.8)) drop-shadow(0 0 18px rgba(255, 94, 154, 0.6));
+    animation: flamePulse 1.2s infinite alternate ease-in-out;
+}
+@keyframes flamePulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.18) rotate(4deg); }
+}
+
+/* 4. Quick Log Buttons & Battery Gauge */
+.quick-log-btn {
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-app);
+    color: var(--text-main);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+.quick-log-btn:hover {
+    border-color: var(--primary-cyan);
+    color: var(--primary-cyan);
+    transform: translateY(-1px);
+}
+.quick-log-btn:active {
+    transform: scale(0.95);
+}
+
+.battery-meter {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: var(--bg-app);
+    padding: 4px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+.battery-body {
+    width: 34px;
+    height: 18px;
+    border: 2px solid var(--text-muted);
+    border-radius: 5px;
+    padding: 1.5px;
+    display: flex;
+    align-items: center;
+}
+.battery-fill {
+    height: 100%;
+    border-radius: 2.5px;
+    transition: width 0.6s ease, background-color 0.4s ease;
+}
+.battery-cap {
+    width: 3px;
+    height: 8px;
+    background: var(--text-muted);
+    border-radius: 1px;
+}
+
+

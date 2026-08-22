@@ -16,9 +16,7 @@
     "hp_total": 1500,
     "element": "strength",
     "weaknesses": [],
-    "resistances": [
-      "strength"
-    ],
+    "resistances": [],
     "mechanics": {}
   },
   {
@@ -78,9 +76,7 @@
     "hp_total": 300,
     "element": "recovery",
     "weaknesses": [],
-    "resistances": [
-      "sleep"
-    ],
+    "resistances": [],
     "mechanics": {}
   },
   {

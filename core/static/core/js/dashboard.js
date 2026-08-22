@@ -100,10 +100,53 @@
         var menu = document.getElementById('game-menu');
         var wrap = document.getElementById('game-btn-wrap');
         if (!menu || menu.classList.contains('hidden')) return;
-        if (wrap && wrap.contains(ev.target)) return;
+        if ((wrap && wrap.contains(ev.target)) || menu.contains(ev.target)) return;
         closeGameMenu();
     }
     document.addEventListener('click', onDocClick);
+
+    // Dynamic SVG S-curve path that connects exact center of each bubble
+    window.updateSkillTreePath = function () {
+        var tree = document.getElementById('skill-tree');
+        if (!tree || tree.classList.contains('hidden')) return;
+        var svg = tree.querySelector('.skill-tree-path-svg');
+        var pathBg = tree.querySelector('.skill-path-bg');
+        var pathFg = tree.querySelector('.skill-path-fg');
+        if (!svg || !pathBg || !pathFg) return;
+
+        var nodeIds = ['node-nutrition', 'node-hydration', 'node-endurance', 'node-strength', 'node-recovery', 'node-boss'];
+        var treeRect = tree.getBoundingClientRect();
+        if (treeRect.width <= 0 || treeRect.height <= 0) return;
+
+        var points = [];
+        for (var i = 0; i < nodeIds.length; i++) {
+            var btn = document.getElementById(nodeIds[i]);
+            if (!btn) continue;
+            var circle = btn.querySelector('.node-circle') || btn;
+            var rect = circle.getBoundingClientRect();
+            var cx = rect.left + rect.width / 2 - treeRect.left;
+            var cy = rect.top + rect.height / 2 - treeRect.top;
+            points.push({ x: cx, y: cy });
+        }
+
+        if (points.length < 2) return;
+
+        var d = 'M ' + points[0].x.toFixed(1) + ' ' + points[0].y.toFixed(1);
+        for (var p = 0; p < points.length - 1; p++) {
+            var p0 = points[p];
+            var p1 = points[p + 1];
+            var midY = (p0.y + p1.y) / 2;
+            d += ' C ' + p0.x.toFixed(1) + ' ' + midY.toFixed(1) + ', ' +
+                 p1.x.toFixed(1) + ' ' + midY.toFixed(1) + ', ' +
+                 p1.x.toFixed(1) + ' ' + p1.y.toFixed(1);
+        }
+
+        svg.removeAttribute('viewBox');
+        svg.style.width = treeRect.width + 'px';
+        svg.style.height = treeRect.height + 'px';
+        pathBg.setAttribute('d', d);
+        pathFg.setAttribute('d', d);
+    };
 
     // Path tab: return to the skill tree from anywhere. Because this is an
     // explicit "go home", clear the URL so a later back press doesn't
@@ -115,6 +158,7 @@
         if (tree) tree.classList.remove('hidden');
         window.setActiveNav('nav-path');
         if (window.AppRouter) window.AppRouter.navigate('skill-tree');
+        setTimeout(window.updateSkillTreePath, 40);
     };
 
     // Go back through the browser/app history. Falls back to the skill tree
@@ -131,9 +175,25 @@
     // back button can return to the previous panel.
     window.ensureSinglePanelVisible = function (visiblePanelId) {
         window.hideAllPanels();
+        var navId = PANEL_NAV[visiblePanelId] || 'nav-path';
+        window.setActiveNav(navId);
+
+        var showEl = function (panel) {
+            if (panel) {
+                panel.classList.remove('hidden');
+                panel.classList.remove('panel-view-enter');
+                void panel.offsetWidth; // trigger reflow
+                panel.classList.add('panel-view-enter');
+            }
+        };
+
         var panel = document.getElementById(visiblePanelId);
         if (panel) {
-            panel.classList.remove('hidden');
+            showEl(panel);
+        } else if (typeof window.ensurePanelLoaded === 'function') {
+            window.ensurePanelLoaded(visiblePanelId).then(function (loadedPanel) {
+                showEl(loadedPanel || document.getElementById(visiblePanelId));
+            });
         }
         if (window.AppRouter) window.AppRouter.navigate(visiblePanelId);
     };
@@ -149,21 +209,44 @@
     }
 
     function renderState(data) {
-        // Top nav stats
-        document.querySelector('#stat-streak span').textContent = data.user.streak;
-        document.querySelector('#stat-tokens span').textContent = data.resources.tokens;
-        document.querySelector('#stat-stamina span').textContent = data.resources.stamina;
+        // Top nav stats with smooth roll-up numbers
+        var streakEl = document.querySelector('#stat-streak span');
+        var tokensEl = document.querySelector('#stat-tokens span');
+        var staminaEl = document.querySelector('#stat-stamina span');
+        if (window.animateNumber) {
+            window.animateNumber(streakEl, streakEl ? streakEl.textContent : 0, data.user.streak);
+            window.animateNumber(tokensEl, tokensEl ? tokensEl.textContent : 0, data.resources.tokens);
+            window.animateNumber(staminaEl, staminaEl ? staminaEl.textContent : 0, data.resources.stamina);
+        } else {
+            if (streakEl) streakEl.textContent = data.user.streak;
+            if (tokensEl) tokensEl.textContent = data.resources.tokens;
+            if (staminaEl) staminaEl.textContent = data.resources.stamina;
+        }
+
+        // Streak flame evolutions
+        var streakBadge = document.getElementById('stat-streak');
+        if (streakBadge) {
+            streakBadge.classList.remove('streak-tier-1', 'streak-tier-2', 'streak-tier-3');
+            var s = data.user.streak || 0;
+            if (s >= 30) {
+                streakBadge.classList.add('streak-tier-3');
+                streakBadge.title = s + ' day streak! Supercharged!';
+            } else if (s >= 7) {
+                streakBadge.classList.add('streak-tier-2');
+                streakBadge.title = s + ' day streak! On Fire!';
+            } else {
+                streakBadge.classList.add('streak-tier-1');
+                streakBadge.title = s + ' day streak';
+            }
+        }
+
         document.getElementById('avatar-img').src = data.user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
-        // Add onerror fallback so broken uploaded images revert to the cartoon default.
         document.getElementById('avatar-img').onerror = function () {
             this.onerror = null;
             this.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
         };
 
-        // Skill tree nodes - every node is always unlocked/clickable. The UI
-        // must never present a locked skill tree, so we force-clear any lock
-        // styling/icons regardless of whether the API returns data for the
-        // modality yet.
+        // Skill tree nodes with progress rings & badges
         var bossUnlocked = false;
         for (var key in MODALITY_META) {
             if (!MODALITY_META.hasOwnProperty(key)) continue;
@@ -177,34 +260,28 @@
             var lockIcon = btn.querySelector('.fa-lock');
             if (lockIcon) lockIcon.remove();
 
-            // Clean up any old injected badges/bars before re-adding
-            var oldBadge = btn.querySelector('.node-level');
-            if (oldBadge) oldBadge.remove();
-            var oldXpWrap = btn.querySelector('.node-xp-wrap');
-            if (oldXpWrap) oldXpWrap.remove();
+            var ring = document.getElementById('node-ring-' + key);
+            var lvlEl = document.getElementById('node-lvl-' + key);
+            var checkEl = document.getElementById('node-check-' + key);
 
-            if (tree && tree.level !== undefined) {
-                var badge = document.createElement('span');
-                badge.className = 'node-level';
-                badge.textContent = 'Lv ' + tree.level;
-                btn.appendChild(badge);
-            }
-            // Add XP progress bar under each skill tree node
-            if (tree && tree.xp !== undefined) {
-                var xpWrap = document.createElement('div');
-                xpWrap.className = 'node-xp-wrap';
-                var xpBar = document.createElement('div');
-                xpBar.className = 'node-xp-bar';
-                var xpFill = document.createElement('div');
-                xpFill.className = 'node-xp-fill';
-                xpFill.style.width = Math.min(100, Math.max(0, tree.progress_pct || 0)) + '%';
-                xpBar.appendChild(xpFill);
-                xpWrap.appendChild(xpBar);
-                var xpText = document.createElement('div');
-                xpText.className = 'node-xp-text';
-                xpText.textContent = (tree.xp || 0) + ' / 100 XP';
-                xpWrap.appendChild(xpText);
-                btn.appendChild(xpWrap);
+            if (tree) {
+                var pct = Math.min(100, Math.max(0, tree.progress_pct || 0));
+                if (ring) {
+                    var circumference = 276.46;
+                    var offset = circumference * (1 - pct / 100);
+                    ring.style.strokeDashoffset = offset;
+                }
+                if (lvlEl && tree.level !== undefined) {
+                    lvlEl.textContent = 'Lv ' + tree.level;
+                    lvlEl.classList.remove('hidden');
+                }
+                if (checkEl) {
+                    if (pct >= 100 || (tree.today_xp && tree.today_xp > 0)) {
+                        checkEl.classList.remove('hidden');
+                    } else {
+                        checkEl.classList.add('hidden');
+                    }
+                }
             }
             if (tree && tree.progress_pct >= 100 && key === 'strength') {
                 bossUnlocked = true;
@@ -263,8 +340,18 @@
             }
         }
 
-        document.getElementById('loading-hint').classList.add('hidden');
-        document.getElementById('skill-tree').classList.remove('hidden');
+        var loadingHint = document.getElementById('loading-hint');
+        if (loadingHint) loadingHint.classList.add('hidden');
+        var anyOtherPanelVisible = PANEL_IDS.some(function (id) {
+            if (id === 'skill-tree') return false;
+            var el = document.getElementById(id);
+            return el && !el.classList.contains('hidden');
+        });
+        if (!anyOtherPanelVisible) {
+            var tree = document.getElementById('skill-tree');
+            if (tree) tree.classList.remove('hidden');
+            setTimeout(window.updateSkillTreePath, 40);
+        }
 
         // First-flight onboarding (docs/17 #91): show the walkthrough for any
         // account that has not completed it yet. Demo users are pre-marked
@@ -379,8 +466,6 @@
     // Builds a consistent "why no data + what to do" card with an optional CTA.
     // Most panel controllers call window.showEmptyState() in their render*()
     // empty branches; string-building controllers use window.emptyStateHTML().
-    function csrfToken() { return window.csrfToken(); }
-    window.csrfToken = csrfToken;
 
     window.emptyStateHTML = function (opts) {
         opts = opts || {};
@@ -685,9 +770,114 @@
             });
     };
 
+    // ------------------------------------------------------------------
+    // Pull-to-refresh handler (Phase 3, docs/19 #18)
+    // ------------------------------------------------------------------
+    function initPullToRefresh() {
+        var scroller = document.querySelector('main');
+        if (!scroller) return;
+
+        var startY = 0;
+        var currentY = 0;
+        var isPulling = false;
+        var threshold = 70;
+
+        var indicator = document.createElement('div');
+        indicator.className = 'ptr-indicator';
+        indicator.innerHTML = '<div class="ptr-icon"><i class="fa-solid fa-arrows-rotate fa-spin"></i></div>';
+        scroller.prepend(indicator);
+
+        scroller.addEventListener('touchstart', function (e) {
+            if (scroller.scrollTop <= 0) {
+                startY = e.touches[0].clientY;
+                isPulling = true;
+            }
+        }, { passive: true });
+
+        scroller.addEventListener('touchmove', function (e) {
+            if (!isPulling) return;
+            currentY = e.touches[0].clientY;
+            var deltaY = currentY - startY;
+            if (deltaY > 0 && scroller.scrollTop <= 0) {
+                if (deltaY > threshold) {
+                    indicator.classList.add('ptr-pulling');
+                } else {
+                    indicator.classList.remove('ptr-pulling');
+                }
+            }
+        }, { passive: true });
+
+        scroller.addEventListener('touchend', function () {
+            if (!isPulling) return;
+            var deltaY = currentY - startY;
+            isPulling = false;
+            if (deltaY > threshold && scroller.scrollTop <= 0) {
+                indicator.classList.add('ptr-refreshing');
+                window.haptic(15);
+                window.refreshDashboardState();
+                if (window.refreshCampaignFocus) window.refreshCampaignFocus();
+                setTimeout(function () {
+                    indicator.classList.remove('ptr-refreshing', 'ptr-pulling');
+                }, 800);
+            } else {
+                indicator.classList.remove('ptr-pulling');
+            }
+            startY = 0;
+            currentY = 0;
+        }, { passive: true });
+    }
+
+    // ------------------------------------------------------------------
+    // Mobile Bottom Sheet swipe-to-dismiss gesture
+    // ------------------------------------------------------------------
+    function initBottomSheetGestures() {
+        var overlays = document.querySelectorAll('.modal-overlay');
+        overlays.forEach(function (overlay) {
+            var content = overlay.querySelector('.modal-content');
+            if (!content) return;
+
+            var startY = 0;
+            var currentY = 0;
+            var isDragging = false;
+
+            content.addEventListener('touchstart', function (e) {
+                if (content.scrollTop <= 0) {
+                    startY = e.touches[0].clientY;
+                    isDragging = true;
+                }
+            }, { passive: true });
+
+            content.addEventListener('touchmove', function (e) {
+                if (!isDragging) return;
+                currentY = e.touches[0].clientY;
+                var deltaY = currentY - startY;
+                if (deltaY > 0 && content.scrollTop <= 0) {
+                    content.style.transform = 'translateY(' + deltaY + 'px)';
+                }
+            }, { passive: true });
+
+            content.addEventListener('touchend', function () {
+                if (!isDragging) return;
+                var deltaY = currentY - startY;
+                isDragging = false;
+                if (deltaY > 90) {
+                    content.style.transform = '';
+                    overlay.classList.remove('show-modal');
+                } else {
+                    content.style.transform = '';
+                }
+                startY = 0;
+                currentY = 0;
+            }, { passive: true });
+        });
+    }
+
     // ---- Boot: fetch dashboard state + campaign focus on page load ----
     window.refreshDashboardState();
     if (window.refreshCampaignFocus) window.refreshCampaignFocus();
+    initPullToRefresh();
+    initBottomSheetGestures();
+    window.addEventListener('resize', window.updateSkillTreePath);
 
     // ------------------------------------------------------------------
     // Lazy-load stubs for non-critical controllers (Phase 1, docs/19 #4).
@@ -695,23 +885,32 @@
     // scripts finish loading. The mapping comes from LAZY_SCRIPT_URLS in
     // the template and loadScript() from utils.js.
     // ------------------------------------------------------------------
-    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues', 'stat_info'];
+    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues'];
     LAZY_KEYS.forEach(function (key) {
         var fnName = 'load' + key.charAt(0).toUpperCase() + key.slice(1);
         if (key === 'loadout') fnName = 'loadLoadout';
         if (key === 'pvp') fnName = 'loadPvP';
-        if (key === 'stat_info') fnName = 'loadStatInfo';
         window[fnName] = window[fnName] || function () {
-            if (window._scriptsLoading && window._scriptsLoading[key]) {
-                return window[fnName]();
-            }
             var url = window.LAZY_SCRIPT_URLS && window.LAZY_SCRIPT_URLS[key];
             if (!url) return;
-            window._scriptsLoading = window._scriptsLoading || {};
-            window._scriptsLoading[key] = true;
             window.loadScript(url).then(function () {
                 if (typeof window[fnName] === 'function') window[fnName]();
             });
         };
     });
+
+    window.closeStatModal = function () {
+        var modal = document.getElementById('statModal');
+        if (modal) modal.classList.remove('show-modal');
+    };
+
+    window.showStatInfo = function (stat) {
+        var url = window.LAZY_SCRIPT_URLS && window.LAZY_SCRIPT_URLS.stat_info;
+        if (!url) return;
+        return window.loadScript(url).then(function () {
+            if (typeof window.showStatInfo === 'function') {
+                window.showStatInfo(stat);
+            }
+        });
+    };
 })();

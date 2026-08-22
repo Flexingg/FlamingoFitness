@@ -29,7 +29,12 @@
 
     function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() { return window.csrfToken(); }
+    function getCsrfToken() {
+        var m = document.querySelector('meta[name="csrf-token"]');
+        if (m && m.content && m.content !== 'NOTPROVIDED' && m.content !== '') return m.content;
+        var match = document.cookie.match(/(?:^|;\s*)(?:csrftoken|__Secure-csrftoken)=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
 
     function haptic(ms) { return window.haptic(ms); }
 
@@ -42,21 +47,30 @@
 
     window.loadLoadout = function () {
         if (window.closeModal) window.closeModal();
-        var view = document.getElementById('loadout-view');
-        var content = document.getElementById('loadout-content');
-        if (!view) { window.ffWarn('[loadout] loadout-view not found'); return; }
-        window.ensureSinglePanelVisible('loadout-view');
-        if (window.setActiveNav) window.setActiveNav('nav-loadout');
-        content.innerHTML = '<p class="text-slate-400">Loading loadout…</p>';
-        fetch(STATE_URL, { credentials: 'same-origin' })
-            .then(function (res) {
-                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                return res.ok ? res.json() : Promise.reject(res.status);
-            })
-            .then(function (data) { window.renderLoadout(data); })
-            .catch(function (err) {
-                content.innerHTML = '<p class="text-slate-400">Could not load your loadout (error ' + esc(err) + ').</p>';
-            });
+
+        var runLoad = function () {
+            var view = document.getElementById('loadout-view');
+            var content = document.getElementById('loadout-content');
+            if (!view) { window.ffWarn('[loadout] loadout-view not found'); return; }
+            window.ensureSinglePanelVisible('loadout-view');
+            if (window.setActiveNav) window.setActiveNav('nav-loadout');
+            if (content) content.innerHTML = '<p class="text-slate-400">Loading loadout…</p>';
+            fetch(STATE_URL, { credentials: 'same-origin' })
+                .then(function (res) {
+                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                    return res.ok ? res.json() : Promise.reject(res.status);
+                })
+                .then(function (data) { window.renderLoadout(data); })
+                .catch(function (err) {
+                    if (content) content.innerHTML = '<p class="text-slate-400">Could not load your loadout (error ' + esc(err) + ').</p>';
+                });
+        };
+
+        if (typeof window.ensurePanelLoaded === 'function') {
+            return window.ensurePanelLoaded('loadout-view').then(runLoad);
+        } else {
+            return runLoad();
+        }
     };
 
     function itemCardLabel(item) {
@@ -246,7 +260,7 @@
         haptic(30);
         fetch(EQUIP_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gear_id: gearId })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -261,7 +275,7 @@
         haptic(30);
         fetch(UNEQUIP_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gear_id: gearId })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
@@ -278,7 +292,7 @@
         haptic(40);
         fetch(SCRAP_RECYCLE_URL, {
             method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ gear_id: gearId })
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
