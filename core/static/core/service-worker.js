@@ -1,15 +1,21 @@
 /* ============================================================
-   Flamingo Fitness - Service Worker (Step 20)
+   Flamingo Fitness - Service Worker (Step 20, Phase 1 docs/19 #24)
    Caches static assets (CSS/JS/icons) for instant, offline loading.
 
-   IMPORTANT (Phase 8 fix): bump CACHE_NAME whenever shipped assets change.
-   v1 was cache-first, which left visitors with a stale dashboard.css after
-   the leagues update (new JS + old CSS = unstyled tabs). v2 switches static
-   assets to network-first with a cache fallback so iterations always land,
-   while offline support is preserved.
+   Cache name is auto-versioned via a <meta name="ff-sw-version"> tag
+   set by Django (see dashboard.html). Bump the version in Django
+   settings to force a re-cache.
+
+   Network-first for static assets and the app shell (cache fallback when
+   offline); the API always hits the network so private data stays fresh.
    ============================================================ */
 
-var CACHE_NAME = 'flamingo-fitness-v4';
+// Read version from a meta tag set by Django at template render time.
+// Falls back to "v4" if the tag is absent (legacy compat).
+var CACHE_NAME = (function () {
+    var meta = document.querySelector('meta[name="ff-sw-version"]');
+    return 'flamingo-fitness-' + (meta ? meta.getAttribute('content') : 'v4');
+})();
 
 // Assets to pre-cache on install. Only list files that currently exist so
 // cache.addAll() never rejects (the install catch is a soft-fallback anyway).

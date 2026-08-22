@@ -20,14 +20,14 @@
 
     // Fetch + render the boss panel.
     window.loadBoss = function () {
-        console.log('[boss] loadBoss start');
+        window.ffLog('[boss] loadBoss start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('boss-view');
         var content = document.getElementById('boss-content');
         var empty = document.getElementById('boss-empty');
         var tree = document.getElementById('skill-tree');
         if (!view) {
-            console.warn('[boss] boss-view not found, aborting');
+            window.ffWarn('[boss] boss-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
@@ -42,11 +42,11 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[boss] data.bodyweight=', data.bodyweight, 'bosses=', data.bosses && data.bosses.length);
+                window.ffLog('[boss] data.bodyweight=', data.bodyweight, 'bosses=', data.bosses && data.bosses.length);
                 window.renderBoss(data);
             })
             .catch(function (err) {
-                console.error('[boss] fetch failed:', err);
+                window.ffError('[boss] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view the PR Boss.</p>';
@@ -225,6 +225,7 @@
     if (bossNode) {
         bossNode.addEventListener('click', function () { window.loadBoss(); });
     } else {
-        console.warn('[boss] node-boss NOT found in DOM');
+        window.ffWarn('[boss] node-boss NOT found in DOM');
     }
 })();
+

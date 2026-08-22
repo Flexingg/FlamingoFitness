@@ -16,11 +16,7 @@
         stamina: { name: 'Stamina', icon: 'fa-bolt', color: '#facc15' }
     };
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
     // Parse an ISO "YYYY-MM-DD" string without timezone drift.
     function fmtDate(iso) {
@@ -219,3 +215,4 @@
         }
     });
 })();
+

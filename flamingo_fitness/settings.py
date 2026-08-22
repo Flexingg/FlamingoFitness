@@ -86,6 +86,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    # Compression & bundling
+    "compressor",
     # Local apps
     "core",
 ]
@@ -217,6 +219,22 @@ else:
 WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 
 # ---------------------------------------------------------------------------
+# django-compressor: bundle & minify JS/CSS (Phase 1, docs/19)
+# ---------------------------------------------------------------------------
+COMPRESS_ENABLED = True
+COMPRESS_OFFLINE = not DEBUG
+COMPRESS_ROOT = STATIC_ROOT
+# Use local-memory cache alias so compressor works without Redis running
+COMPRESS_CACHE_BACKEND = "compressor_cache"
+COMPRESS_CSS_FILTERS = ["compressor.filters.css_default.CssAbsoluteFilter"]
+COMPRESS_JS_FILTERS = ["compressor.filters.jsmin.JSMinFilter"]
+STATICFILES_FINDERS = [
+    "django.contrib.staticfiles.finders.FileSystemFinder",
+    "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+    "compressor.finders.CompressorFinder",
+]
+
+# ---------------------------------------------------------------------------
 # Media (user-uploaded profile pictures / avatars)
 # ---------------------------------------------------------------------------
 # Uploads are stored on the local filesystem under MEDIA_ROOT and served from
@@ -227,17 +245,27 @@ WHITENOISE_MAX_AGE = 60 * 60 * 24 * 365
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# WhiteNoise compression settings (Phase 1, docs/19 #25).
+WHITENOISE_KEEP_ONLY_HASHED_FILES = True
+# WHITENOISE_GZIP defaults to True — Brotli can be added later via brotli pip package.
+
 # ---------------------------------------------------------------------------
 # Redis / Celery
 # ---------------------------------------------------------------------------
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Django cache backed by Redis (used for short-lived data like readiness).
+# Also includes a local-memory cache for django-compressor so it doesn't
+# depend on Redis being available during development.
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": REDIS_URL,
-    }
+    },
+    "compressor_cache": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "compressor-cache",
+    },
 }
 
 # Celery configuration

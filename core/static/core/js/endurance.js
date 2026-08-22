@@ -18,14 +18,14 @@
 
     // Fetch + render the endurance panel.
     window.loadEndurance = function () {
-        console.log('[endurance] loadEndurance start');
+        window.ffLog('[endurance] loadEndurance start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('endurance-view');
         var content = document.getElementById('endurance-content');
         var empty = document.getElementById('endurance-empty');
         var tree = document.getElementById('skill-tree');
         if (!view) {
-            console.warn('[endurance] endurance-view not found, aborting');
+            window.ffWarn('[endurance] endurance-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
@@ -40,11 +40,11 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[endurance] renderEndurance data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
+                window.ffLog('[endurance] renderEndurance data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
                 window.renderEndurance(data);
             })
             .catch(function (err) {
-                console.error('[endurance] fetch failed:', err);
+                window.ffError('[endurance] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view endurance.</p>';
@@ -330,12 +330,13 @@
     // Bind the blue Endurance node on the skill-tree plan.
     var hydNode = document.getElementById('node-endurance');
     if (hydNode) {
-        console.log('[endurance] node-endurance found, binding click');
+        window.ffLog('[endurance] node-endurance found, binding click');
         hydNode.addEventListener('click', function () {
-            console.log('[endurance] node-endurance clicked');
+            window.ffLog('[endurance] node-endurance clicked');
             window.loadEndurance();
         });
     } else {
-        console.warn('[endurance] node-endurance NOT found in DOM');
+        window.ffWarn('[endurance] node-endurance NOT found in DOM');
     }
 })();
+

@@ -20,14 +20,14 @@
 
     // Fetch + render the recovery panel.
     window.loadRecovery = function () {
-        console.log('[recovery] loadRecovery start');
+        window.ffLog('[recovery] loadRecovery start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('recovery-view');
         var content = document.getElementById('recovery-content');
         var empty = document.getElementById('recovery-empty');
         var tree = document.getElementById('skill-tree');
         if (!view) {
-            console.warn('[recovery] recovery-view not found, aborting');
+            window.ffWarn('[recovery] recovery-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
@@ -42,11 +42,11 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[recovery] data.linked=', data.linked, 'readiness=', data.readiness && data.readiness.score, 'history=', !!(data.history && data.history.length));
+                window.ffLog('[recovery] data.linked=', data.linked, 'readiness=', data.readiness && data.readiness.score, 'history=', !!(data.history && data.history.length));
                 window.renderRecovery(data);
             })
             .catch(function (err) {
-                console.error('[recovery] fetch failed:', err);
+                window.ffError('[recovery] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view recovery.</p>';
@@ -232,6 +232,6 @@
     if (recNode) {
         recNode.addEventListener('click', function () { window.loadRecovery(); });
     } else {
-        console.warn('[recovery] node-recovery NOT found in DOM');
+        window.ffWarn('[recovery] node-recovery NOT found in DOM');
     }
 })();

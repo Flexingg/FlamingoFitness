@@ -40,16 +40,9 @@
     }
 
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.getAttribute('content') : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
 
     function postJson(url, body) {
         return fetch(url, {
@@ -145,10 +138,10 @@
     };
 
     window.loadLeagues = function () {
-        console.log('[leagues] loadLeagues start');
+        window.ffLog('[leagues] loadLeagues start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('leagues-view');
-        if (!view) { console.warn('[leagues] leagues-view not found, aborting'); return; }
+        if (!view) { window.ffWarn('[leagues] leagues-view not found, aborting'); return; }
         // Single-panel navigation: hide ALL panels, then show only leagues.
         window.ensureSinglePanelVisible('leagues-view');
         window.switchLeaguesTab(currentTab || 'leaderboard');
@@ -555,5 +548,8 @@
         return input ? input.value.trim() : '';
     }
 })();
+
+
+
 
 

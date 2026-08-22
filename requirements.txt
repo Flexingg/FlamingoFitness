@@ -6,3 +6,4 @@ requests>=2.31
 gunicorn>=21.2
 python-dotenv>=1.0
 whitenoise>=6.6
+django-compressor>=4.5

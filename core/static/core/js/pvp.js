@@ -19,25 +19,13 @@
         hydration: 'Hydration', sleep: 'Sleep'
     };
 
-    function money(n) {
-        var v = Number(n == null ? 0 : n);
-        return Math.round(v).toLocaleString();
-    }
+    function money(n) { return window.fmoney(n); }
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
 
-    function haptic(ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 50);
-    }
+    function haptic(ms) { return window.haptic(ms); }
 
     function when(dt) {
         if (!dt) return '';
@@ -56,7 +44,7 @@
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('pvp-view');
         var content = document.getElementById('pvp-content');
-        if (!view) { console.warn('[pvp] pvp-view not found'); return; }
+        if (!view) { window.ffWarn('[pvp] pvp-view not found'); return; }
         window.ensureSinglePanelVisible('pvp-view');
         if (window.setActiveNav) window.setActiveNav('nav-pvp');
         content.innerHTML = '<p class="text-slate-400">Scouting the arena…</p>';
@@ -216,11 +204,11 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not set defense.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not set defense.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadPvP();
             })
-            .catch(function () { alert('Network error while setting defense.'); });
+            .catch(function () { window.showToast('Network error while setting defense.'); });
     }
 
     function attackGym(gymId) {
@@ -232,14 +220,14 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Attack failed.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Attack failed.'); return; }
                 var won = res.body.did_win;
                 if (won && typeof confetti === 'function') confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-                alert((won ? 'VICTORY!' : 'Defeat.') + ' (your power ' + res.body.attacker_power + ' vs ' + res.body.defender_power + ')');
+                window.showToast((won ? 'VICTORY!' : 'Defeat.') + ' (your power ' + res.body.attacker_power + ' vs ' + res.body.defender_power + ')');
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadPvP();
             })
-            .catch(function () { alert('Network error during the gym battle.'); });
+            .catch(function () { window.showToast('Network error during the gym battle.'); });
     }
 
     window.showPvpHelp = function () {
@@ -269,3 +257,6 @@
         if (overlay) overlay.innerHTML = '';
     };
 })();
+
+
+

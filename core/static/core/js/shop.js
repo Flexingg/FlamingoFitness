@@ -19,27 +19,13 @@
         legendary: '#f59e0b'
     };
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
 
-    function haptic(ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 50);
-    }
+    function haptic(ms) { return window.haptic(ms); }
 
-    function confettiBurst() {
-        if (typeof confetti === 'function') {
-            confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
-        }
-        haptic([100, 50, 100]);
-    }
+    function confettiBurst() { return window.confettiBurst(); }
 
     window.backToShopPlan = function () {
         if (window.goBack) { window.goBack(); return; }
@@ -56,7 +42,7 @@
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('shop-view');
         var content = document.getElementById('shop-content');
-        if (!view) { console.warn('[shop] shop-view not found'); return; }
+        if (!view) { window.ffWarn('[shop] shop-view not found'); return; }
         window.ensureSinglePanelVisible('shop-view');
         if (window.setActiveNav) window.setActiveNav('nav-shop');
         content.innerHTML = '<p class="text-slate-400">Opening the shop…</p>';
@@ -282,14 +268,14 @@
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
                 if (!res.body.ok) {
-                    alert(res.body.error || 'Could not open pack.');
+                    window.showToast(res.body.error || 'Could not open pack.');
                     return;
                 }
                 renderManifest(res.body);
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadShop();
             })
-            .catch(function () { alert('Network error while opening the pack.'); });
+            .catch(function () { window.showToast('Network error while opening the pack.'); });
     }
 
     function renderManifest(payload) {
@@ -333,11 +319,11 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not use the item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not use the item.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadShop();
             })
-            .catch(function () { alert('Network error.'); });
+            .catch(function () { window.showToast('Network error.'); });
     }
 
     function renderRecycleRow(it) {
@@ -374,11 +360,11 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not recycle that item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not recycle that item.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadShop();
             })
-            .catch(function () { alert('Network error.'); });
+            .catch(function () { window.showToast('Network error.'); });
     }
 
     function buyScrapItem(slug) {
@@ -390,23 +376,23 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not buy that item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not buy that item.'); return; }
                 var body = res.body;
                 if (body.manifest && body.manifest.length) {
                     renderManifest(body);
                 } else if (body.tokens) {
                     if (window.closeModal) window.closeModal();
-                    alert('Purchased + ' + money(body.tokens) + ' tokens!');
+                    window.showToast('Purchased + ' + money(body.tokens) + ' tokens!');
                 } else if (body.stamina) {
                     if (window.closeModal) window.closeModal();
-                    alert('Purchased + ' + body.stamina + ' stamina!');
+                    window.showToast('Purchased + ' + body.stamina + ' stamina!');
                 } else {
                     if (window.closeModal) window.closeModal();
                 }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadShop();
             })
-            .catch(function () { alert('Network error.'); });
+            .catch(function () { window.showToast('Network error.'); });
     }
 
     // Attach a reusable modal container on first use.
@@ -416,3 +402,8 @@
         document.body.appendChild(container);
     }
 })();
+
+
+
+
+

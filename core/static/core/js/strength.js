@@ -19,14 +19,14 @@
 
     // Fetch + render the strength panel.
     window.loadStrength = function () {
-        console.log('[strength] loadStrength start');
+        window.ffLog('[strength] loadStrength start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('strength-view');
         var content = document.getElementById('strength-content');
         var empty = document.getElementById('strength-empty');
         var tree = document.getElementById('skill-tree');
         if (!view) {
-            console.warn('[strength] strength-view not found, aborting');
+            window.ffWarn('[strength] strength-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
@@ -41,11 +41,11 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[strength] data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
+                window.ffLog('[strength] data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
                 window.renderStrength(data);
             })
             .catch(function (err) {
-                console.error('[strength] fetch failed:', err);
+                window.ffError('[strength] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view strength.</p>';
@@ -334,6 +334,6 @@
     if (strNode) {
         strNode.addEventListener('click', function () { window.loadStrength(); });
     } else {
-        console.warn('[strength] node-strength NOT found in DOM');
+        window.ffWarn('[strength] node-strength NOT found in DOM');
     }
 })();

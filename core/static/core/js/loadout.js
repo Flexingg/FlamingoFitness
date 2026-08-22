@@ -27,20 +27,11 @@
         common: '#94a3b8', rare: '#38bdf8', epic: '#a78bfa', legendary: '#f59e0b'
     };
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
 
-    function haptic(ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 50);
-    }
+    function haptic(ms) { return window.haptic(ms); }
 
     window.backToLoadoutPlan = function () {
         if (window.goBack) { window.goBack(); return; }
@@ -53,7 +44,7 @@
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('loadout-view');
         var content = document.getElementById('loadout-content');
-        if (!view) { console.warn('[loadout] loadout-view not found'); return; }
+        if (!view) { window.ffWarn('[loadout] loadout-view not found'); return; }
         window.ensureSinglePanelVisible('loadout-view');
         if (window.setActiveNav) window.setActiveNav('nav-loadout');
         content.innerHTML = '<p class="text-slate-400">Loading loadout…</p>';
@@ -260,11 +251,11 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not equip that item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not equip that item.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadLoadout();
             })
-            .catch(function () { alert('Network error while equipping.'); });
+            .catch(function () { window.showToast('Network error while equipping.'); });
     }
     function unequip(gearId) {
         haptic(30);
@@ -275,11 +266,11 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not unequip that item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not unequip that item.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadLoadout();
             })
-            .catch(function () { alert('Network error while unequipping.'); });
+            .catch(function () { window.showToast('Network error while unequipping.'); });
     }
     function recycleItem(gearId, scrapHint) {
         var hint = Number(scrapHint) || 0;
@@ -292,10 +283,13 @@
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not recycle that item.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not recycle that item.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 window.loadLoadout();
             })
-            .catch(function () { alert('Network error while recycling.'); });
+            .catch(function () { window.showToast('Network error while recycling.'); });
     }
 })();
+
+
+

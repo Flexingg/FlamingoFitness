@@ -21,8 +21,7 @@
         'shop-view', 'loadout-view', 'battle-view', 'pvp-view',
         'badges-view', 'leagues-view'];
 
-    // Maps each panel to the bottom-nav tab it belongs to (used when restoring
-    // a previous view so the active nav highlight stays in sync).
+    // Maps each panel to the bottom-nav tab it belongs to.
     var PANEL_NAV = {
         'skill-tree': 'nav-path',
         'nutrition-view': 'nav-path', 'hydration-view': 'nav-path',
@@ -317,11 +316,7 @@
     });
 
     // ---- Help popovers (tap an info icon for a small explainer) ----
-    function escHtml(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function escHtml(s) { return window.escHtml(s); }
 
     window.closeHelpBubble = function () {
         var b = document.getElementById('help-bubble');
@@ -384,10 +379,7 @@
     // Builds a consistent "why no data + what to do" card with an optional CTA.
     // Most panel controllers call window.showEmptyState() in their render*()
     // empty branches; string-building controllers use window.emptyStateHTML().
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
     window.csrfToken = csrfToken;
 
     window.emptyStateHTML = function (opts) {
@@ -584,9 +576,7 @@
         return { cardio: 'fa-heart-pulse', strength: 'fa-dumbbell', nutrition: 'fa-apple-whole',
             hydration: 'fa-droplet', sleep: 'fa-moon' }[c] || 'fa-dragon';
     }
-    function fmoney(n) {
-        return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    }
+    function fmoney(n) { return window.fmoney(n); }
     function vulnChipLite(v) {
         v = Number(v) || 1;
         if (v >= 1.99) return '<span class="vuln-chip weak"><i class="fa-solid fa-bullseye"></i>2&times; weak</span>';
@@ -698,5 +688,30 @@
     // ---- Boot: fetch dashboard state + campaign focus on page load ----
     window.refreshDashboardState();
     if (window.refreshCampaignFocus) window.refreshCampaignFocus();
-})();
 
+    // ------------------------------------------------------------------
+    // Lazy-load stubs for non-critical controllers (Phase 1, docs/19 #4).
+    // These stub functions are replaced by the real controllers when their
+    // scripts finish loading. The mapping comes from LAZY_SCRIPT_URLS in
+    // the template and loadScript() from utils.js.
+    // ------------------------------------------------------------------
+    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues', 'stat_info'];
+    LAZY_KEYS.forEach(function (key) {
+        var fnName = 'load' + key.charAt(0).toUpperCase() + key.slice(1);
+        if (key === 'loadout') fnName = 'loadLoadout';
+        if (key === 'pvp') fnName = 'loadPvP';
+        if (key === 'stat_info') fnName = 'loadStatInfo';
+        window[fnName] = window[fnName] || function () {
+            if (window._scriptsLoading && window._scriptsLoading[key]) {
+                return window[fnName]();
+            }
+            var url = window.LAZY_SCRIPT_URLS && window.LAZY_SCRIPT_URLS[key];
+            if (!url) return;
+            window._scriptsLoading = window._scriptsLoading || {};
+            window._scriptsLoading[key] = true;
+            window.loadScript(url).then(function () {
+                if (typeof window[fnName] === 'function') window[fnName]();
+            });
+        };
+    });
+})();

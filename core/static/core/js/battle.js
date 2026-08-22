@@ -27,20 +27,11 @@ var LEADERBOARD_URL = '/api/v1/battle/leaderboard/';
         hydration: 'Hydration', sleep: 'Sleep'
     };
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
-    function csrfToken() {
-        var m = document.querySelector('meta[name="csrf-token"]');
-        return m ? m.content : '';
-    }
+    function csrfToken() { return window.csrfToken(); }
 
-    function haptic(ms) {
-        if (navigator.vibrate) navigator.vibrate(ms || 50);
-    }
+    function haptic(ms) { return window.haptic(ms); }
 
     function money(n) {
         return String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -80,7 +71,7 @@ function avatarImg(className, a) {
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('battle-view');
         var content = document.getElementById('battle-content');
-        if (!view) { console.warn('[battle] battle-view not found'); return; }
+        if (!view) { window.ffWarn('[battle] battle-view not found'); return; }
         window.ensureSinglePanelVisible('battle-view');
         if (window.setActiveNav) window.setActiveNav('nav-battle');
         content.innerHTML = '<p class="text-slate-400">Assembling the party...</p>';
@@ -267,16 +258,16 @@ function avatarImg(className, a) {
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Attack failed.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Attack failed.'); return; }
                 if (res.body.conquered) {
                     if (typeof confetti === 'function') confetti({ particleCount: 180, spread: 90, origin: { y: 0.5 } });
-                    alert('BOSS CONQUERED! +' + (res.body.tokens_won || 150) + ' tokens');
+                    window.showToast('BOSS CONQUERED! +' + (res.body.tokens_won || 150) + ' tokens');
                 }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 if (window.refreshCampaignFocus) window.refreshCampaignFocus();
                 openCampaign(campaign);  // refetch fresh HP + wallet
             })
-            .catch(function () { alert('Network error during the attack.'); });
+            .catch(function () { window.showToast('Network error during the attack.'); });
     }
 
     function engage(campaign) {
@@ -288,12 +279,12 @@ function avatarImg(className, a) {
         })
             .then(function (r) { return r.json().then(function (d) { return { status: r.status, body: d }; }); })
             .then(function (res) {
-                if (!res.body.ok) { alert(res.body.error || 'Could not engage.'); return; }
+                if (!res.body.ok) { window.showToast(res.body.error || 'Could not engage.'); return; }
                 if (window.refreshDashboardState) window.refreshDashboardState();
                 if (window.refreshCampaignFocus) window.refreshCampaignFocus();
                 openCampaign(campaign);
             })
-            .catch(function () { alert('Network error while engaging.'); });
+            .catch(function () { window.showToast('Network error while engaging.'); });
     }
 
     // ---- docs/17 #33: per-campaign siege leaderboard ----
@@ -411,3 +402,6 @@ function avatarImg(className, a) {
         document.getElementById('battle-history-back').addEventListener('click', function () { openCampaign(data.campaign); });
     }
 })();
+
+
+

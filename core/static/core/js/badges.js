@@ -11,11 +11,7 @@
     var BADGES_URL = '/api/v1/badges/';
     var lastData = null; // cached payload for the detail-view back button
 
-    function esc(s) {
-        return String(s == null ? '' : s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
+    function esc(s) { return window.escHtml(s); }
 
     window.backToBadgesPlan = function () {
         var view = document.getElementById('badges-view');
@@ -27,12 +23,12 @@
     };
 
     window.loadBadges = function () {
-        console.log('[badges] loadBadges start');
+        window.ffLog('[badges] loadBadges start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('badges-view');
         var content = document.getElementById('badges-content');
         var empty = document.getElementById('badges-empty');
-        if (!view) { console.warn('[badges] badges-view not found, aborting'); return; }
+        if (!view) { window.ffWarn('[badges] badges-view not found, aborting'); return; }
         // Single-panel navigation: hide ALL panels first, then show only badges.
         // (Fixes opening Badges from Leagues / Base, whose panels used to stay
         // visible and stack underneath the badges view.)
@@ -46,12 +42,12 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[badges] earned=', data.earned, 'of', data.total);
+                window.ffLog('[badges] earned=', data.earned, 'of', data.total);
                 lastData = data;
                 window.renderBadges(data);
             })
             .catch(function (err) {
-                console.error('[badges] fetch failed:', err);
+                window.ffError('[badges] fetch failed:', err);
                 if (content) {
                     content.classList.remove('hidden');
                     content.innerHTML = err && err.message === 'not-authenticated'
@@ -186,3 +182,5 @@
         content.appendChild(card);
     };
 })();
+
+

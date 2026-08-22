@@ -18,14 +18,14 @@
 
     // Fetch + render the hydration panel.
     window.loadHydration = function () {
-        console.log('[hydration] loadHydration start');
+        window.ffLog('[hydration] loadHydration start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('hydration-view');
         var content = document.getElementById('hydration-content');
         var empty = document.getElementById('hydration-empty');
         var tree = document.getElementById('skill-tree');
         if (!view) {
-            console.warn('[hydration] hydration-view not found, aborting');
+            window.ffWarn('[hydration] hydration-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
@@ -40,11 +40,11 @@
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[hydration] renderHydration data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
+                window.ffLog('[hydration] renderHydration data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
                 window.renderHydration(data);
             })
             .catch(function (err) {
-                console.error('[hydration] fetch failed:', err);
+                window.ffError('[hydration] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view hydration.</p>';
@@ -293,12 +293,13 @@
     // Bind the blue Hydration node on the skill-tree plan.
     var hydNode = document.getElementById('node-hydration');
     if (hydNode) {
-        console.log('[hydration] node-hydration found, binding click');
+        window.ffLog('[hydration] node-hydration found, binding click');
         hydNode.addEventListener('click', function () {
-            console.log('[hydration] node-hydration clicked');
+            window.ffLog('[hydration] node-hydration clicked');
             window.loadHydration();
         });
     } else {
-        console.warn('[hydration] node-hydration NOT found in DOM');
+        window.ffWarn('[hydration] node-hydration NOT found in DOM');
     }
 })();
+

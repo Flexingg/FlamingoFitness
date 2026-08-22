@@ -18,36 +18,36 @@
 
     // Fetch + render the nutrition panel.
     window.loadNutrition = function () {
-        console.log('[nutrition] loadNutrition start');
+        window.ffLog('[nutrition] loadNutrition start');
         if (window.closeModal) window.closeModal();
         var view = document.getElementById('nutrition-view');
         var content = document.getElementById('nutrition-content');
         var empty = document.getElementById('nutrition-empty');
         var tree = document.getElementById('skill-tree');
-        console.log('[nutrition] view=', !!view, 'tree=', !!tree);
+        window.ffLog('[nutrition] view=', !!view, 'tree=', !!tree);
         if (!view) {
-            console.warn('[nutrition] nutrition-view not found, aborting');
+            window.ffWarn('[nutrition] nutrition-view not found, aborting');
             return;
         }
         // Single-panel navigation: hide ALL panels, then show only this panel.
         window.ensureSinglePanelVisible('nutrition-view');
         content.classList.add('hidden');
         empty.classList.add('hidden');
-        console.log('[nutrition] fetching', NUTRITION_URL);
+        window.ffLog('[nutrition] fetching', NUTRITION_URL);
         fetch(NUTRITION_URL, { credentials: 'same-origin' })
             .then(function (res) {
-                console.log('[nutrition] fetch response status:', res.status);
+                window.ffLog('[nutrition] fetch response status:', res.status);
                 if (res.status === 401 || res.status === 403) {
                     throw new Error('not-authenticated');
                 }
                 return res.ok ? res.json() : Promise.reject(res.status);
             })
             .then(function (data) {
-                console.log('[nutrition] renderNutrition data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
+                window.ffLog('[nutrition] renderNutrition data.linked=', data.linked, 'today=', !!data.today, 'history=', !!(data.history && data.history.length));
                 window.renderNutrition(data);
             })
             .catch(function (err) {
-                console.error('[nutrition] fetch failed:', err);
+                window.ffError('[nutrition] fetch failed:', err);
                 content.classList.remove('hidden');
                 if (err && err.message === 'not-authenticated') {
                     content.innerHTML = '<p class="error-hint">Please log in to view nutrition.</p>';
@@ -331,12 +331,13 @@
     // Bind the red Nutrition node on the skill-tree plan.
     var nutNode = document.getElementById('node-nutrition');
     if (nutNode) {
-        console.log('[nutrition] node-nutrition found, binding click');
+        window.ffLog('[nutrition] node-nutrition found, binding click');
         nutNode.addEventListener('click', function () {
-            console.log('[nutrition] node-nutrition clicked');
+            window.ffLog('[nutrition] node-nutrition clicked');
             window.loadNutrition();
         });
     } else {
-        console.warn('[nutrition] node-nutrition NOT found in DOM');
+        window.ffWarn('[nutrition] node-nutrition NOT found in DOM');
     }
 })();
+
