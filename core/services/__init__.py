@@ -142,3 +142,33 @@ from .social import (  # noqa: F401
     send_friend_request,
     social_state,
 )
+from .historical_queue import find_missing_habit_days  # noqa: F401
+from .marketplace import (  # noqa: F401
+    buy_marketplace_item,
+    cancel_marketplace_listing,
+    get_marketplace_state,
+    list_gear_item,
+)
+from .smart_reminders import (  # noqa: F401
+    analyze_user_habit_windows,
+    dispatch_push_notification,
+    evaluate_smart_reminders,
+    get_user_notification_preferences,
+    register_push_device,
+    update_user_notification_preferences,
+)
+from .bounties import (  # noqa: F401
+    TARGET_TYPE_CONFIG,
+    accept_bounty,
+    cancel_bounty,
+    claim_bounty_reward,
+    create_bounty,
+    ensure_daily_system_bounties,
+    evaluate_user_bounties,
+    expire_stale_bounties,
+    get_bounties_state,
+)
+
+
+
+

@@ -20,3 +20,11 @@ celerybeat-schedule*
 Thumbs.db
 .idea/
 .vscode/
+
+# Mobile Build Artifacts
+Mobile App/build/
+Mobile App/.dart_tool/
+Mobile App/.flutter-plugins*
+*.apk
+*.pid
+

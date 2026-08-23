@@ -111,6 +111,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "flamingo_fitness.middleware.SecurityHeadersMiddleware",
 ]
 
 ROOT_URLCONF = "flamingo_fitness.urls"
@@ -323,16 +324,30 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.tasks.close_league_week_task",
         "schedule": crontab(minute=35, hour=0, day_of_week=1),
     },
+    # Evaluate and dispatch intelligent mobile push notifications every 2 hours.
+    "evaluate-smart-reminders-every-2-hours": {
+        "task": "core.tasks.evaluate_and_dispatch_smart_reminders_task",
+        "schedule": crontab(minute=0, hour="*/2"),
+    },
 }
 
 # ---------------------------------------------------------------------------
-# Cookie security
+# Production Security Hardening (Roadmap item #6)
 # ---------------------------------------------------------------------------
-# CSRF + session cookies default to Secure when DEBUG=False so the HTTPS
-# Cloudflare Tunnel deployment keeps hardened cookies. Middleware
-# ``flamingo_fitness.middleware.SchemeAwareSecureCookiesMiddleware`` then
-# rewrites the Secure flag per request: without it, browsers refuse to send
-# Secure cookies over http:// and the LAN login POST fails CSRF with a 403.
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_HTTPONLY = False  # False so frontend JavaScript can read CSRF for fetch/XHR
+CSRF_COOKIE_SAMESITE = "Lax"
+
 if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+

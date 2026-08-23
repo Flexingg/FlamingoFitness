@@ -240,11 +240,15 @@
             }
         }
 
-        document.getElementById('avatar-img').src = data.user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
+        var avSrc = data.user.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
+        document.getElementById('avatar-img').src = avSrc;
         document.getElementById('avatar-img').onerror = function () {
             this.onerror = null;
             this.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Flamingo';
         };
+        if (window.FlamingoNative && window.FlamingoNative.setAvatar) {
+            window.FlamingoNative.setAvatar(avSrc);
+        }
 
         // Skill tree nodes with progress rings & badges
         var bossUnlocked = false;
@@ -885,11 +889,12 @@
     // scripts finish loading. The mapping comes from LAZY_SCRIPT_URLS in
     // the template and loadScript() from utils.js.
     // ------------------------------------------------------------------
-    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues'];
+    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues', 'bounties'];
     LAZY_KEYS.forEach(function (key) {
         var fnName = 'load' + key.charAt(0).toUpperCase() + key.slice(1);
         if (key === 'loadout') fnName = 'loadLoadout';
         if (key === 'pvp') fnName = 'loadPvP';
+        if (key === 'bounties') fnName = 'loadBounties';
         window[fnName] = window[fnName] || function () {
             var url = window.LAZY_SCRIPT_URLS && window.LAZY_SCRIPT_URLS[key];
             if (!url) return;

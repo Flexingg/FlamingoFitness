@@ -4,6 +4,7 @@ Run with:  python manage.py test core
 """
 
 from datetime import timedelta
+import json
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
@@ -3375,3 +3376,840 @@ class OnboardingFlowTests(TestCase):
         self.client.logout()
         r = self.client.post("/api/v1/onboarded")
         self.assertIn(r.status_code, (302, 403))
+
+
+class QuickLogTests(TestCase):
+    """Roadmap Item #1: Manual quick-logging fallback for habit tracking."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="logger", password="pw")
+        self.client.login(username="logger", password="pw")
+
+    def test_quick_log_hydration(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({"category": "hydration", "amount": 64, "goal": 64}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["category"], "hydration")
+        self.assertGreater(data["xp_awarded"], 0)
+        self.assertIsNotNone(data["skill_tree"])
+        self.assertEqual(data["skill_tree"]["modality"], "hydration")
+
+        # Verify RawActivityLog persisted
+        log = RawActivityLog.objects.get(pk=data["created_log_ids"][0])
+        self.assertEqual(log.source, Provider.MANUAL)
+        self.assertEqual(log.event_type, "hydration")
+        self.assertTrue(log.processed)
+
+    def test_quick_log_nutrition(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({
+                "category": "nutrition",
+                "calories": 650,
+                "protein": 55,
+                "protein_hit": True,
+                "under_calorie": True,
+                "food_name": "Chicken Breast Bowl",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["category"], "nutrition")
+        self.assertGreater(data["xp_awarded"], 0)
+        self.assertEqual(data["skill_tree"]["modality"], "nutrition")
+
+    def test_quick_log_cardio(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({
+                "category": "cardio",
+                "minutes": 45,
+                "intensity": "high",
+                "workout_type": "Morning Run",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertGreater(data["xp_awarded"], 0)
+        self.assertEqual(data["skill_tree"]["modality"], "endurance")
+
+    def test_quick_log_strength(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({
+                "category": "strength",
+                "volume_lbs": 12500,
+                "duration_minutes": 60,
+                "program": "Bench & Squat Power",
+                "pr": True,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertGreater(data["xp_awarded"], 0)
+        self.assertEqual(data["skill_tree"]["modality"], "strength")
+
+    def test_quick_log_sleep(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({"category": "sleep", "sleep_hours": 8.0}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertGreater(data["xp_awarded"], 0)
+        self.assertEqual(data["skill_tree"]["modality"], "recovery")
+
+    def test_quick_log_scale(self):
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({"category": "scale", "weight_lbs": 178.4, "body_fat": 14.2}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["category"], "scale")
+        self.assertTrue(RawActivityLog.objects.filter(user=self.user, event_type="scale").exists())
+
+    def test_quick_log_validations(self):
+        # Invalid JSON
+        r = self.client.post("/log/quick/", data="not-json", content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+        # Missing category
+        r = self.client.post("/log/quick/", data=json.dumps({}), content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+        # Invalid category
+        r = self.client.post("/log/quick/", data=json.dumps({"category": "invalid_xyz"}), content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+        # Zero / invalid values
+        r = self.client.post("/log/quick/", data=json.dumps({"category": "hydration", "amount": 0}), content_type="application/json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_quick_log_requires_auth(self):
+        self.client.logout()
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({"category": "sleep", "sleep_hours": 7.5}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 302)
+
+
+class HistoricalQueueTests(TestCase):
+    """Roadmap Item #2: Missing habit logs scanner and backfill queue."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="hist_user", password="pw")
+        self.client.login(username="hist_user", password="pw")
+
+    def test_missing_days_detected(self):
+        from core.services.historical_queue import find_missing_habit_days
+
+        today = timezone.localdate()
+        two_days_ago = today - timedelta(days=2)
+
+        # Log hydration 2 days ago
+        RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.MANUAL,
+            event_type="hydration",
+            payload={"water": 64},
+            occurred_at=timezone.make_aware(timezone.datetime.combine(two_days_ago, timezone.datetime.min.time())),
+        )
+
+        missing = find_missing_habit_days(self.user, days=7)
+        self.assertTrue(len(missing) > 0)
+
+        # Check the day with partial log
+        day_2 = next(d for d in missing if d["days_ago"] == 2)
+        self.assertTrue(day_2["has_hydration"])
+        self.assertFalse(day_2["has_nutrition"])
+        self.assertEqual(day_2["missing"], ["nutrition"])
+
+    def test_missing_logs_queue_endpoint(self):
+        resp = self.client.get("/queue/missing-logs/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("missing_days", data)
+        self.assertEqual(data["days_scanned"], 7)
+
+    def test_backfill_via_quick_log(self):
+        today = timezone.localdate()
+        target_date_str = (today - timedelta(days=3)).isoformat()
+
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({
+                "category": "hydration",
+                "amount": 75,
+                "date": target_date_str,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        log = RawActivityLog.objects.get(pk=resp.json()["created_log_ids"][0])
+        self.assertEqual(log.occurred_at.date().isoformat(), target_date_str)
+
+
+class DataSourcePreferenceTests(TestCase):
+    """Roadmap Item #3: Data source selection preferences."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="pref_user", password="pw")
+        self.client.login(username="pref_user", password="pw")
+
+    def test_get_and_update_source_preferences(self):
+        # Default preferences
+        r = self.client.get("/profile/sources/")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["source_preferences"]["hydration"], "sparkyfitness")
+
+        # Update preferences
+        r2 = self.client.post(
+            "/profile/sources/",
+            data=json.dumps({
+                "hydration": "health_connect",
+                "nutrition": "sparkyfitness",
+                "endurance": "garmin",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.json()["source_preferences"]["hydration"], "health_connect")
+        self.assertEqual(r2.json()["source_preferences"]["endurance"], "garmin")
+
+
+class SparkyInputTests(TestCase):
+    """Roadmap Item #4: SparkyFitness API food search and direct inputs."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="sparky_in", password="pw")
+        self.client.login(username="sparky_in", password="pw")
+
+    def test_search_foods_client_and_view(self):
+        from core.services.sparky_client import SparkyFitnessClient
+
+        client = SparkyFitnessClient()
+        # Query chicken
+        results = client.search_foods("", "chicken")
+        self.assertTrue(len(results) > 0)
+        self.assertTrue(any("Chicken" in item["name"] for item in results))
+
+        # View endpoint
+        r = self.client.get("/foods/search/?q=chicken")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["success"])
+        self.assertTrue(len(data["results"]) > 0)
+
+    def test_direct_water_and_food_post_client(self):
+        from core.services.sparky_client import SparkyFitnessClient
+
+        client = SparkyFitnessClient()
+        water_res = client.post_water_intake("", 1500, "2026-08-20")
+        self.assertEqual(water_res["water_ml"], 1500.0)
+
+        food_res = client.post_food_entry("", "Grilled Salmon", 450, 42.0)
+        self.assertEqual(food_res["food_name"], "Grilled Salmon")
+        self.assertEqual(food_res["protein"], 42.0)
+
+
+class MarketplaceTests(TestCase):
+    """Roadmap Item #5: Player gear marketplace."""
+
+    def setUp(self):
+        self.seller = User.objects.create_user(username="merchant", password="pw")
+        self.buyer = User.objects.create_user(username="shopper", password="pw")
+        self.gear_def = GearItemDef.objects.create(
+            slug="mkt_helm",
+            name="Marketplace Helm",
+            slot="head",
+            rarity="rare",
+            icon="fa-helmet-safety",
+            effect_type="domain_multiplier",
+            effect_domain="strength",
+            effect_value=1.5,
+        )
+        self.user_gear = UserGear.objects.create(
+            user=self.seller,
+            gear_def=self.gear_def,
+            rarity="rare",
+            equipped_slot=None,
+        )
+
+    def test_list_and_buy_gear_with_tokens(self):
+        from core.services.marketplace import buy_marketplace_item, list_gear_item
+        from core.services.combat import profile as combat_profile
+
+        # Give buyer tokens
+        b_prof = combat_profile(self.buyer)
+        b_prof.tokens = 500
+        b_prof.save()
+
+        s_prof = combat_profile(self.seller)
+        s_prof.tokens = 50
+        s_prof.save()
+
+        # List item
+        listing, err = list_gear_item(self.seller, self.user_gear.id, "tokens", 100)
+        self.assertIsNone(err)
+        self.assertIsNotNone(listing)
+        self.assertTrue(listing.is_active)
+
+        # Buy item
+        res, err = buy_marketplace_item(self.buyer, listing.id)
+        self.assertIsNone(err)
+        self.assertTrue(res["success"])
+
+        # Check balances: 100 tokens price, 5 token fee -> seller gets +95
+        b_prof.refresh_from_db()
+        s_prof.refresh_from_db()
+        self.assertEqual(b_prof.tokens, 400)
+        self.assertEqual(s_prof.tokens, 145)
+
+        # Check gear ownership transferred to buyer
+        self.user_gear.refresh_from_db()
+        self.assertEqual(self.user_gear.user, self.buyer)
+
+    def test_cannot_list_equipped_gear(self):
+        from core.services.marketplace import list_gear_item
+
+        self.user_gear.equipped_slot = "head"
+        self.user_gear.save()
+
+        listing, err = list_gear_item(self.seller, self.user_gear.id, "tokens", 50)
+        self.assertIsNotNone(err)
+        self.assertIn("equipped", err.lower())
+
+    def test_cancel_listing(self):
+        from core.services.marketplace import cancel_marketplace_listing, list_gear_item
+
+        listing, _ = list_gear_item(self.seller, self.user_gear.id, "scraps", 30)
+        self.assertTrue(listing.is_active)
+
+        cancelled, err = cancel_marketplace_listing(self.seller, listing.id)
+        self.assertIsNone(err)
+        self.assertFalse(cancelled.is_active)
+
+    def test_marketplace_state_endpoint(self):
+        from core.services.marketplace import list_gear_item
+        list_gear_item(self.seller, self.user_gear.id, "tokens", 120)
+
+        self.client.login(username="shopper", password="pw")
+        r = self.client.get("/marketplace/state")
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(len(data["listings"]) >= 1)
+        self.assertEqual(data["listings"][0]["gear"]["name"], "Marketplace Helm")
+
+
+class SecurityHeadersTests(TestCase):
+    """Roadmap Item #6: Production security headers and hardening."""
+
+    def test_security_headers_present(self):
+        resp = self.client.get("/login/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Content-Security-Policy", resp.headers)
+        self.assertIn("X-Content-Type-Options", resp.headers)
+        self.assertEqual(resp.headers["X-Content-Type-Options"], "nosniff")
+        self.assertIn("Referrer-Policy", resp.headers)
+        self.assertEqual(resp.headers["Referrer-Policy"], "strict-origin-when-cross-origin")
+
+
+class StreakFreezeTests(TestCase):
+    """Roadmap Item #7: Flamingo Ice Shield / Streak Freeze."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="freezer", password="pw")
+        self.client.login(username="freezer", password="pw")
+        self.shield_def = GearItemDef.objects.create(
+            slug="flamingo_ice_shield",
+            name="Flamingo Ice Shield",
+            slot="head",
+            rarity="rare",
+            effect_type="streak_freeze",
+            effect_domain="recovery",
+            effect_value=1.0,
+            is_consumable=True,
+            max_stack=5,
+        )
+
+    def test_buy_streak_freeze_from_scrap_shop(self):
+        from core.services.combat import buy_scrap_item, profile as combat_profile
+
+        today = timezone.localdate().weekday()
+        ScrapShopItem.objects.create(
+            slug="scrap_streak_freeze",
+            name="Flamingo Streak Freeze",
+            cost_scraps=75,
+            available_days=[today],
+            reward_type=ScrapShopItem.RewardType.STREAK_FREEZE,
+            reward_value=1,
+        )
+
+        p = combat_profile(self.user)
+        p.scraps = 150
+        p.save()
+
+        res, err = buy_scrap_item(self.user, "scrap_streak_freeze")
+        self.assertIsNone(err)
+        self.assertEqual(res["streak_freeze"], 1)
+
+        p.refresh_from_db()
+        self.assertEqual(p.scraps, 75)
+        self.assertEqual(p.active_buffs["streak_freeze_count"], 1)
+
+        # Inventory has consumable item
+        ug = UserGear.objects.filter(user=self.user, gear_def=self.shield_def).first()
+        self.assertIsNotNone(ug)
+        self.assertEqual(ug.quantity, 1)
+
+    def test_consume_streak_freeze_consumable(self):
+        from core.services.combat import consume_consumable, profile as combat_profile
+
+        ug = UserGear.objects.create(
+            user=self.user,
+            gear_def=self.shield_def,
+            rarity="rare",
+            quantity=1,
+        )
+        p = combat_profile(self.user)
+        ok, err = consume_consumable(p, self.user, ug.id)
+        self.assertTrue(ok)
+        self.assertIsNone(err)
+
+        p.refresh_from_db()
+        self.assertTrue(p.active_buffs["streak_freeze_active"])
+        self.assertEqual(p.active_buffs["streak_freeze_count"], 1)
+        self.assertFalse(UserGear.objects.filter(pk=ug.id).exists())
+
+
+class SmartRemindersAndPushNotificationTests(TestCase):
+    """Mobile Push Notifications and Intelligent Habit Reminders Test Suite."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="notify_user", password="pw")
+        self.user.streak = 5
+        self.user.save()
+        self.client.login(username="notify_user", password="pw")
+
+    def test_notification_preferences_get_and_update(self):
+        from core.services.smart_reminders import (
+            get_user_notification_preferences,
+            update_user_notification_preferences,
+        )
+
+        # Default prefs
+        prefs = get_user_notification_preferences(self.user)
+        self.assertTrue(prefs["enabled"])
+        self.assertTrue(prefs["food_reminders"])
+        self.assertEqual(prefs["quiet_hours_start"], "22:00")
+
+        # Update via service
+        updated = update_user_notification_preferences(
+            self.user,
+            {"food_reminders": False, "quiet_hours_start": "23:00"},
+        )
+        self.assertFalse(updated["food_reminders"])
+        self.assertEqual(updated["quiet_hours_start"], "23:00")
+
+        # Update via endpoint
+        r = self.client.post(
+            "/notifications/preferences/",
+            data=json.dumps({"hydration_reminders": False, "enabled": True}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertTrue(data["success"])
+        self.assertFalse(data["preferences"]["hydration_reminders"])
+
+    def test_push_device_registration(self):
+        from core.models import PushDevice
+
+        r = self.client.post(
+            "/notifications/register/",
+            data=json.dumps({
+                "token": "fcm_token_1234567890",
+                "platform": "android",
+                "device_name": "Pixel 8 Pro",
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["success"])
+
+        device = PushDevice.objects.get(token="fcm_token_1234567890")
+        self.assertEqual(device.user, self.user)
+        self.assertEqual(device.platform, "android")
+        self.assertTrue(device.is_active)
+
+    def test_intelligent_reminders_evaluation(self):
+        from datetime import datetime, time
+        from core.services.smart_reminders import evaluate_smart_reminders
+
+        # Simulate 1:30 PM (13:30) with no food logged today
+        fixed_time = timezone.make_aware(datetime.combine(timezone.localdate(), time(13, 30)))
+        prompts = evaluate_smart_reminders(self.user, now=fixed_time)
+
+        self.assertTrue(len(prompts) > 0)
+        categories = [p["category"] for p in prompts]
+        self.assertIn("food", categories)
+        self.assertIn("hydration", categories)
+
+    def test_intelligent_reminders_quiet_hours(self):
+        from datetime import datetime, time
+        from core.services.smart_reminders import evaluate_smart_reminders
+
+        # Simulate 11:30 PM (23:30) which is inside default quiet hours (22:00 to 07:00)
+        quiet_time = timezone.make_aware(datetime.combine(timezone.localdate(), time(23, 30)))
+        prompts = evaluate_smart_reminders(self.user, now=quiet_time)
+        self.assertEqual(prompts, [])
+
+    def test_dispatch_push_notification_and_test_endpoint(self):
+        from core.models import PushDevice, PushNotificationLog
+        from core.services.smart_reminders import dispatch_push_notification, register_push_device
+
+        register_push_device(self.user, "device_abc", platform="ios")
+
+        # Dispatch via service
+        log_entry, err = dispatch_push_notification(
+            self.user,
+            "workout",
+            "Time to Train!",
+            "Get your reps in today.",
+        )
+        self.assertIsNone(err)
+        self.assertIsNotNone(log_entry)
+        self.assertEqual(log_entry.category, "workout")
+
+        # Dispatch via test endpoint
+        r = self.client.post(
+            "/notifications/test/",
+            data=json.dumps({"category": "hydration", "title": "Test Sip", "body": "Drink water"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["success"])
+
+        # Check notification history
+        r_hist = self.client.get("/notifications/history/")
+        self.assertEqual(r_hist.status_code, 200)
+        data = r_hist.json()
+        self.assertTrue(len(data["notifications"]) >= 2)
+
+
+class CelebrationAndLevelUpTests(TestCase):
+    """Roadmap Item #8: Gamified Level-Up and Badge Unlock Celebrations."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="level_champ", password="pw")
+        self.client.login(username="level_champ", password="pw")
+
+    def test_quick_log_triggers_level_up_and_bonus_tokens(self):
+        from core.models import SkillTree, Modality
+        from core.services.combat import profile as combat_profile
+
+        # Setup SkillTree with 80 XP (Level 1)
+        st, _ = SkillTree.objects.get_or_create(
+            user=self.user,
+            modality=Modality.HYDRATION,
+            defaults={"level": 1, "xp": 80, "total_xp": 80},
+        )
+        st.level = 1
+        st.xp = 80
+        st.save()
+
+        p = combat_profile(self.user)
+        initial_tokens = p.tokens
+
+        # Quick log hydration (adds 50 XP -> total 130 XP -> Level 2)
+        resp = self.client.post(
+            "/log/quick/",
+            data=json.dumps({
+                "category": "hydration",
+                "water_oz": 64,
+                "goal": 64,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("level_ups", data)
+        self.assertEqual(len(data["level_ups"]), 1)
+
+        lvl_up = data["level_ups"][0]
+        self.assertEqual(lvl_up["modality"], "hydration")
+        self.assertEqual(lvl_up["old_level"], 1)
+        self.assertEqual(lvl_up["new_level"], 2)
+        self.assertEqual(lvl_up["bonus_tokens"], 25)
+
+        # Profile gained 10 goal tokens + 25 level up bonus tokens
+        p.refresh_from_db()
+        self.assertEqual(p.tokens, initial_tokens + 10 + 25)
+
+
+class SynthesizedAudioAndSoundEffectsTests(TestCase):
+    """Roadmap Item #9: Web Audio Synthesized Sound Effects & Audio Toggle."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="audio_user", password="pw")
+        self.client.login(username="audio_user", password="pw")
+
+    def test_audio_static_asset_and_template_integration(self):
+        import os
+        from django.conf import settings
+
+        # Verify static audio.js exists and has Web Audio synthesis functions
+        audio_js_path = os.path.join(settings.BASE_DIR, "core", "static", "core", "js", "audio.js")
+        self.assertTrue(os.path.exists(audio_js_path))
+        with open(audio_js_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("playXpChime", content)
+        self.assertIn("playLevelUpFanfare", content)
+        self.assertIn("playBadgeFanfare", content)
+        self.assertIn("playGachaRoll", content)
+        self.assertIn("ffAudioToggle", content)
+
+    def test_dashboard_and_profile_templates_contain_audio_controls(self):
+        # Dashboard template contains audio script
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode("utf-8")
+        self.assertIn("audio.js", html)
+
+        # Profile template contains sound effects card & toggle
+        resp_prof = self.client.get("/profile/")
+        self.assertEqual(resp_prof.status_code, 200)
+        prof_html = resp_prof.content.decode("utf-8")
+        self.assertIn("Sound Effects", prof_html)
+        self.assertIn("profile-sound-toggle", prof_html)
+
+
+class BountyBoardAndFitnessDuelsTests(TestCase):
+    """Roadmap Item N8: Interactive Fitness Bounty Board & 1v1 Duels."""
+
+    def setUp(self):
+        self.user1 = User.objects.create_user(username="player_one", password="pw1")
+        self.user2 = User.objects.create_user(username="player_two", password="pw2")
+
+        from core.services.combat import profile as combat_profile
+        self.prof1 = combat_profile(self.user1)
+        self.prof1.tokens = 500
+        self.prof1.scraps = 100
+        self.prof1.save()
+
+        self.prof2 = combat_profile(self.user2)
+        self.prof2.tokens = 500
+        self.prof2.scraps = 100
+        self.prof2.save()
+
+        self.client1 = self.client_class()
+        self.client1.login(username="player_one", password="pw1")
+
+        self.client2 = self.client_class()
+        self.client2.login(username="player_two", password="pw2")
+
+    def test_bounties_state_and_daily_system_bounties(self):
+        from core.services.bounties import get_bounties_state
+        state = get_bounties_state(self.user1)
+
+        self.assertIn("user_balance", state)
+        self.assertEqual(state["user_balance"]["tokens"], 500)
+        self.assertIn("target_types", state)
+        self.assertIn("open_board", state)
+        # Verify daily system bounties from SirFluffington are seeded
+        self.assertGreaterEqual(len(state["open_board"]), 3)
+        self.assertTrue(any(b["is_system"] for b in state["open_board"]))
+
+    def test_create_solo_contract_and_escrow(self):
+        from core.models import Bounty, BountyParticipant
+        from core.services.bounties import create_bounty
+
+        ok, res = create_bounty(
+            user=self.user1,
+            bounty_type=Bounty.BountyType.SOLO,
+            target_type=Bounty.TargetType.WATER_ML,
+            target_value=3000,
+            duration_hours=24,
+            wager_tokens=50,
+            wager_scraps=10,
+        )
+        self.assertTrue(ok)
+        self.prof1.refresh_from_db()
+        # Wagers deducted into escrow
+        self.assertEqual(self.prof1.tokens, 450)
+        self.assertEqual(self.prof1.scraps, 90)
+
+        bounty = Bounty.objects.get(id=res["bounty_id"])
+        self.assertEqual(bounty.status, Bounty.Status.ACTIVE)
+        self.assertEqual(bounty.bounty_type, Bounty.BountyType.SOLO)
+        self.assertEqual(bounty.target_value, 3000)
+
+        # Participant created
+        self.assertTrue(BountyParticipant.objects.filter(bounty=bounty, user=self.user1).exists())
+
+    def test_create_and_accept_1v1_duel(self):
+        from core.models import Bounty, BountyParticipant, PushNotificationLog
+        from core.services.bounties import accept_bounty, create_bounty
+
+        ok, res = create_bounty(
+            user=self.user1,
+            bounty_type=Bounty.BountyType.DUEL,
+            target_type=Bounty.TargetType.STEPS,
+            target_value=12000,
+            duration_hours=24,
+            wager_tokens=100,
+            opponent_username="player_two",
+        )
+        self.assertTrue(ok)
+        bounty_id = res["bounty_id"]
+
+        # Push notification dispatched to opponent
+        self.assertTrue(
+            PushNotificationLog.objects.filter(
+                user=self.user2,
+                category=PushNotificationLog.Category.BOUNTY,
+            ).exists()
+        )
+
+        # Opponent accepts duel
+        ok2, res2 = accept_bounty(bounty_id, self.user2)
+        self.assertTrue(ok2)
+
+        self.prof1.refresh_from_db()
+        self.prof2.refresh_from_db()
+        self.assertEqual(self.prof1.tokens, 400)
+        self.assertEqual(self.prof2.tokens, 400)
+
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.Status.ACTIVE)
+        self.assertEqual(bounty.participants.count(), 2)
+
+    def test_bounty_evaluation_and_claim_reward(self):
+        from core.models import Bounty, BountyParticipant, RawActivityLog
+        from core.services.bounties import claim_bounty_reward, create_bounty, evaluate_user_bounties
+
+        ok, res = create_bounty(
+            user=self.user1,
+            bounty_type=Bounty.BountyType.SOLO,
+            target_type=Bounty.TargetType.STRENGTH_VOLUME,
+            target_value=10000,
+            duration_hours=24,
+            wager_tokens=50,
+        )
+        bounty_id = res["bounty_id"]
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        # Log strength activity within window
+        now = timezone.now()
+        RawActivityLog.objects.create(
+            user=self.user1,
+            source="manual",
+            event_type="strength",
+            payload={"total_volume_lbs": 12000, "duration_minutes": 45},
+            occurred_at=now,
+        )
+
+        evaluate_user_bounties(self.user1, now)
+
+        part = BountyParticipant.objects.get(bounty=bounty, user=self.user1)
+        self.assertEqual(part.current_value, 12000)
+        self.assertTrue(part.is_completed)
+
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.Status.COMPLETED)
+        self.assertEqual(bounty.winner, self.user1)
+
+        # Claim payout
+        ok_claim, claim_res = claim_bounty_reward(bounty_id, self.user1, now)
+        self.assertTrue(ok_claim)
+        self.assertGreater(claim_res["tokens_awarded"], 50)
+        self.assertGreater(claim_res["xp_awarded"], 0)
+
+        self.prof1.refresh_from_db()
+        self.assertEqual(self.prof1.tokens, 450 + claim_res["tokens_awarded"])
+
+    def test_cancel_bounty_and_refund(self):
+        from core.models import Bounty
+        from core.services.bounties import cancel_bounty, create_bounty
+
+        ok, res = create_bounty(
+            user=self.user1,
+            bounty_type=Bounty.BountyType.OPEN,
+            target_type=Bounty.TargetType.PROTEIN_G,
+            target_value=150,
+            duration_hours=24,
+            wager_tokens=75,
+            wager_scraps=25,
+        )
+        bounty_id = res["bounty_id"]
+        self.prof1.refresh_from_db()
+        self.assertEqual(self.prof1.tokens, 425)
+        self.assertEqual(self.prof1.scraps, 75)
+
+        # Cancel and refund
+        ok_cancel, cancel_res = cancel_bounty(bounty_id, self.user1)
+        self.assertTrue(ok_cancel)
+
+        self.prof1.refresh_from_db()
+        self.assertEqual(self.prof1.tokens, 500)
+        self.assertEqual(self.prof1.scraps, 100)
+
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.Status.CANCELLED)
+
+    def test_bounties_http_api_endpoints(self):
+        # GET state
+        res = self.client1.get("/bounties/state")
+        self.assertEqual(res.status_code, 200)
+        json_data = res.json()
+        self.assertTrue(json_data["success"])
+
+        # POST create open bounty
+        res_create = self.client1.post(
+            "/bounties/create",
+            data=json.dumps({
+                "bounty_type": "open",
+                "target_type": "steps",
+                "target_value": 8000,
+                "duration_hours": 12,
+                "wager_tokens": 20,
+            }),
+            content_type="application/json",
+        )
+        self.assertEqual(res_create.status_code, 200)
+        bounty_id = res_create.json()["bounty"]["bounty_id"]
+
+        # POST cancel
+        res_cancel = self.client1.post(f"/bounties/{bounty_id}/cancel")
+        self.assertEqual(res_cancel.status_code, 200)
+        self.assertTrue(res_cancel.json()["success"])
+
+
+
+
+
+
+
+

@@ -791,6 +791,13 @@ def process_payload(user, source, event_type, payload, raw_log=None):
         raw_log.processed = True
         raw_log.save(update_fields=["processed"])
 
+    # Auto-evaluate any active fitness bounties/duels for this user
+    try:
+        from .bounties import evaluate_user_bounties
+        evaluate_user_bounties(user)
+    except Exception:  # noqa: BLE001
+        pass
+
     return created
 
 

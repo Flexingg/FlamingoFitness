@@ -1188,5 +1188,22 @@
     "description": "Instantly grants 50 tokens (a quick way to earn extra coins).",
     "is_active": true,
     "sort_order": 206
+  },
+  {
+    "slug": "flamingo_ice_shield",
+    "name": "Flamingo Ice Shield",
+    "slot": "head",
+    "rarity": "rare",
+    "icon": "fa-snowflake",
+    "effect_type": "streak_freeze",
+    "effect_domain": "recovery",
+    "effect_value": 1,
+    "pack": "alchemist_pack",
+    "weight": 15,
+    "is_consumable": true,
+    "max_stack": 5,
+    "description": "Consumable ice shield. Freezes and preserves your daily streak when rest or illness prevents logging.",
+    "is_active": true,
+    "sort_order": 207
   }
 ]

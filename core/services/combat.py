@@ -702,6 +702,12 @@ def consume_consumable(profile_obj, user, gear_id):
     elif etype == "grant_tokens":
         profile_obj.tokens += int(ug.gear_def.effect_value or 0)
         changed_fields.append("tokens")
+    elif etype in ("streak_freeze", "shield_streak"):
+        buffs["streak_freeze_active"] = True
+        buffs["streak_freeze_date"] = today
+        buffs["streak_freeze_count"] = buffs.get("streak_freeze_count", 0) + int(ug.gear_def.effect_value or 1)
+        profile_obj.active_buffs = buffs
+        changed_fields.append("active_buffs")
     else:
         return False, "Not a usable consumable type."
     profile_obj.save(update_fields=changed_fields)
@@ -1345,6 +1351,22 @@ def buy_scrap_item(user, slug, now=None):
         if not ok:
             return None, err
         result.update({"pack": item.pack.slug, "draws": len(manifest), "manifest": manifest})
+    elif item.reward_type == ScrapShopItem.RewardType.STREAK_FREEZE:
+        amount = int(item.reward_value or 1)
+        buffs = dict(p.active_buffs or {})
+        buffs["streak_freeze_count"] = buffs.get("streak_freeze_count", 0) + amount
+        p.active_buffs = buffs
+        save_fields.append("active_buffs")
+        # Also give consumable gear item if in catalog
+        shield_def = GearItemDef.objects.filter(slug="flamingo_ice_shield").first()
+        if shield_def:
+            ug, created = UserGear.objects.get_or_create(
+                user=user, gear_def=shield_def, defaults={"quantity": amount, "rarity": "rare"}
+            )
+            if not created:
+                ug.quantity += amount
+                ug.save(update_fields=["quantity"])
+        result.update({"streak_freeze": amount, "streak_freeze_total": buffs["streak_freeze_count"]})
     p.save(update_fields=save_fields)
     return result, None
 

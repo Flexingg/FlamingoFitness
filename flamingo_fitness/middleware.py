@@ -40,3 +40,29 @@ class SchemeAwareSecureCookiesMiddleware:
                 # SimpleCookie omits the flag for any falsy value.
                 response.cookies[name]["secure"] = secure
         return response
+
+
+class SecurityHeadersMiddleware:
+    """Production security hardening headers (CSP, Referrer-Policy, Permissions-Policy)."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        # Content-Security-Policy (Allow self, CDNs for icons/fonts/charts, and avatar APIs)
+        csp = (
+            "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+            "font-src 'self' data: https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+            "img-src 'self' data: blob: https: http:; "
+            "connect-src 'self' https: http: https://fit.randalls.cc; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self';"
+        )
+        response.headers.setdefault("Content-Security-Policy", csp)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        return response

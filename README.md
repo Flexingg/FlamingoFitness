@@ -235,6 +235,90 @@ python manage.py compress --force
 
 ---
 
+## 🗺️ Future Roadmap
+
+> 🔄 **Implementation & Staging Queue**:
+> - Items listed below reflect approved roadmap milestones across Technical, Functional, and New Capabilities.
+
+### 🛠️ Technical & Infrastructure
+- [ ] **T4. Bi-directional Health Connect / Apple HealthKit Webhook & Mobile Bridge**
+  - Native health bridge and webhook sync for Apple Health (iOS) and Android Health Connect to automatically ingest steps, active energy burned, resting heart rate, and sleep metrics.
+- [ ] **T5. Webhook Ingestion Pipeline with Idempotency Keys & Dead Letter Queues**
+  - Resilient external provider ingestion pipeline with Redis idempotency middleware (`X-Idempotency-Key`), backpressure handling, Celery DLQs, and auto-retry policies.
+- [ ] **T6. Web Push Notification Engine with VAPID & Actionable Quick-Action Buttons**
+  - Browser and mobile PWA push notification pipeline powered by VAPID key pairs with actionable quick buttons (e.g. log water, boss alerts, streak warnings).
+- [ ] **T7. End-to-End Gamification Simulation & Balance Testing Framework**
+  - Automated Monte Carlo testing framework running 1,000+ simulated player trajectories to audit XP curves, token inflation, gear drop weights, and combat balance.
+- [ ] **T9. Structured OpenTelemetry & Prometheus Metrics Dashboard**
+  - Prometheus metrics instrumentation (`django-prometheus`) tracking combat resolution latency, gacha pull distributions, Celery queue depth, and active streak metrics.
+- [ ] **T10. Fine-Grained Role-Based Access & Admin Game Master (GM) Tooling**
+  - Dedicated GM dashboard for game masters and admins to schedule seasonal events, inspect combat rolls, adjust drop boosts, and manage player accounts.
+
+### ⚙️ Functional & Usability Refinements
+- [ ] **F2. Gear Reforging, Enchanting, and Socketing System**
+  - Blacksmith & enchanting bench allowing players to spend Scraps to re-roll secondary stat affixes (+% XP bonus, +% Crit chance) or socket modality gems into loadout gear.
+- [ ] **F4. Multi-Discipline "Combo Streaks" & Daily Quests**
+  - Daily rotating 3-tier quest checklist (e.g. *Daily Trifecta*: 8h sleep + 100% protein + 30m workout) rewarding daily combo chests and token multipliers.
+- [ ] **F5. Personal Record (PR) Hall of Fame & Milestone Timelines**
+  - Automatic detection and milestone timeline for all-time personal records (heaviest lifts, longest runs, top sleep scores) with shareable achievement victory cards.
+- [ ] **F6. Interactive PvE Boss Phases, Weaknesses, and Elemental Resistances**
+  - Multi-phase boss mechanics with dynamic weekly vulnerabilities (e.g. *Iron Couch King* vulnerable to Cardio) encouraging multi-modality workout variety.
+- [ ] **F7. Flock Co-Op Perks & Shared Flock Base Camp**
+  - Guild leveling system where collective flock member XP unlocks shared passive perks (e.g. +5% token dividend, flock banners, shared raid milestone rewards).
+- [ ] **F10. Advanced Sound FX Soundpacks, Haptics, and Celebration Engine**
+  - Full tactile haptic feedback (`navigator.vibrate`), customizable audio soundpacks (8-bit Retro, Synthwave, Modern), and multi-tier victory celebration animations.
+
+### 🚀 New Features & Capabilities
+- [ ] **N5. Customizable 3D / SVG Flamingo Avatar Studio**
+  - Interactive avatar creator that visually equips unlocked helmets, armor, weapons, and cosmetics onto a modular layered SVG/Canvas flamingo character.
+
+### 🌟 Completed Milestones
+- [x] **1. Manual Quick-Logging System** (`/log/quick/`)
+  - Fast manual fallback logging for Hydration, Nutrition, Cardio, Strength, Sleep/Recovery, and Bodyweight with instant XP and token calculation.
+- [x] **2. Historical Missing Logs Queue (Food & Hydration Prompt)** (`/queue/missing-logs/`)
+  - Scanner for unlogged trailing days with one-tap backfill and retroactive streak calculation.
+- [x] **3. Data Source Selection Preferences** (`/profile/sources/`)
+  - Granular data provider routing settings in User Profile.
+- [x] **4. Multi-Source Data Input (Hydration via Health Connect / Sparky, Meals via Sparky API)** (`/foods/search/`)
+  - Hydration sync and SparkyFitness nutrition search integration.
+- [x] **5. Player Gear Marketplace (Buy & Sell Loadout Gear)** (`/marketplace/*`)
+  - Trading post and scrap auction house for player-to-player gear trading with escrow and search.
+- [x] **6. Production Security Upgrades & Hardening**
+  - Production CSP, HSTS, secure cookies, framing denial, and security middleware.
+- [x] **7. Daily Streak Freeze & Rest Day Shields in Scrap Shop**
+  - Flamingo Ice Shield consumable to freeze streaks on rest/illness days.
+- [x] **8. Gamified Level-Up & Badge Unlock Celebrations**
+  - Canvas confetti and animated Duolingo-style milestone modal.
+- [x] **9. Web Audio Synthesized Sound Effects & Audio Toggle**
+  - Web Audio API sound generator for XP, badges, and gacha pulls with mute toggle.
+- [x] **10. Interactive Fitness Bounty Board & 1v1 Duels** (`/bounties/*`)
+  - Interactive solo contracts, open community bounty boards, and 1v1 friend duels with escrow wagers, automated log verification across all 5 modalities, native push alerts, and celebratory payouts.
+
+---
+
+### 💡 AI Insights & Feature Ideas
+
+> *AI-suggested feature concepts. To promote any item to the **Future Roadmap** above, simply request or approve it.*
+
+- 💡 **AI Macro Meal Photo Estimator**: Photo upload endpoint passing meal pictures to Vision AI to automatically estimate calories and macros before saving to SparkyFitness.
+- 💡 **Barcode Scanner for Quick Food Logging**: Integrated camera barcode scanner using html5-qrcode / BarcodeDetector API to search SparkyFitness food catalog instantly.
+- 💡 **Live PvE Raid Boss Healthbar Widget**: A real-time animated SVG boss HP bar at the top of the dashboard showing flock raid progress and remaining boss health.
+- 💡 **Flamingo Guild / Flock Chat & Emote Reactions**: Real-time lightweight flock activity stream where members can send flamingo cheer emotes and cheer on workout milestones.
+- 💡 **Flamingo Habit Heatmap (GitHub-style Contribution Grid)**: A 52-week activity heatmap on the user profile displaying daily habit completion density (water, workouts, sleep, nutrition).
+- 💡 **Smart Water Sip Reminders & Smart-Home Triggers**: Browser notifications & Home Assistant webhook triggers alerting users at customized intervals based on daily water targets.
+- 💡 **Wearable Heart Rate Zone Breakdown Widget**: Time in Zone 1-5 visualizer for endurance activities, feeding directly into endurance XP multipliers.
+- 💡 **Gacha Duplicate Fusion / Gear Upgrades**: Combine 3 duplicate items of the same rarity to enhance primary domain stat multipliers and add cosmetic glow borders.
+- 💡 **Weekly League Relegation/Promotion Alerts & Recap Card**: An end-of-week Duolingo-style summary modal celebrating rank promotion (e.g., Bronze → Silver) with bonus scrap rewards.
+- 💡 **Discord / Matrix / Webhook Notifications**: Webhook integration notifying user or flock channels of daily streaks, boss conquests, and PvP challenges.
+- 💡 **Custom Daily Quest System**: 3 daily rotating mini-quests (e.g., "Drink 64oz before noon", "Log 30 min Zone 2 cardio", "Hit 120g protein") awarding bonus gacha tokens.
+- 💡 **Rest & Recovery Active Stretch Routine Generator**: A dynamic stretching & mobility timer integrated with the Recovery domain when readiness recommends a rest day.
+- 💡 **Barcode Scanner for Quick Food Logging**: Integrated camera barcode scanner using html5-qrcode / BarcodeDetector API to search SparkyFitness food catalog instantly.
+- 💡 **AI Macro Meal Photo Estimator**: Photo upload endpoint passing meal pictures to Vision AI to automatically estimate calories and macros before saving to SparkyFitness.
+- 💡 **Live PvE Raid Boss Healthbar Widget**: A real-time animated SVG boss HP bar at the top of the dashboard showing flock raid progress and remaining boss health.
+
+---
+
 ## 📄 License
 MIT License. Built for fitness enthusiasts, self-hosters, and gamers.
+
 

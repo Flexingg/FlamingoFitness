@@ -60,5 +60,17 @@
     "pack": "cardio_storm",
     "is_active": true,
     "sort_order": 50
+  },
+  {
+    "slug": "scrap_streak_freeze",
+    "name": "Flamingo Streak Freeze",
+    "icon": "fa-snowflake",
+    "description": "Preserve your hard-earned streak on unexpected rest days or during travel.",
+    "cost_scraps": 75,
+    "available_days": [0, 1, 2, 3, 4, 5, 6],
+    "reward_type": "streak_freeze",
+    "reward_value": 1,
+    "is_active": true,
+    "sort_order": 25
   }
 ]

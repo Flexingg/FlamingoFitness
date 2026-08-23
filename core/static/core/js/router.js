@@ -26,7 +26,8 @@
         'battle-view': 'battle',
         'pvp-view': 'pvp',
         'badges-view': 'badges',
-        'leagues-view': 'leagues'
+        'leagues-view': 'leagues',
+        'bounties-view': 'bounties'
     };
 
     // Slug -> loader function used to render the panel on restore.
@@ -42,7 +43,8 @@
         'battle': 'loadBattle',
         'pvp': 'loadPvP',
         'badges': 'loadBadges',
-        'leagues': 'loadLeagues'
+        'leagues': 'loadLeagues',
+        'bounties': 'loadBounties'
     };
 
     // Panel id -> bottom-nav item to highlight (setActiveNav remaps combat views).
@@ -59,7 +61,8 @@
         'battle-view': 'nav-battle',
         'pvp-view': 'nav-pvp',
         'badges-view': 'nav-badges',
-        'leagues-view': 'nav-leagues'
+        'leagues-view': 'nav-leagues',
+        'bounties-view': 'nav-bounties'
     };
 
     // True while restoring an existing history entry, so a panel switch during

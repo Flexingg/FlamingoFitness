@@ -95,6 +95,64 @@
     };
 
     // ------------------------------------------------------------------
+    // Gamified Level-Up & Badge Unlock Celebrations (Roadmap item #8)
+    // ------------------------------------------------------------------
+    window.celebrateLevelUp = function (modality, level, bonusTokens) {
+        var modal = document.getElementById('celebrationModal');
+        if (!modal) return;
+        var tag = document.getElementById('celebration-tag');
+        var title = document.getElementById('celebration-title');
+        var desc = document.getElementById('celebration-desc');
+        var icon = document.getElementById('celebration-icon');
+        var tokensEl = document.getElementById('celebration-reward-tokens');
+
+        if (tag) tag.textContent = '🌟 LEVEL UP!';
+        if (title) title.textContent = (modality ? modality.toUpperCase() : 'SKILL') + ' LEVEL ' + (level || 2);
+        if (desc) desc.textContent = 'Awesome effort! Your avatar gained combat multipliers and unlocked bonus tokens.';
+        if (icon) icon.innerHTML = '<i class="fa-solid fa-arrow-trend-up"></i>';
+        if (tokensEl) tokensEl.innerHTML = '<i class="fa-solid fa-coins"></i> <span>+' + (bonusTokens || 25) + ' Tokens</span>';
+
+        modal.classList.add('show-modal');
+        window.confettiBurst();
+        window.haptic([80, 40, 120]);
+        if (window.playLevelUpFanfare) window.playLevelUpFanfare();
+    };
+
+    window.celebrateBadge = function (badge) {
+        if (!badge) return;
+        var modal = document.getElementById('celebrationModal');
+        if (!modal) return;
+        var tag = document.getElementById('celebration-tag');
+        var title = document.getElementById('celebration-title');
+        var desc = document.getElementById('celebration-desc');
+        var icon = document.getElementById('celebration-icon');
+        var tokensEl = document.getElementById('celebration-reward-tokens');
+
+        if (tag) tag.textContent = '🏆 BADGE UNLOCKED!';
+        if (title) title.textContent = badge.name || 'New Badge';
+        if (desc) desc.textContent = badge.description || 'You unlocked a new fitness achievement!';
+        if (icon) icon.innerHTML = '<i class="fa-solid ' + (badge.icon || 'fa-trophy') + '"></i>';
+        if (tokensEl) {
+            var rewardTxt = '';
+            if (badge.token_reward) rewardTxt += '+' + badge.token_reward + ' Tokens ';
+            if (badge.scrap_reward) rewardTxt += '+' + badge.scrap_reward + ' Scraps';
+            tokensEl.innerHTML = '<i class="fa-solid fa-gift"></i> <span>' + (rewardTxt || '+50 XP Bonus') + '</span>';
+        }
+
+        modal.classList.add('show-modal');
+        window.confettiBurst();
+        window.haptic([100, 50, 150]);
+        if (window.playBadgeFanfare) window.playBadgeFanfare();
+    };
+
+    window.closeCelebrationModal = function () {
+        if (window.playButtonTap) window.playButtonTap();
+        var modal = document.getElementById('celebrationModal');
+        if (modal) modal.classList.remove('show-modal');
+    };
+
+
+    // ------------------------------------------------------------------
     // Empty-state HTML generator (used by every modality controller)
     // ------------------------------------------------------------------
     window.emptyStateHTML = function (opts) {

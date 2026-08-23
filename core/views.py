@@ -328,6 +328,7 @@ _VALID_PANELS = {
     "pvp",
     "leagues",
     "badges",
+    "bounties",
 }
 
 
@@ -1493,3 +1494,845 @@ def home_assistant_webhook(request):
         },
         status=201,
     )
+
+
+@csrf_exempt
+def sync_health_data(request):
+    """POST /api/v1/sync/health - Ingest device Health Connect / HealthKit metrics."""
+    if request.method != "POST":
+        return _json_error("Method not allowed", 405)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    # Determine user: session user > username in body > default first user
+    user = request.user if request.user.is_authenticated else None
+    if user is None:
+        username = data.get("username")
+        if username:
+            user = User.objects.filter(username=username).first()
+    if user is None:
+        user = User.objects.order_by("id").first()
+    if user is None:
+        return _json_error("No user available to attribute health data", 400)
+
+    provider_name = data.get("provider", "health_connect")
+    source = Provider.HEALTH_CONNECT if "health" in provider_name.lower() else Provider.HEALTHKIT
+
+    metrics = data.get("metrics", {})
+    created_logs = []
+    total_xp = 0
+
+    now = timezone.now()
+    today_str = timezone.localdate().isoformat()
+
+    # 1. Steps & Active Calories (Endurance domain)
+    steps = int(metrics.get("steps", 0) or 0)
+    active_calories = float(metrics.get("active_calories", 0) or metrics.get("calories", 0) or 0)
+    distance_meters = float(metrics.get("distance_meters", 0) or 0)
+
+    if steps > 0 or active_calories > 0:
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=source,
+            event_type="endurance",
+            payload={
+                "date": today_str,
+                "steps": steps,
+                "total_calories_burned": active_calories,
+                "total_duration_minutes": max(10, int(steps / 100)),
+                "distance_meters": distance_meters,
+                "source": "health_connect",
+            },
+            occurred_at=now,
+        )
+        xp = process_log(log)
+        total_xp += sum(e.amount for e in xp)
+        created_logs.append(log.pk)
+
+    # 2. Sleep (Recovery domain)
+    sleep_hours = float(metrics.get("sleep_hours", 0) or 0)
+    if sleep_hours > 0:
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=source,
+            event_type="sleep",
+            payload={
+                "date": today_str,
+                "sleep_hours": round(sleep_hours, 1),
+                "deep_sleep_hours": round(float(metrics.get("deep_sleep_hours", 0) or 0), 1),
+                "source": "health_connect",
+            },
+            occurred_at=now,
+        )
+        xp = process_log(log)
+        total_xp += sum(e.amount for e in xp)
+        created_logs.append(log.pk)
+
+    # 3. Hydration (Water domain)
+    water_ml = float(metrics.get("water_ml", 0) or 0)
+    water_oz = float(metrics.get("water_oz", 0) or 0)
+    if water_ml > 0 and water_oz <= 0:
+        water_oz = round(water_ml / 29.5735, 1)
+
+    if water_oz > 0:
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=source,
+            event_type="hydration",
+            payload={
+                "date": today_str,
+                "water_intake_oz": water_oz,
+                "water_goal_oz": float(metrics.get("water_goal_oz", 80) or 80),
+                "source": "health_connect",
+            },
+            occurred_at=now,
+        )
+        xp = process_log(log)
+        total_xp += sum(e.amount for e in xp)
+        created_logs.append(log.pk)
+
+    # 4. Body Weight (Scale)
+    weight_kg = float(metrics.get("weight_kg", 0) or 0)
+    weight_lbs = float(metrics.get("weight_lbs", 0) or 0)
+    if weight_kg > 0 and weight_lbs <= 0:
+        weight_lbs = round(weight_kg * 2.20462, 1)
+
+    if weight_lbs > 0:
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=source,
+            event_type="scale",
+            payload={
+                "date": today_str,
+                "weight_lbs": weight_lbs,
+                "unit": "lbs",
+                "source": "health_connect",
+            },
+            occurred_at=now,
+        )
+        xp = process_log(log)
+        total_xp += sum(e.amount for e in xp)
+        created_logs.append(log.pk)
+
+    # 5. Workouts & Exercise Sessions
+    workouts = metrics.get("workouts", [])
+    if isinstance(workouts, list):
+        for w in workouts:
+            w_type = str(w.get("type", "cardio")).lower()
+            event_t = "strength" if "strength" in w_type or "weight" in w_type else "cardio"
+            w_payload = {
+                "date": today_str,
+                "class": w.get("title", w.get("name", "Workout")),
+                "minutes": int(w.get("duration_minutes", w.get("minutes", 30)) or 30),
+                "intensity": w.get("intensity", "moderate"),
+                "total_volume_lbs": float(w.get("total_volume_lbs", 0) or 0),
+                "calories": float(w.get("calories", 0) or 0),
+                "source": "health_connect",
+            }
+            log = RawActivityLog.objects.create(
+                user=user,
+                source=source,
+                event_type=event_t,
+                payload=w_payload,
+                occurred_at=now,
+            )
+            xp = process_log(log)
+            total_xp += sum(e.amount for e in xp)
+            created_logs.append(log.pk)
+
+    # Lazily check and award badges
+    from .services.badges import check_badges
+    newly_badges = check_badges(user)
+
+    return JsonResponse(
+        {
+            "success": True,
+            "user": user.username,
+            "provider": source,
+            "synced_logs_count": len(created_logs),
+            "total_xp_awarded": total_xp,
+            "newly_awarded_badges": newly_badges,
+            "synced_at": now.isoformat(),
+        },
+        status=200,
+    )
+
+
+@login_required
+@require_POST
+def quick_log(request):
+    """POST /log/quick/ - Manual quick-logging fallback for all habit modalities.
+
+    Accepts JSON body:
+      - category / modality: 'hydration' | 'nutrition' | 'cardio' | 'endurance' | 'strength' | 'sleep' | 'recovery' | 'scale'
+      - payload parameters for the given category
+    """
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    category = str(data.get("category") or data.get("modality") or "").strip().lower()
+    if not category:
+        return _json_error("Missing 'category' or 'modality' field", 400)
+
+    custom_date_str = str(data.get("date") or "").strip()
+    if custom_date_str:
+        try:
+            target_date = timezone.datetime.strptime(custom_date_str, "%Y-%m-%d").date()
+            today_str = target_date.isoformat()
+            now = timezone.make_aware(timezone.datetime.combine(target_date, timezone.datetime.now().time()))
+        except ValueError:
+            return _json_error("Invalid date format, expected YYYY-MM-DD", 400)
+    else:
+        now = timezone.now()
+        today_str = timezone.localdate().isoformat()
+
+    user = request.user
+    created_logs = []
+    total_xp = 0
+    modality_enum = None
+    pre_levels = {
+        m: (SkillTree.objects.filter(user=user, modality=m).values_list("level", flat=True).first() or 1)
+        for m in Modality.values
+    }
+
+    if category in ("hydration", "water"):
+        amount_oz = float(data.get("water_oz") or data.get("amount") or 0)
+        water_ml = float(data.get("water_ml") or 0)
+        if amount_oz <= 0 and water_ml > 0:
+            amount_oz = round(water_ml / 29.5735, 1)
+        if amount_oz <= 0:
+            return _json_error("Positive water amount (oz or ml) is required", 400)
+
+        goal_oz = float(data.get("water_goal") or data.get("goal") or 64)
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=Provider.MANUAL,
+            event_type="hydration",
+            payload={
+                "date": today_str,
+                "water": amount_oz,
+                "water_goal": goal_oz,
+                "source": "manual",
+            },
+            occurred_at=now,
+        )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+        modality_enum = Modality.HYDRATION
+
+    elif category in ("nutrition", "food", "macro"):
+        calories = float(data.get("calories") or 0)
+        protein = float(data.get("protein") or data.get("protein_g") or 0)
+        if calories <= 0 and protein <= 0:
+            return _json_error("Calories or protein must be greater than 0", 400)
+
+        cal_goal = float(data.get("calorie_goal") or 2500)
+        pro_goal = float(data.get("protein_goal") or 100)
+
+        under_calorie = data.get("under_calorie")
+        if under_calorie is None:
+            under_calorie = calories <= cal_goal if calories > 0 else True
+        else:
+            under_calorie = bool(under_calorie)
+
+        protein_hit = data.get("protein_hit")
+        if protein_hit is None:
+            protein_hit = protein >= pro_goal if protein > 0 else False
+        else:
+            protein_hit = bool(protein_hit)
+
+        food_name = data.get("food_name") or data.get("name") or "Quick Meal"
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=Provider.MANUAL,
+            event_type="macro",
+            payload={
+                "date": today_str,
+                "calories": int(calories),
+                "protein": round(protein, 1),
+                "under_calorie": under_calorie,
+                "protein_hit": protein_hit,
+                "food_entries": [
+                    {
+                        "food_name": food_name,
+                        "protein": round(protein, 1),
+                        "calories": int(calories),
+                    }
+                ],
+                "source": "manual",
+            },
+            occurred_at=now,
+        )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+        modality_enum = Modality.NUTRITION
+
+    elif category in ("cardio", "endurance"):
+        minutes = int(data.get("minutes") or data.get("duration_minutes") or 0)
+        calories_burned = float(data.get("calories_burned") or data.get("calories") or 0)
+        intensity = str(data.get("intensity") or "moderate").strip().lower()
+        workout_type = data.get("workout_type") or data.get("class") or "Cardio Workout"
+
+        if minutes <= 0 and calories_burned <= 0:
+            return _json_error("Minutes or calories burned must be greater than 0", 400)
+
+        if calories_burned > 0:
+            log = RawActivityLog.objects.create(
+                user=user,
+                source=Provider.MANUAL,
+                event_type="endurance",
+                payload={
+                    "date": today_str,
+                    "total_calories_burned": calories_burned,
+                    "total_duration_minutes": minutes or max(10, int(calories_burned / 10)),
+                    "exercise_entries": [
+                        {
+                            "name": workout_type,
+                            "duration": minutes,
+                            "calories": calories_burned,
+                        }
+                    ],
+                    "source": "manual",
+                },
+                occurred_at=now,
+            )
+        else:
+            log = RawActivityLog.objects.create(
+                user=user,
+                source=Provider.MANUAL,
+                event_type="cardio",
+                payload={
+                    "date": today_str,
+                    "minutes": minutes,
+                    "intensity": intensity,
+                    "class": workout_type,
+                    "source": "manual",
+                },
+                occurred_at=now,
+            )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+        modality_enum = Modality.ENDURANCE
+
+    elif category in ("strength", "lifting", "weights"):
+        volume_lbs = float(data.get("volume_lbs") or data.get("total_volume_lbs") or 0)
+        duration_minutes = int(data.get("duration_minutes") or data.get("minutes") or 30)
+        program = data.get("program") or data.get("name") or "Strength Session"
+        pr = bool(data.get("pr", False))
+        completed = bool(data.get("completed", True))
+
+        if volume_lbs <= 0 and duration_minutes <= 0:
+            return _json_error("Volume (lbs) or workout duration must be greater than 0", 400)
+
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=Provider.MANUAL,
+            event_type="strength",
+            payload={
+                "date": today_str,
+                "program": program,
+                "total_volume_lbs": volume_lbs,
+                "duration_minutes": duration_minutes,
+                "completed": completed,
+                "pr": pr,
+                "source": "manual",
+            },
+            occurred_at=now,
+        )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+        modality_enum = Modality.STRENGTH
+
+    elif category in ("sleep", "recovery"):
+        sleep_hours = float(data.get("sleep_hours") or data.get("hours") or 0)
+        if sleep_hours <= 0:
+            return _json_error("Sleep hours must be greater than 0", 400)
+
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=Provider.MANUAL,
+            event_type="sleep",
+            payload={
+                "date": today_str,
+                "sleep_hours": round(sleep_hours, 1),
+                "source": "manual",
+            },
+            occurred_at=now,
+        )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+        modality_enum = Modality.RECOVERY
+
+    elif category in ("scale", "bodyweight", "weight"):
+        weight_lbs = float(data.get("weight_lbs") or data.get("weight") or 0)
+        weight_kg = float(data.get("weight_kg") or 0)
+        if weight_lbs <= 0 and weight_kg > 0:
+            weight_lbs = round(weight_kg * 2.20462, 1)
+        if weight_lbs <= 0:
+            return _json_error("Positive body weight is required", 400)
+
+        body_fat = float(data.get("body_fat") or data.get("body_fat_pct") or 0)
+        log = RawActivityLog.objects.create(
+            user=user,
+            source=Provider.MANUAL,
+            event_type="scale",
+            payload={
+                "date": today_str,
+                "weight_lbs": weight_lbs,
+                "body_fat": body_fat if body_fat > 0 else None,
+                "unit": "lbs",
+                "source": "manual",
+            },
+            occurred_at=now,
+        )
+        entries = process_log(log)
+        total_xp += sum(e.amount for e in entries)
+        created_logs.append(log.pk)
+
+    else:
+        return _json_error(
+            f"Unsupported category '{category}'. Valid categories: hydration, nutrition, cardio, strength, sleep, scale",
+            400,
+        )
+
+    # Lazily check and award badges
+    from .services.badges import check_badges
+    newly_badges = check_badges(user)
+
+    level_ups = []
+    for m in Modality.values:
+        curr_lvl = SkillTree.objects.filter(user=user, modality=m).values_list("level", flat=True).first() or 1
+        old_lvl = pre_levels.get(m, 1)
+        if curr_lvl > old_lvl:
+            tokens_gain = (curr_lvl - old_lvl) * 25
+            prof = combat_profile(user)
+            prof.tokens += tokens_gain
+            prof.save(update_fields=["tokens"])
+            level_ups.append({
+                "modality": m,
+                "old_level": old_lvl,
+                "new_level": curr_lvl,
+                "bonus_tokens": tokens_gain,
+            })
+
+    skill_tree_data = None
+    if modality_enum:
+        st = SkillTree.objects.filter(user=user, modality=modality_enum).first()
+        if st:
+            skill_tree_data = {
+                "modality": st.modality,
+                "level": st.level,
+                "xp": st.xp,
+                "total_xp": st.total_xp,
+                "progress_pct": st.progress_pct,
+            }
+
+    return JsonResponse(
+        {
+            "success": True,
+            "category": category,
+            "xp_awarded": total_xp,
+            "created_log_ids": created_logs,
+            "newly_awarded_badges": newly_badges,
+            "level_ups": level_ups,
+            "skill_tree": skill_tree_data,
+            "message": f"Successfully logged {category} (+{total_xp} XP)!",
+        },
+        status=200,
+    )
+
+
+@login_required
+def missing_logs_queue(request):
+    """GET /api/v1/queue/missing-logs/ - Returns missing food/hydration days for trailing window."""
+    from .services.historical_queue import find_missing_habit_days
+
+    days_str = request.GET.get("days", "7")
+    try:
+        days = int(days_str)
+    except ValueError:
+        days = 7
+    days = min(30, max(1, days))
+
+    missing = find_missing_habit_days(request.user, days=days)
+    return JsonResponse(
+        {
+            "success": True,
+            "missing_days": missing,
+            "total_missing_count": len(missing),
+            "days_scanned": days,
+        },
+        status=200,
+    )
+
+
+@login_required
+def source_preferences_view(request):
+    """GET/POST /profile/sources/ - Manage data provider routing preferences."""
+    profile = combat_profile(request.user)
+
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body or b"{}")
+        except json.JSONDecodeError:
+            return _json_error("Invalid JSON body", 400)
+
+        prefs = profile.source_preferences or {}
+        for key in ("hydration", "nutrition", "endurance", "strength", "recovery"):
+            if key in body:
+                prefs[key] = str(body[key]).strip().lower()
+
+        profile.source_preferences = prefs
+        profile.save(update_fields=["source_preferences"])
+        return JsonResponse({"success": True, "source_preferences": prefs})
+
+    defaults = {
+        "hydration": "sparkyfitness",
+        "nutrition": "sparkyfitness",
+        "endurance": "health_connect",
+        "strength": "liftosaur",
+        "recovery": "sparkyfitness",
+    }
+    current = {**defaults, **(profile.source_preferences or {})}
+    return JsonResponse({"success": True, "source_preferences": current})
+
+
+@login_required
+def foods_search(request):
+    """GET /foods/search/ - Search food catalog via SparkyFitness API client."""
+    query = request.GET.get("q", "")
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    results = client.search_foods(api_key, query)
+    return JsonResponse({"success": True, "query": query, "results": results})
+
+
+@login_required
+def marketplace_state_view(request):
+    """GET /marketplace/state - Marketplace listings, inventory, and wallet."""
+    from .services.marketplace import get_marketplace_state
+
+    category = request.GET.get("category")
+    rarity = request.GET.get("rarity")
+    sort = request.GET.get("sort")
+    state = get_marketplace_state(
+        request.user, category=category, rarity=rarity, sort=sort
+    )
+    return JsonResponse(state)
+
+
+@login_required
+@require_POST
+def marketplace_list_view(request):
+    """POST /marketplace/list - List an unequipped gear item for sale."""
+    from .services.marketplace import list_gear_item
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    user_gear_id = data.get("user_gear_id")
+    price_type = data.get("price_type", "tokens")
+    price_amount = data.get("price_amount", 10)
+
+    if not user_gear_id:
+        return _json_error("Missing 'user_gear_id'", 400)
+
+    listing, err = list_gear_item(
+        request.user, user_gear_id, price_type, price_amount
+    )
+    if err:
+        return _json_error(err, 400)
+
+    return JsonResponse(
+        {
+            "success": True,
+            "listing_id": listing.id,
+            "message": f"Successfully listed {listing.gear_item.name} for {listing.price_amount} {listing.price_type}!",
+        }
+    )
+
+
+@login_required
+@require_POST
+def marketplace_buy_view(request):
+    """POST /marketplace/buy - Purchase a gear listing."""
+    from .services.marketplace import buy_marketplace_item
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    listing_id = data.get("listing_id")
+    if not listing_id:
+        return _json_error("Missing 'listing_id'", 400)
+
+    result, err = buy_marketplace_item(request.user, listing_id)
+    if err:
+        return _json_error(err, 400)
+
+    return JsonResponse(result)
+
+
+@login_required
+@require_POST
+def marketplace_cancel_view(request):
+    """POST /marketplace/cancel - Cancel an active marketplace listing."""
+    from .services.marketplace import cancel_marketplace_listing
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    listing_id = data.get("listing_id")
+    if not listing_id:
+        return _json_error("Missing 'listing_id'", 400)
+
+    listing, err = cancel_marketplace_listing(request.user, listing_id)
+    if err:
+        return _json_error(err, 400)
+
+    return JsonResponse(
+        {"success": True, "message": "Listing cancelled successfully"}
+    )
+
+
+@csrf_exempt
+@login_required
+def notification_preferences_view(request):
+    """GET/POST /notifications/preferences/ - View or update notification toggles."""
+    from .services.smart_reminders import (
+        get_user_notification_preferences,
+        update_user_notification_preferences,
+    )
+
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body or b"{}")
+        except json.JSONDecodeError:
+            return _json_error("Invalid JSON body", 400)
+        updated = update_user_notification_preferences(request.user, body)
+        return JsonResponse({"success": True, "preferences": updated})
+
+    prefs = get_user_notification_preferences(request.user)
+    return JsonResponse({"success": True, "preferences": prefs})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def notification_register_device(request):
+    """POST /notifications/register/ - Register or refresh a push device token."""
+    from .services.smart_reminders import register_push_device
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    token = data.get("token")
+    if not token or not str(token).strip():
+        return _json_error("Missing 'token'", 400)
+
+    platform = data.get("platform", "android")
+    device_name = data.get("device_name", "")
+
+    device = register_push_device(
+        request.user, token.strip(), platform=platform, device_name=device_name
+    )
+    return JsonResponse(
+        {
+            "success": True,
+            "device_id": device.id,
+            "platform": device.platform,
+            "is_active": device.is_active,
+        }
+    )
+
+
+@login_required
+def notification_intelligent_prompt(request):
+    """GET /notifications/intelligent-prompt/ - Evaluate and return smart habit prompts."""
+    from .services.smart_reminders import evaluate_smart_reminders
+
+    prompts = evaluate_smart_reminders(request.user)
+    return JsonResponse(
+        {
+            "success": True,
+            "prompts": prompts,
+            "count": len(prompts),
+        }
+    )
+
+
+@login_required
+def notification_history_view(request):
+    """GET /notifications/history/ - List recent notifications sent to user."""
+    from .models import PushNotificationLog
+
+    logs = PushNotificationLog.objects.filter(user=request.user).order_by(
+        "-sent_at"
+    )[:25]
+    items = []
+    for l in logs:
+        items.append({
+            "id": l.id,
+            "category": l.category,
+            "title": l.title,
+            "body": l.body,
+            "data": l.data,
+            "sent_at": l.sent_at.isoformat(),
+            "is_read": l.is_read,
+        })
+    return JsonResponse({"success": True, "notifications": items})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def notification_test_send(request):
+    """POST /notifications/test/ - Dispatch a test push notification to user."""
+    from .services.smart_reminders import dispatch_push_notification
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        data = {}
+
+    category = data.get("category", "general")
+    title = data.get("title", "🦩 Flamingo Fitness Test")
+    body = data.get(
+        "body", "Push notifications are working! Get ready to level up your habits."
+    )
+
+    log_entry, err = dispatch_push_notification(
+        request.user, category, title, body, data=data, force=True
+    )
+    if err:
+        return _json_error(err, 400)
+
+    return JsonResponse(
+        {
+            "success": True,
+            "notification_id": log_entry.id,
+            "category": log_entry.category,
+            "title": log_entry.title,
+            "sent_at": log_entry.sent_at.isoformat(),
+        }
+    )
+
+
+# -------------------------------------------------------------------------
+# Bounties & 1v1 Fitness Duels (Roadmap N8)
+# -------------------------------------------------------------------------
+
+@login_required
+def bounties_state_view(request):
+    """GET /bounties/state/ - Return full bounty and duel state as JSON."""
+    from .services.bounties import get_bounties_state
+    state = get_bounties_state(request.user)
+    return JsonResponse({"success": True, "data": state})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def create_bounty_view(request):
+    """POST /bounties/create/ - Create a solo contract, open bounty, or 1v1 duel."""
+    from .services.bounties import create_bounty
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON format", 400)
+
+    bounty_type = data.get("bounty_type", "open")
+    target_type = data.get("target_type", "steps")
+    target_value = data.get("target_value", 0)
+    duration_hours = data.get("duration_hours", 24)
+    wager_tokens = data.get("wager_tokens", 0)
+    wager_scraps = data.get("wager_scraps", 0)
+    title = str(data.get("title") or "").strip()
+    description = str(data.get("description") or "").strip()
+    opponent_username = str(data.get("opponent_username") or "").strip()
+    flock_id = data.get("flock_id")
+
+    ok, res = create_bounty(
+        user=request.user,
+        bounty_type=bounty_type,
+        target_type=target_type,
+        target_value=target_value,
+        duration_hours=duration_hours,
+        wager_tokens=wager_tokens,
+        wager_scraps=wager_scraps,
+        title=title,
+        description=description,
+        opponent_username=opponent_username,
+        flock_id=flock_id,
+    )
+    if not ok:
+        return _json_error(res.get("error", "Failed to create bounty"), res.get("status", 400))
+
+    return JsonResponse({"success": True, "bounty": res})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def accept_bounty_view(request, bounty_id):
+    """POST /bounties/<id>/accept/ - Accept an open bounty or 1v1 duel."""
+    from .services.bounties import accept_bounty
+    ok, res = accept_bounty(bounty_id=bounty_id, user=request.user)
+    if not ok:
+        return _json_error(res.get("error", "Failed to accept bounty"), res.get("status", 400))
+
+    return JsonResponse({"success": True, "bounty": res})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def cancel_bounty_view(request, bounty_id):
+    """POST /bounties/<id>/cancel/ - Cancel an unaccepted bounty and refund escrow."""
+    from .services.bounties import cancel_bounty
+    ok, res = cancel_bounty(bounty_id=bounty_id, user=request.user)
+    if not ok:
+        return _json_error(res.get("error", "Failed to cancel bounty"), res.get("status", 400))
+
+    return JsonResponse({"success": True, "message": res.get("message")})
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def claim_bounty_view(request, bounty_id):
+    """POST /bounties/<id>/claim/ - Claim rewards from completed bounty/duel."""
+    from .services.bounties import claim_bounty_reward
+    ok, res = claim_bounty_reward(bounty_id=bounty_id, user=request.user)
+    if not ok:
+        return _json_error(res.get("error", "Failed to claim reward"), res.get("status", 400))
+
+    return JsonResponse({"success": True, "reward": res})
+
+
+
+
+

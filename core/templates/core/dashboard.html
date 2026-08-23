@@ -29,6 +29,8 @@
     <script>window.ffDEBUG = {% if DEBUG %}true{% else %}false{% endif %};</script>
     <!-- Shared utility functions (Phase 1, docs/19 #21) -->
     <script defer src="{% static 'core/js/utils.js' %}"></script>
+    <!-- Web Audio synthesized sound effects & audio toggle (Roadmap #9) -->
+    <script defer src="{% static 'core/js/audio.js' %}"></script>
     <!-- Fonts and Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -129,6 +131,7 @@
             pvp: "{% static 'core/js/pvp.js' %}",
             badges: "{% static 'core/js/badges.js' %}",
             leagues: "{% static 'core/js/leagues.js' %}",
+            bounties: "{% static 'core/js/bounties.js' %}",
             stat_info: "{% static 'core/js/stat_info.js' %}"
         };
     </script>
@@ -376,6 +379,17 @@
                             </div>
                             <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
                         </button>
+                        <!-- Bounty Board & 1v1 Duels (Roadmap N8) -->
+                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadBounties'); return false;">
+                            <div class="duo-row-icon bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                                <i class="fa-solid fa-crosshairs"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <div class="duo-row-title text-white">Bounty Board</div>
+                                <div class="duo-row-sub text-slate-400">1v1 Fitness Duels &amp; Contracts</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -421,6 +435,34 @@
             <h2 class="text-2xl font-black text-white mb-3" id="friend-picker-title">Pick a friend</h2>
             <div class="friend-picker-list" id="friend-picker-list"></div>
             <button class="w-full bg-flamingo text-white font-bold py-3.5 rounded-2xl border-b-4 border-flamingo-dark hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all shadow-lg" onclick="closeFriendPicker()" type="button">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Gamified Level-Up & Badge Unlock Celebration Modal (Roadmap item #8) -->
+    <div class="modal-overlay" id="celebrationModal" style="z-index: 150;">
+        <div class="modal-content celebration-modal-content rounded-[2.5rem] p-6 border-2 border-yellow-400/60 shadow-[0_0_50px_rgba(250,204,21,0.3)] w-[90%] max-w-sm m-auto text-center relative overflow-hidden bg-slate-900">
+            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(250,204,21,0.15)_0%,transparent_70%)] pointer-events-none animate-pulse"></div>
+            <div class="relative z-10">
+                <div class="celebration-badge-wrap w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-tr from-yellow-500 to-amber-300 p-1 shadow-[0_0_30px_rgba(245,158,11,0.5)] flex items-center justify-center animate-bounce">
+                    <div class="w-full h-full rounded-full bg-slate-900 flex items-center justify-center text-4xl text-yellow-400" id="celebration-icon">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                </div>
+
+                <div class="text-xs font-black uppercase tracking-widest text-yellow-400 mb-1" id="celebration-tag">LEVEL UP!</div>
+                <h2 class="text-2xl font-black text-white mb-2 leading-tight" id="celebration-title">Strength Level 2</h2>
+                <p class="text-slate-300 font-semibold text-sm mb-4 leading-relaxed" id="celebration-desc">You unlocked a new strength tier and boosted your stats!</p>
+
+                <div class="celebration-reward bg-slate-800/80 border border-slate-700 rounded-2xl p-3 mb-6 flex items-center justify-center gap-3">
+                    <div class="flex items-center gap-1.5 text-yellow-400 font-black text-sm" id="celebration-reward-tokens">
+                        <i class="fa-solid fa-coins"></i> <span>+25 Tokens</span>
+                    </div>
+                </div>
+
+                <button class="btn-flamingo celebration-claim-btn w-full bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black text-base py-4 rounded-2xl border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 transition-all shadow-xl" id="celebration-action-btn" onclick="closeCelebrationModal()" type="button">
+                    Awesome! 🚀
+                </button>
+            </div>
         </div>
     </div>
 

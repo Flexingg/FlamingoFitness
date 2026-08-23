@@ -40,13 +40,16 @@ class Theme(models.TextChoices):
 
 
 class Provider(models.TextChoices):
-    """External data sources we poll via Celery."""
+    """External data sources we poll via Celery or sync via mobile."""
 
     GARMIN = "garmin", "Garmin"
     PELOTON = "peloton", "Peloton"
     LIFTOSAUR = "liftosaur", "Liftosaur"
     SPARKYFITNESS = "sparkyfitness", "SparkyFitness"
     HOME_ASSISTANT = "home_assistant", "Home Assistant"
+    HEALTH_CONNECT = "health_connect", "Health Connect"
+    HEALTHKIT = "healthkit", "HealthKit"
+    MANUAL = "manual", "Manual"
 
 
 class User(AbstractUser):
@@ -348,6 +351,16 @@ class PlayerProfile(models.Model):
         default=False,
         help_text="Guided first-flight onboarding completed (docs/17 #91).",
     )
+    source_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="User preferences for data provider per modality.",
+    )
+    notification_preferences = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Push notification settings per category and quiet hours.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -463,6 +476,7 @@ class ScrapShopItem(models.Model):
         TOKENS = "tokens", "Tokens"
         STAMINA = "stamina", "Stamina"
         PACK = "pack", "Pack draws"
+        STREAK_FREEZE = "streak_freeze", "Streak Freeze"
 
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=80)
@@ -627,6 +641,43 @@ class PvPMatch(models.Model):
 
     def __str__(self):
         return f"{self.attacker.username} v {self.defender.username} ({'W' if self.did_win else 'L'})"
+
+
+class MarketplaceListing(models.Model):
+    """Player gear marketplace listing (Roadmap item #5)."""
+
+    seller = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="marketplace_listings"
+    )
+    gear_item = models.ForeignKey(
+        GearItemDef, on_delete=models.CASCADE, related_name="marketplace_listings"
+    )
+    user_gear = models.ForeignKey(
+        UserGear, on_delete=models.SET_NULL, null=True, blank=True, related_name="marketplace_entries"
+    )
+    rarity = models.CharField(max_length=20, default="common")
+    price_type = models.CharField(
+        max_length=10,
+        choices=[("tokens", "Tokens"), ("scraps", "Scraps")],
+        default="tokens",
+    )
+    price_amount = models.PositiveIntegerField(default=10)
+    is_active = models.BooleanField(default=True)
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="marketplace_purchases",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    sold_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.seller.username}: {self.gear_item.name} ({self.rarity}) for {self.price_amount} {self.price_type}"
 
 
 class BadgeDef(models.Model):
@@ -924,3 +975,192 @@ class FlockInvite(models.Model):
 
     def __str__(self):
         return f"{self.user.username} -> {self.flock.name} ({self.status})"
+
+
+class PushDevice(models.Model):
+    """A mobile or web client push notification device endpoint."""
+
+    class Platform(models.TextChoices):
+        ANDROID = "android", "Android"
+        IOS = "ios", "iOS"
+        WEB = "web", "Web"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="push_devices"
+    )
+    token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(
+        max_length=10, choices=Platform.choices, default=Platform.ANDROID
+    )
+    device_name = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_seen_at"]
+
+    def __str__(self):
+        return f"{self.user.username} ({self.platform}: {self.token[:12]}...)"
+
+
+class PushNotificationLog(models.Model):
+    """A recorded push notification or intelligent reminder."""
+
+    class Category(models.TextChoices):
+        FOOD = "food", "Food & Meals"
+        HYDRATION = "hydration", "Hydration"
+        WORKOUT = "workout", "Workout & Activity"
+        SLEEP = "sleep", "Sleep & Wind-down"
+        STREAK = "streak", "Streak Preservation"
+        BOUNTY = "bounty", "Bounties & Duels"
+        GENERAL = "general", "General"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="push_notifications"
+    )
+    category = models.CharField(
+        max_length=20, choices=Category.choices, default=Category.GENERAL
+    )
+    title = models.CharField(max_length=150)
+    body = models.TextField()
+    data = models.JSONField(default=dict, blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-sent_at"]
+
+    def __str__(self):
+        return f"[{self.category}] {self.user.username}: {self.title}"
+
+
+class Bounty(models.Model):
+    """An interactive fitness wager, solo contract, or 1v1 friend duel (Roadmap N8)."""
+
+    class BountyType(models.TextChoices):
+        SOLO = "solo", "Solo Contract"
+        OPEN = "open", "Open Board Bounty"
+        DUEL = "duel", "1v1 Duel"
+        FLOCK = "flock", "Flock Raid Bounty"
+
+    class TargetType(models.TextChoices):
+        STEPS = "steps", "Steps"
+        CARDIO_MINUTES = "cardio_minutes", "Cardio Minutes"
+        STRENGTH_VOLUME = "strength_volume", "Strength Volume (lbs)"
+        WATER_ML = "water_ml", "Hydration (ml)"
+        PROTEIN_G = "protein_g", "Protein (g)"
+        CALORIES_BURNED = "calories_burned", "Active Calories Burned"
+        WORKOUT_COUNT = "workout_count", "Workouts Logged"
+        SLEEP_HOURS = "sleep_hours", "Sleep (Hours)"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open (Awaiting Opponent)"
+        ACTIVE = "active", "In Progress"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+        EXPIRED = "expired", "Expired"
+        CANCELLED = "cancelled", "Cancelled"
+
+    creator = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="bounties_created"
+    )
+    opponent = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bounties_challenged",
+    )
+    flock = models.ForeignKey(
+        Flock,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="flock_bounties",
+    )
+
+    bounty_type = models.CharField(
+        max_length=15, choices=BountyType.choices, default=BountyType.OPEN
+    )
+    title = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+
+    target_type = models.CharField(max_length=25, choices=TargetType.choices)
+    target_value = models.FloatField(
+        help_text="Target numerical goal (e.g. 10000 steps, 25000 lbs, 3000 ml water)."
+    )
+
+    wager_tokens = models.PositiveIntegerField(
+        default=0, help_text="Tokens staked per participant in escrow."
+    )
+    wager_scraps = models.PositiveIntegerField(
+        default=0, help_text="Scraps staked per participant in escrow."
+    )
+    reward_xp = models.PositiveIntegerField(
+        default=50, help_text="XP awarded upon verified completion."
+    )
+    bonus_tokens = models.PositiveIntegerField(
+        default=10, help_text="System-funded bonus tokens added to prize pool."
+    )
+
+    status = models.CharField(
+        max_length=15, choices=Status.choices, default=Status.OPEN
+    )
+    duration_hours = models.PositiveIntegerField(
+        default=24, help_text="Duration in hours from when bounty becomes active."
+    )
+    start_time = models.DateTimeField(null=True, blank=True)
+    end_time = models.DateTimeField(null=True, blank=True)
+
+    winner = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bounties_won",
+    )
+    is_claimed = models.BooleanField(
+        default=False, help_text="True once winner has claimed prize pot."
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.bounty_type}] {self.title} ({self.status}) - {self.creator.username}"
+
+
+class BountyParticipant(models.Model):
+    """Tracks a user's verified progress inside an active bounty window."""
+
+    bounty = models.ForeignKey(
+        Bounty, on_delete=models.CASCADE, related_name="participants"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="bounty_participations"
+    )
+
+    current_value = models.FloatField(
+        default=0.0, help_text="Total verified progress logged during active window."
+    )
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    payout_claimed = models.BooleanField(default=False)
+
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bounty", "user"], name="unique_bounty_participant"
+            )
+        ]
+        ordering = ["-joined_at"]
+
+    def __str__(self):
+        return f"{self.user.username} in {self.bounty.title}: {self.current_value}/{self.bounty.target_value}"
+

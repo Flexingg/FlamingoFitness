@@ -378,3 +378,58 @@ def close_league_week_task():
         week.week_start,
     )
     return closed
+
+
+@shared_task
+def evaluate_and_dispatch_smart_reminders_task():
+    """Periodic intelligent habit reminder evaluation & dispatch (Mobile push)."""
+    from .models import User
+    from .services import dispatch_push_notification, evaluate_smart_reminders
+
+    dispatched = 0
+    now = timezone.now()
+    for user in User.objects.filter(is_active=True):
+        try:
+            prompts = evaluate_smart_reminders(user, now=now)
+            for p in prompts:
+                log_entry, err = dispatch_push_notification(
+                    user,
+                    p["category"],
+                    p["title"],
+                    p["body"],
+                    data=p.get("data"),
+                    now=now,
+                )
+                if log_entry:
+                    dispatched += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Error evaluating smart reminders for %s: %s",
+                user.username,
+                e,
+            )
+
+    return dispatched
+
+
+@shared_task
+def evaluate_and_expire_bounties_task():
+    """Periodic maintenance for active fitness bounties and 1v1 duels (Roadmap N8)."""
+    from .models import User
+    from .services import ensure_daily_system_bounties, evaluate_user_bounties, expire_stale_bounties
+
+    now = timezone.now()
+    ensure_daily_system_bounties(now)
+    expired = expire_stale_bounties(now)
+
+    evaluated_users = 0
+    for user in User.objects.filter(is_active=True):
+        try:
+            evaluate_user_bounties(user, now)
+            evaluated_users += 1
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Error evaluating bounties for %s: %s", user.username, e)
+
+    return {"expired_bounties": expired, "evaluated_users": evaluated_users}
+
+

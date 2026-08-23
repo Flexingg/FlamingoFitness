@@ -17,3 +17,8 @@ _smoketest.py
 smoke_out.txt
 Dockerfile
 docker-compose.yml
+Mobile/
+Mobile App/
+*.apk
+*.log
+

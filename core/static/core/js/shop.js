@@ -274,6 +274,7 @@
 
     function openPack(slug, quantity) {
         haptic(30);
+        if (window.playGachaRoll) window.playGachaRoll();
         fetch(OPEN_URL, {
             method: 'POST', credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -296,7 +297,12 @@
         haptic([40, 30, 40, 30, 60]);
         var manifest = (payload && payload.manifest) || [];
         var anyEpic = manifest.some(function (m) { return m.rarity === 'epic' || m.rarity === 'legendary'; });
-        if (anyEpic) confettiBurst();
+        if (anyEpic) {
+            confettiBurst();
+            if (window.playBadgeFanfare) window.playBadgeFanfare();
+        } else {
+            if (window.playXpChime) window.playXpChime();
+        }
         var modal = document.getElementById('shop-manifest');
         if (!modal) return;
         var html = manifest.map(function (m) {

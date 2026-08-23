@@ -45,6 +45,31 @@ urlpatterns = [
         views.home_assistant_webhook,
         name="home_assistant_webhook",
     ),
+    # Manual Quick Log & Historical Queue
+    path("log/quick/", views.quick_log, name="quick_log"),
+    path("queue/missing-logs/", views.missing_logs_queue, name="missing_logs_queue"),
+    # Mobile App Health Connect sync
+    path("sync/health", views.sync_health_data, name="sync_health_data"),
+    # Profile & Source routing
+    path("profile/sources/", views.source_preferences_view, name="source_preferences"),
+    path("foods/search/", views.foods_search, name="foods_search"),
+    # Mobile Push Notifications & Intelligent Reminders
+    path("notifications/preferences/", views.notification_preferences_view, name="notification_preferences"),
+    path("notifications/register/", views.notification_register_device, name="notification_register_device"),
+    path("notifications/intelligent-prompt/", views.notification_intelligent_prompt, name="notification_intelligent_prompt"),
+    path("notifications/history/", views.notification_history_view, name="notification_history"),
+    path("notifications/test/", views.notification_test_send, name="notification_test_send"),
+    # Marketplace (Roadmap item #5)
+    path("marketplace/state", views.marketplace_state_view, name="marketplace_state"),
+    path("marketplace/list", views.marketplace_list_view, name="marketplace_list"),
+    path("marketplace/buy", views.marketplace_buy_view, name="marketplace_buy"),
+    path("marketplace/cancel", views.marketplace_cancel_view, name="marketplace_cancel"),
+    # Bounties & 1v1 Duels (Roadmap N8)
+    path("bounties/state", views.bounties_state_view, name="bounties_state"),
+    path("bounties/create", views.create_bounty_view, name="create_bounty"),
+    path("bounties/<int:bounty_id>/accept", views.accept_bounty_view, name="accept_bounty"),
+    path("bounties/<int:bounty_id>/cancel", views.cancel_bounty_view, name="cancel_bounty"),
+    path("bounties/<int:bounty_id>/claim", views.claim_bounty_view, name="claim_bounty"),
     # Phase 9 (docs/15): Token, Gacha & Battle
     path("battle/state", views.battle_state, name="battle_state"),
     path("battle/campaign/<str:campaign>/", views.battle_campaign, name="battle_campaign"),

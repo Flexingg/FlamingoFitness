@@ -61,6 +61,85 @@ class SparkyFitnessClient(MockAPIClient):
             pass
         return {}
 
+    def _post(self, api_key, path, json_data=None):
+        """POST a JSON payload, returning response json on success or {} on error."""
+        try:
+            resp = requests.post(
+                f"{self.BASE_URL}{path}",
+                headers=self._headers(api_key),
+                json=json_data or {},
+                timeout=self.timeout,
+            )
+            if resp.status_code in (200, 201):
+                return resp.json()
+        except requests.RequestException:
+            pass
+        return {}
+
+
+    def search_foods(self, api_key, query):
+        """Search the SparkyFitness food database or return realistic matches."""
+        query_str = (query or "").strip().lower()
+        if api_key:
+            res = self._get(api_key, "/foods", params={"search": query_str, "limit": 15})
+            if isinstance(res, list) and res:
+                return res
+            if isinstance(res, dict) and "items" in res:
+                return res["items"]
+
+        # Catalog fallback / offline library
+        common_foods = [
+            {"id": "food-1", "name": "Chicken Breast (Cooked, Skinless)", "calories": 165, "protein": 31.0, "carbs": 0.0, "fat": 3.6, "serving": "100g"},
+            {"id": "food-2", "name": "Eggs (Large, Whole)", "calories": 74, "protein": 6.3, "carbs": 0.4, "fat": 5.0, "serving": "1 egg"},
+            {"id": "food-3", "name": "Egg Whites", "calories": 52, "protein": 11.0, "carbs": 0.7, "fat": 0.2, "serving": "100g"},
+            {"id": "food-4", "name": "Whey Protein Powder", "calories": 120, "protein": 24.0, "carbs": 3.0, "fat": 1.5, "serving": "1 scoop (30g)"},
+            {"id": "food-5", "name": "Greek Yogurt (Nonfat Plain)", "calories": 100, "protein": 17.0, "carbs": 6.0, "fat": 0.7, "serving": "170g"},
+            {"id": "food-6", "name": "Salmon Fillet (Wild Caught)", "calories": 208, "protein": 22.0, "carbs": 0.0, "fat": 13.0, "serving": "100g"},
+            {"id": "food-7", "name": "Ground Beef (93/7 Lean)", "calories": 172, "protein": 24.0, "carbs": 0.0, "fat": 8.0, "serving": "100g"},
+            {"id": "food-8", "name": "Brown Rice (Cooked)", "calories": 218, "protein": 4.5, "carbs": 45.8, "fat": 1.6, "serving": "1 cup (195g)"},
+            {"id": "food-9", "name": "Oatmeal (Rolled Oats, Dry)", "calories": 150, "protein": 5.0, "carbs": 27.0, "fat": 2.5, "serving": "1/2 cup (40g)"},
+            {"id": "food-10", "name": "Sweet Potato (Baked)", "calories": 103, "protein": 2.3, "carbs": 23.6, "fat": 0.2, "serving": "1 medium (114g)"},
+            {"id": "food-11", "name": "Avocado (Hass)", "calories": 160, "protein": 2.0, "carbs": 8.5, "fat": 14.7, "serving": "1/2 avocado (100g)"},
+            {"id": "food-12", "name": "Broccoli (Steamed)", "calories": 55, "protein": 3.7, "carbs": 11.2, "fat": 0.6, "serving": "1 cup (156g)"},
+        ]
+        if not query_str:
+            return common_foods
+
+        return [f for f in common_foods if query_str in f["name"].lower()]
+
+    def post_water_intake(self, api_key, water_ml, entry_date=None):
+        """Send a water intake log to SparkyFitness API."""
+        if not entry_date:
+            entry_date = timezone.localdate().isoformat()
+        payload = {
+            "water_ml": float(water_ml),
+            "entry_date": entry_date,
+            "source": "flamingo_sync",
+        }
+        if api_key:
+            return self._post(api_key, "/measurements/water-intake", json_data=payload)
+        return {"status": "mock_recorded", **payload}
+
+    def post_food_entry(self, api_key, food_name, calories, protein, carbs=0, fat=0, entry_date=None, meal_type="Lunch"):
+        """Send a food entry to SparkyFitness API."""
+        if not entry_date:
+            entry_date = timezone.localdate().isoformat()
+        payload = {
+            "food_name": str(food_name),
+            "calories": float(calories),
+            "protein": float(protein),
+            "carbs": float(carbs or 0),
+            "fat": float(fat or 0),
+            "entry_date": entry_date,
+            "meal_type": meal_type,
+            "quantity": 1,
+            "unit": "serving",
+            "source": "flamingo_sync",
+        }
+        if api_key:
+            return self._post(api_key, "/food-entries", json_data=payload)
+        return {"status": "mock_recorded", **payload}
+
     # -- payload normalizers (defensive about unknown shapes) --------------
     
     @staticmethod
