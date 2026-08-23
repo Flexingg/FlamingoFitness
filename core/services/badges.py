@@ -482,10 +482,17 @@ def sync_badge_defs():
         )
         if was_created:
             created += 1
-        elif not badge_def.rule:
-            badge_def.rule = item["rule"]
-            badge_def.points = item["points"]
-            badge_def.save(update_fields=["rule", "points"])
+        else:
+            to_update = []
+            if not badge_def.rule:
+                badge_def.rule = item["rule"]
+                badge_def.points = item["points"]
+                to_update.extend(["rule", "points"])
+            if badge_def.icon in ("fa-swords", "") and item["icon"] != badge_def.icon:
+                badge_def.icon = item["icon"]
+                to_update.append("icon")
+            if to_update:
+                badge_def.save(update_fields=to_update)
     return created
 
 

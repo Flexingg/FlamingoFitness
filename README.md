@@ -1,474 +1,240 @@
 # 🦩 Flamingo Fitness
 
-A Duolingo-style fitness web app that turns health data (sleep, nutrition,
-weightlifting, Peloton, Garmin) into gamified behavior: readiness-adjusted
-streaks, modality skill trees, a token/combat meta-game (Shop → Loadout → PvE
-sieges → PvP Gyms), leagues & badges, and asymmetric leaderboards.
+A vibrant, Duolingo-style gamified fitness and wellness web application that turns health habits (workouts, nutrition, hydration, sleep, and recovery) into RPG-style progression, streaks, skill trees, gacha loot, PvE boss sieges, PvP gym battles, and ranked leagues.
 
-Built strictly on **Django + PostgreSQL + Redis/Celery** with a **vanilla JS
-PWA** frontend (no React/Vue/Node). See `docs/` for the full spec.
+Built with **Django + PostgreSQL + Redis/Celery** with a responsive **Vanilla JS PWA** frontend (no heavy frontend frameworks, fast and mobile-first).
 
 ---
 
-## Quick Start (Docker)
+## 🌟 PART 1: USER & PLAYER GUIDE
 
-```powershell
-# 1. Configure environment (or copy the sample)
-Copy-Item .env.example .env
-#    ...edit .env with real secret key / passwords if needed
+### 🎯 What is Flamingo Fitness?
+Flamingo Fitness is designed to make daily health habits as addictive and rewarding as your favorite games. Rather than just staring at dry spreadsheets and charts, every workout you crush, meal you log, and solid night of sleep you get earns you **XP**, levels up your **Skill Trees**, earns **Tokens**, unlocks **Badges**, and powers your player for **PvE & PvP battles**.
 
-# 2. Build & start the whole stack
-docker compose up --build
+```mermaid
+flowchart LR
+    A[Log Habits\nWorkouts, Food, Sleep] --> B[Earn XP & Tokens]
+    B --> C[Level Up Skill Trees]
+    B --> D[Unlock 3D Badges]
+    B --> E[Pull Gacha Gear Packs]
+    E --> F[Equip 3-Slot Loadout]
+    F --> G[PvE Boss Sieges]
+    F --> H[PvP Gym Battles]
+    C --> I[Ranked Leagues & Flocks]
+```
 
-# 3. Seed demo users + data (admin/player1) inside the web container
-#    Accounts are also auto-created on every web container startup.
+---
+
+### 🕹️ Core Game Features
+
+#### 1. 🌳 Skill Trees & Modalities
+Progress through 5 core fitness disciplines, each with its own level-up curve and visual path:
+- 🏋️ **Strength**: Total volume lifted (lbs), personal records (PRs), and workout frequency.
+- 🏃 **Cardio / Endurance**: Total cardio minutes, distance, and zone intensity.
+- 🥗 **Nutrition**: Macro accuracy (protein goals) and consistent calorie tracking.
+- 💧 **Hydration**: Daily water targets and timing streaks.
+- 🌙 **Sleep & Recovery**: Sleep duration, quality, and Garmin Body Battery recovery.
+
+#### 2. 🏅 Achievement Badges (Duolingo-Styled)
+- **50+ Built-in Achievements**: Spanning Streaks, Milestones, Nutrition, Weight Loss, Calorie Burn, Sleep Habits, Boss Conquests, PvP Victories, Gear Collecting, and League Standings.
+- **3D Gamified Badges**: Vibrant radial medallions with gold sheen, checkmarks, lock indicators, and live progress bars.
+- **Mastery Header**: Duolingo-style progress bar displaying total badges unlocked, completion percentage (`% Complete`), and overall Badge Points (`pts`).
+- **Category Pills & Instant Search**: Smooth horizontal scrolling filter pills (All, Streaks, Nutrition, Weight, Burn, Sleep, PvE, PvP, Shop, Leagues) and real-time search.
+- **Interactive Achievement Popups**: Tap any badge to open an animated 3D achievement card detailing the requirements, reward points, progress tracker, and award date.
+
+#### 3. 🪙 Token Economy & Gacha Shop
+- **Earn Tokens**: Earn coins by logging healthy habits, hitting protein targets, maintaining streaks, and completing community challenges.
+- **Gacha Gear Packs**: Spend tokens to pull gear packs with bulk discounts (`1x`, `3x` with 10% off, `5x` with 15% off, `10x` with 20% off) and guaranteed rarity minimums (Common, Rare, Epic, Legendary).
+- **Scrap Economy**: Recycle unwanted or duplicate gear into scraps, and visit the daily rotating **Scrap Shop** for special items, stamina refills, and crates.
+
+#### 4. ⚔️ Loadout, PvE Boss Sieges & PvP Gyms
+- **3-Slot Tactical Loadout**: Equip Helmets, Armor, and Weapons with domain multipliers, synergy effects, and stat bonuses.
+- **PvE Campaign Bosses**: Engage in multi-boss campaigns for each modality (*Sir Skip-a-Leg → Iron Couch King → Deadlift Djinn*). Deal damage based on your real-world activity logs!
+- **PvP Gym Battles**: Establish your home gym territory, set your defense snapshot, and challenge other players in asynchronous gym battles.
+
+#### 5. 🏆 Leagues, Community Challenges & Flocks
+- **Weekly Ranked Leagues**: Compete on weekly XP leaderboards to earn promotion through tiers from *Bronze* all the way to *Flamingo Legend*.
+- **Community Challenges**: Join rolling 30-day challenges (e.g. collective calories burned or workouts logged).
+- **Flocks**: Form social fitness groups with friends to collaborate, track shared milestones, and chat.
+
+#### 6. 🌓 Theme Modes (Light, Dark, Device, Time)
+- **Custom Palettes**: Choose between clean crisp Light mode, neon Miami Dark mode, Device system theme, or automatic Time-based switching (automatically switches to Dark mode between 6:00 PM and 6:00 AM local time).
+
+#### 7. 📱 Mobile PWA Installation
+- Install Flamingo Fitness as a standalone Progressive Web App on iOS and Android:
+  - **iOS**: Open in Safari → Tap Share icon → **"Add to Home Screen"**.
+  - **Android / Chrome**: Tap menu (⋮) → **"Install app"** or **"Add to Home screen"**.
+
+---
+
+### 🔗 Connecting Health Trackers & Providers
+
+Navigate to **Profile** (bottom-nav icon or `/profile/`) to connect your health data providers:
+
+1. **SparkyFitness (`fit.randalls.cc`)**:
+   - Paste your API key in the SparkyFitness integration field and tap **Link & Sync**.
+   - Automatically ingests your sleep, calories, macros, and hydration logs, awarding XP and tokens on sync (syncs every 4 hours automatically via Celery Beat).
+2. **Third-Party Providers & Manual Logging**:
+   - Easily log activities directly in the app or sync from integrated fitness APIs.
+
+---
+
+## 🛠️ PART 2: SELF-HOSTER & ADMIN GUIDE
+
+### 🚀 Quick Start (Docker Compose)
+
+The easiest way to self-host Flamingo Fitness is with Docker Compose:
+
+```bash
+# 1. Clone repository & copy environment template
+git clone https://github.com/Flexingg/FlamingoFitness.git
+cd FlamingoFitness
+cp .env.example .env
+
+# 2. Edit .env with your secrets and domains
+nano .env
+
+# 3. Build and launch the stack
+docker compose up -d --build
+
+# 4. (Optional) Seed demo data / initial catalog
 docker compose exec web python manage.py seed_demo
 ```
 
-Then open:
-
-- Dashboard → http://localhost:8000  (log in as `admin` / `adminpass123`
-  or `player1` / `playerpass123`; it redirects through `/admin/login/`)
-- Admin panel → http://localhost:8000/admin
-
-Services started by compose: `db` (Postgres 15), `redis` (7), `web`
-(Gunicorn), `celery_worker`, `celery_beat`.
-
-> Note: `db` is published on host port **5433** (not 5432) to avoid clashing
-> with any local Postgres you may already have running.
+Access the application:
+- **Web App**: `http://localhost:8000` (or your configured `WEB_PORT` / domain)
+- **Django Admin**: `http://localhost:8000/admin`
+- **Default Superuser**: `admin` / `adminpass123`
+- **Default Player**: `player1` / `playerpass123`
 
 ---
 
-## Accounts & SparkyFitness linking
+### ⚙️ Environment Variables (`.env`)
 
-- **Sign up** at `/signup/` (username + password → auto-login).
-- **Log in / out** at `/login/` and `/logout/`.
-- **Profile / link providers** at `/profile/` (also linked from the
-  dashboard's bottom nav).
-
-To link your **SparkyFitness** account (docs/10):
-1. Go to `/profile/`.
-2. Paste your `fit.randalls.cc` API key into the form and hit **Link & Sync**.
-3. The app immediately polls SparkyFitness and dumps sleep + nutrition into
-   `RawActivityLog`, converts them to XP (perfect macros → +50 Nutrition XP
-   and +25 Tokens, perfect hydration → +10 Tokens), and keeps syncing every
-   4 hours via Celery Beat.
-
-**No API key?** Leave it blank — the client returns realistic demo data only
-when the `DEMO` environment variable is set to `true` (off by default). With
-`DEMO=False` the dashboard shows the **Link SparkyFitness** CTA instead.
-
-> The SparkyFitness client targets the `fit.randalls.cc/api` endpoints
-> (`/sleep/analytics`, `/food-entries/range/...`, `/goals/by-date/...`) with
-> defensive parsing, so unknown field shapes degrade gracefully instead of
-> crashing a poll.
+| Variable | Default | Description |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | `dev-insecure-secret-key...` | Cryptographic signing key (set a long random string in production). |
+| `DJANGO_DEBUG` | `False` | Set `False` in production, `True` for development. |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1,web` | Comma-separated allowed hostnames or IPs (e.g. `flamingo.randalls.cc,devflamingo.randalls.cc`). |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | *(empty)* | Comma-separated origins allowed for POST forms (e.g. `https://flamingo.randalls.cc,https://devflamingo.randalls.cc`). |
+| `WEB_PORT` | `8000` | Host port mapped to the web container. |
+| `POSTGRES_DB` | `flamingo_fitness` | Postgres database name. |
+| `POSTGRES_USER` | `flamingo` | Postgres username. |
+| `POSTGRES_PASSWORD` | `flamingo-dev-password` | Postgres password. |
+| `POSTGRES_HOST` | `db` | Database host container. |
+| `POSTGRES_PORT` | `5432` | Database internal port. |
+| `REDIS_URL` | `redis://redis:6379/0` | Redis URL for Celery task broker and cache. |
+| `DEMO` | `False` | If `True`, enables mock API data for unlinked providers. |
 
 ---
 
-## 🏅 Achievement badges
+### 🌐 Reverse Proxy & SSL Configuration
 
-Badges are lightweight, derived achievements (Roadmap idea #5). Nothing new
-is ingested — every badge's earn condition is a small **rule** evaluated
-against data the app already stores (streak, activity logs, skill trees,
-lifetime XP, and the Phase 9 PvE / PvP / Shop / league state). Grants happen
-**lazily** whenever the dashboard calls `GET /api/v1/badges/`, and a badge is
-never granted twice.
+When hosting behind a reverse proxy (e.g., **Cloudflare Tunnel**, **Nginx Proxy Manager**, **Caddy**, or **Traefik**):
 
-Each badge carries a difficulty-scaled number of **Badge Points** (5 = trivial
-→ 100 = very hard); the panel header shows both the badge count and the
-points total (`earned / overall`). Badge tiles are **clickable**:
+1. **Forward HTTPS Headers**: Django is configured with `SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")`. Ensure your proxy sets `X-Forwarded-Proto: https` and `X-Forwarded-For: $remote_addr`.
+2. **Set Allowed Hosts & CSRF Origins in `.env`**:
+   ```ini
+   DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,web,flamingo.randalls.cc,devflamingo.randalls.cc
+   DJANGO_CSRF_TRUSTED_ORIGINS=https://flamingo.randalls.cc,https://devflamingo.randalls.cc
+   ```
+3. **Port Mapping**: The internal Gunicorn server binds to port `8000`. Map your host port via `WEB_PORT=7777` or proxy directly to the container.
 
-- **Earned badge** → detail view with what the badge means and the date it
-  was achieved.
-- **Locked badge** → detail view with a progress bar plus a "what is left"
-  hint, e.g. *"Current streak: 4 of 10 days."*
+---
 
-### Creating a new badge in the admin console (no code needed)
+### 🏛️ Architecture & Services
 
-1. Log in to the admin panel → **Badge defs** → **Add badge def**.
-2. Fill in the display fields:
-   - **Key** — unique slug used internally, e.g. `marathon_month`.
-   - **Name / Description** — the title and the "what it means" text players
-     see in the detail view.
-   - **Icon** — any FontAwesome 6 class without the `fa-solid` prefix, e.g.
-     `fa-person-running`.
-   - **Category** — free-form grouping label (Streaks, PvE, PvP, Shop, Leagues…).
-   - **Points** — Badge Points for the badge; scale with difficulty
-     (5 trivial · 10 easy · 25–50 medium · 75–100 hard).
-   - **Sort order / Is active** — panel ordering and an on/off switch.
-3. Write the earn condition in the **Rule** field as a single JSON object
-   (reference table below), e.g. `{"type": "streak", "minimum": 30}`. The
-   admin form lists all supported rule types under the field.
-4. **Save** — that's it. No deploy or code change is needed: the badge
-   appears in every player's Badges panel on their next dashboard load and is
-   granted automatically the first time its rule passes.
+The Docker Compose stack consists of 5 coordinated services:
+- **`web`**: Django application running with Gunicorn (3 workers), serving static assets via WhiteNoise and compressed CSS/JS bundles.
+- **`db`**: PostgreSQL 15 database (Alpine). Published on host port `5433` by default to avoid conflicting with host Postgres.
+- **`redis`**: Redis 7 cache and Celery broker.
+- **`celery_worker`**: Celery asynchronous background worker handling habit evaluations, SparkyFitness syncs, and combat resolutions.
+- **`celery_beat`**: Scheduled task runner triggering periodic background syncs every 4 hours.
 
-> Tip: to hide a badge temporarily, untick **Is active**. Existing grants
-> (see **User badges** in the admin) are kept, and owners see the badge again
-> once it is re-activated. A badge saved with an empty or unknown rule simply
-> stays locked and shows *"No earn rule configured for this badge yet."* in
-> its detail view — handy while drafting.
+---
 
-### Rule reference
+### 🏅 Badge Defs & Rules Customization
 
-| `type` | Extra keys | Earned when… | Example |
+Badges require **zero code changes** to create or modify. You can manage them directly via the Django admin (`/admin/` → **Badge defs**) or in `config/seeds/badges.json`:
+
+| `rule.type` | Extra Parameters | Description | Example Rule JSON |
 |---|---|---|---|
-| `streak` | `minimum` | streak reaches N days | `{"type": "streak", "minimum": 30}` |
+| `streak` | `minimum` | Earned when streak reaches N days | `{"type": "streak", "minimum": 30}` |
 | `activity_logs` | `minimum` | N total activities logged | `{"type": "activity_logs", "minimum": 50}` |
-| `perfect_days` | `days` | activity on each of the last N days | `{"type": "perfect_days", "days": 7}` |
-| `skill_level` | `modality`, `minimum` | one skill tree reaches level N | `{"type": "skill_level", "modality": "strength", "minimum": 5}` |
-| `all_modalities` | `minimum` | every skill tree reaches level N | `{"type": "all_modalities", "minimum": 3}` |
-| `total_xp` | `minimum` | lifetime XP reaches N | `{"type": "total_xp", "minimum": 500}` |
-| `time_window` | `before_hour` **or** `after_hour` | any activity logged in that local-time window | `{"type": "time_window", "after_hour": 21}` |
+| `perfect_days` | `days` | Activity logged on all N consecutive days | `{"type": "perfect_days", "days": 7}` |
+| `skill_level` | `modality`, `minimum` | Specific skill tree reaches level N | `{"type": "skill_level", "modality": "strength", "minimum": 5}` |
+| `all_modalities` | `minimum` | All skill trees reach level N | `{"type": "all_modalities", "minimum": 3}` |
+| `total_xp` | `minimum` | Lifetime XP reaches N | `{"type": "total_xp", "minimum": 1000}` |
+| `time_window` | `before_hour` or `after_hour` | Activity logged in local time window | `{"type": "time_window", "after_hour": 21}` |
 | `conquests` | `minimum` | N campaign bosses conquered | `{"type": "conquests", "minimum": 5}` |
 | `siege_damage` | `minimum` | N total siege damage dealt | `{"type": "siege_damage", "minimum": 250000}` |
-| `pvp_wins` | `minimum` | N gym battles won | `{"type": "pvp_wins", "minimum": 5}` |
-| `gear_owned` | `minimum`, `rarity`? | N gear items owned (optionally of a rarity) | `{"type": "gear_owned", "minimum": 10}` |
+| `pvp_wins` | `minimum` | N gym battles won | `{"type": "pvp_wins", "minimum": 10}` |
+| `gear_owned` | `minimum`, `rarity`? | N gear items owned | `{"type": "gear_owned", "minimum": 25}` |
 | `league_results` | `minimum` | N ranked league weeks finished | `{"type": "league_results", "minimum": 4}` |
 | `league_top3` | `minimum` | N top-3 league finishes | `{"type": "league_top3", "minimum": 1}` |
-| `league_tier` | `tier` | highest league tier reaches the given tier | `{"type": "league_tier", "tier": "gold"}` |
-
-The whole built-in catalog (streaks, habits, sleep, nutrition, burn, plus the
-Phase 9 PvE / PvP / Shop / Leagues badges) lives as plain JSON in
-`config/seeds/badges.json` and is seeded into the `BadgeDef` table by
-`sync_badge_defs()` (which runs on every badges poll — no manual re-seed
-needed). Every built-in badge is just a row in the same `BadgeDef` table —
-edit, re-point or deactivate it like any badge you create yourself. (The old
-base-era `base_level` / `blueprints` rules and the *Base Tycoon* /
-*Blueprint Hunter* badges were **removed** when the base game was ripped out
-in Phase 9.)
-
+| `league_tier` | `tier` | Reached specific tier (e.g. `gold`, `flamingo_legend`) | `{"type": "league_tier", "tier": "gold"}` |
 
 ---
 
-## Local (no Docker) Development
+### 📦 Content Seeding (`config/seeds/`)
 
-Any editor/shell from the project root:
+All built-in catalog data is stored as plain JSON files in `config/seeds/`:
+- `badges.json` → Achievement badges and declarative rules.
+- `packs.json` → Gacha Shop crates and packs.
+- `gear_items.json` → Droppable weapons, armor, and consumables.
+- `scrap_shop.json` → Rotating Scrap Shop deals and weekday schedules.
+- `campaign_bosses.json` → PvE bosses, HP pools, and elemental resistances.
+- `gameplay.json` → Global balance knobs (XP rates, drop weights, stamina caps).
+
+---
+
+### 💻 Local (Non-Docker) Development
 
 ```powershell
+# Create and activate Python virtual environment
 python -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-# Fall back to SQLite if no Postgres env is present:
-.venv\Scripts\python manage.py migrate
-.venv\Scripts\python manage.py seed_demo
-.venv\Scripts\python manage.py runserver
+.venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run migrations (falls back to local SQLite automatically if no Postgres env)
+python manage.py migrate
+python manage.py create_demo_accounts
+
+# Run development server
+python manage.py runserver
 ```
 
-To run jobs manually (what Celery would do):
+#### Running Automated Tests
 ```powershell
-.venv\Scripts\python manage.py shell -c "from core.tasks import poll_garmin, poll_peloton, poll_liftosaur; poll_garmin(); poll_peloton(); poll_liftosaur()"
+# Run full test suite with test settings
+python manage.py test --settings=flamingo_fitness.test_settings
+
+# Run specific badge tests
+python manage.py test core.tests.BadgeTests --settings=flamingo_fitness.test_settings
 ```
 
 ---
 
-## What's implemented (maps to docs/07_Next_Steps.md)
+### 🛠️ Useful Management Commands
 
-**Phase 1 — Infrastructure**
-- Django project `flamingo_fitness` + `core` app
-- `docker-compose.yml` (Postgres, Redis, Web, Celery worker & beat)
-- `requirements.txt`, `Dockerfile`, `.env.example`, `.dockerignore`
+```powershell
+# Create default demo accounts (admin / player1)
+python manage.py create_demo_accounts
 
-**Phase 2 — Data models** (`core/models.py`)
-- Custom `User`, `UserIntegration`, `RawActivityLog` (JSONB), `XPLedger`,
-  `SkillTree`, `DailyReadiness`, `BossConfig`, plus the Phase 9 combat models
-  (`PlayerProfile`, `GearPackDef`, `GearItemDef`, `UserGear`, `CampaignBoss`,
-  `CampaignProgress`, `BattleLog`, `Gym`, `PvPMatch`)
-- Django admin for all models + migrations
+# Full demo re-seed
+python manage.py seed_demo
 
-**Phase 3 — Ingestion / async** (`core/services`, `core/tasks.py`)
-- Celery config + Beat schedule in `settings.py`
-- Mock API clients (Garmin / Peloton / Liftosaur) returning realistic payloads
-- Polling tasks that save to `RawActivityLog` and process XP
+# Collect static assets
+python manage.py collectstatic --noinput
 
-**Phase 4 — Gamification** (`core/services/gamification.py`, `readiness.py`)
-- Effort XP math per `docs/03_gamification_math.md`
-- Skill-tree progression with level-ups
-- Readiness engine (rest-day vs. training mandate)
-
-**Phase 5 — API** (`core/views.py`, `core/urls.py`)
-- `GET /api/v1/dashboard/state`
-- `GET /api/v1/leaderboard/weekly`
-- `GET /api/v1/badges/` — achievement badges: points, awarded dates, live
-  progress and lazy granting (see **Achievement badges** below)
-- `GET /api/v1/stats/<stat>/` — top-nav stat explainers: clicking the
-  streak / tokens / stamina badges shows what the stat means, how to earn it,
-  and recent history of earning it (`streak`, `tokens`, `stamina`)
-- `POST /api/v1/webhooks/home-assistant`
-- Modality panels: `GET /api/v1/nutrition/`, `/api/v1/hydration/`, `/api/v1/endurance/`, `/api/v1/strength/`, `/api/v1/boss/` (incl. personal records), `/api/v1/recovery/`
-- **Leagues / Challenges / Flocks (Phase 8)**: `GET /api/v1/leagues/`
-  (weekly league board with tiers + history), `GET /api/v1/challenges/`
-  (single active challenge — default: calories burned in the last 30 days),
-  `GET /api/v1/social/?q=`, `POST /api/v1/friends/request|respond|remove`,
-  `POST /api/v1/flocks/create|invite|respond|leave` (see `docs/13`)
-
-**Phase 6 — Frontend / PWA** (`core/templates`, `core/static`)
-- Django template dashboard (single-file `core/templates/core/dashboard.html`)
-- Vanilla JS `fetch()` rendering (`dashboard.js`, `nutrition.js`, `hydration.js`, `endurance.js`, `strength.js`, `boss.js`, `recovery.js`, plus Phase 9: `shop.js`, `loadout.js`, `battle.js`, `pvp.js`) + service worker + `manifest.json` + icons
-
-## 🎮 Phase 9 — Tokens, Gacha, Loadout, Battle & PvP (docs/15)
-
-The old "base" meta-game (materials / energy / buildings) is gone, replaced by a
-token economy + combat RPG loop: **track your habits → earn Tokens → pull packs
-in the Shop → equip a 3-slot Loadout → siege PvE bosses → hold PvP Gyms.** The
-player keeps `tokens` / `stamina` in their `PlayerProfile`.
-
-Everything you add lives in four tables you edit in the Django admin
-(`/admin/`) or seed from `core/management/commands/create_demo_accounts.py`:
-
-| Model | What it is | Walks the player through… |
-|---|---|---|
-| `GearPackDef` | A purchasable Shop pack/crate | Spending tokens; winning items |
-| `GearItemDef` | A single droppable item/consumable | Being found and equipped |
-| `CampaignBoss` | A PvE boss for a domain | Siege HP bar + attack flow |
-| `Gym` | Your PvP home turf | Being attacked / holding territory |
-
-### ➕ Adding a Shop pack or crate
-
-1. **Admin:** `Admin → Gear pack defs → Add gear pack def`, set:
-   - `slug` (unique, URL-safe), `name`, `price_tokens`, `draws` (items per buy),
-     `domains` (JSON list of `cardio|strength|nutrition|hydration|sleep`;
-     empty = "no filter"), `guaranteed_min_rarity`, `sort_order`.
-   - **Crates:** tick **`is_generic`** so the pack draws from the *entire* active
-     gear catalog instead of only its own items (a normal pack only drops gear
-     whose `GearItemDef.pack` points at it).
-   - **Bulk discount** is automatic: buying `3 → 10%`, `5 → 15%`, `10 → 20%`
-     off (`BULK_DISCOUNTS` in `core/services/combat.py`).
-2. **Seeding:** add a dict to `config/seeds/packs.json` (loaded at seeding time —
-   see **docs/16** for the Google-Sheet workflow).
-3. **Coding:** no code needed (the Shop reads `GET /api/v1/shop/state` and
-   `POST /api/v1/shop/open {pack_slug, quantity}` automatically).
-
-### ➕ Adding a gear item
-
-1. **Admin:** `Admin → Gear item defs → Add gear item def`, set:
-   - `slug`, `name`, `slot` (`head` / `chest` / `left_hand` / `right_hand` /
-     `legs` / `feet` / `accessory` — or leave blank for a consumable),
-     `rarity`, `icon` (a **free** FontAwesome class, e.g.
-     `fa-shirt`, `fa-helmet-safety`, `fa-hand-fist`; avoid Pro-only names like
-     `fa-helmet-battle` which render invisible), `effect_type`, `effect_domain`,
-     `effect_value`, and `pack` (which pack can drop it).
-   - `effect_type` options (see **docs/16** for full details):
-     `domain_multiplier` (scales a domain's damage), `synergy` (domain multiplier
-     gated by sleep efficiency), **`flat_bonus`** (bare stat increase), **`scales_with`**
-     (boost derived from another metric via `effect_params.scales_from`),
-     **`stamina_cap`** (more daily stamina), **`token_multiplier`** (more daily
-     coins), `double_domain` / `shield_overage` (consumables), and **`stamina_refund`**
-     (earn back stamina) / **`grant_tokens`** (earn extra coins) consumables.
-   - Consumables: tick `is_consumable`, set `max_stack` (default 9).
-2. **Seeding:** add a dict to `config/seeds/gear_items.json` (its `pack` key is the
-   pack `slug`). No Python code is required — the seeding command reads the JSON.
-3. **Make it discoverable**: attach it to a pack (or make it part of a generic
-   crate's catalog). Unpacked gear never drops anywhere.
-4. Re-run the seeder (idempotent by `slug`):
-   `manage.py create_demo_accounts` (or `manage.py seed_demo` in Docker).
-
-### ➕ Scrap economy (recycle → scraps → rotating Scrap Shop)
-
-- Any owned, **unequipped** item can be **recycled** from the Shop panel
-  (`POST /api/v1/scrap/recycle`) into **scraps** — value scales with rarity
-  (Common 5 / Rare 15 / Epic 40 / Legendary 100).
-- Scraps are spent in the **Scrap Shop** (`GET /api/v1/scrap/shop/state`, buy via
-  `POST /api/v1/scrap/shop/buy`). The offering **rotates by day of week**: each
-  `ScrapShopItem.available_days` is a list of weekday ints (`0`=Mon … `6`=Sun).
-- Seed deals in `config/seeds/scrap_shop.json`; the full design guide lives in
-  **docs/16** (including the Google-Sheet authoring + `tools/code.gs` exporter).
-
-### ➕ Adding a PvE campaign boss
-
-1. **Admin:** `Admin → Campaign bosses → Add campaign boss`, set:
-   - `campaign` (`cardio`, `strength`, `nutrition`, `hydration`, `sleep`),
-     `slug`, `name`, `icon` (free icon), `hp_total`, `element`, `sort_order`.
-   - `weaknesses` / `resistances`: JSON lists of domains that deal **2×** /
-     **0.5×** damage to it (leave both `[]` for a neutral boss).
-   - `mechanics`: JSON dict of optional flags — `{"heal_on_overage": true}`
-     (Nutrition heals when calories exceed goal) or
-     `{"front_load_water_noon": true}` (Hydration takes 2× when ≥50% of water
-     was logged before noon).
-2. **Seeding:** add a tuple `(campaign, slug, name, hp, element, weaknesses,
-   resistances, mechanics)` to `DEFAULT_CAMPAIGN_BOSSES`. The seeder assigns a
-   sequential per-campaign `sort_order` so defeating a boss auto-advances you to
-   the next one (the campaign is "built out" with several bosses, e.g. the three
-   Strength bosses now seeded: *Sir Skip-a-Leg → Iron Couch King → Deadlift
-   Djinn*).
-
-### ➕ Setting up PvP Gyms
-
-- Each user's Gym is created + snapshotted from `POST /api/v1/pvp/defend`
-  (`terrain`, `name`). Attack resolution is instant async and reuses the weekly
-  `XPLedger` consistency in `Gym.defense_snapshot`.
-- To seed a live arena so PvP is populated on boot, the demo command creates a
-  `Gym` for both `player1` and `admin` (see `handle()` in
-  `create_demo_accounts.py`).
-
-### ⚙️ After any of the above
-
-- Model changes (new field/table): `manage.py makemigrations core` then
-  `manage.py migrate`.
-- Seeding-only changes: `manage.py create_demo_accounts` is idempotent via
-  `get_or_create`, so re-run it (or recreate the DB with `docker compose down -v`
-  for a clean slate).
-- Validate: `manage.py check`, the test suite (`Testing` below), and
-  `node --check core/static/core/js/**/*.js` if frontend JS changed.
-- Full design + rulebook math: **`docs/15_Gacha_Battle_Replacing_Base.md`**.
+# Force compress static assets
+python manage.py compress --force
+```
 
 ---
 
-## 🧪 Seeding the config with custom data
+## 📄 License
+MIT License. Built for fitness enthusiasts, self-hosters, and gamers.
 
-Every droppable / purchasable entry lives as **plain JSON** in **`config/seeds/`**
-and is loaded by the seeder — **no Python changes are needed for normal content
-edits**. This is the fastest way to prototype items, packs, and scrap-shop deals:
-
-| File | Model it seeds | One JSON entry… |
-|---|---|---|
-| `config/seeds/packs.json` | `GearPackDef` | a Shop pack/crate |
-| `config/seeds/gear_items.json` | `GearItemDef` | one droppable item/consumable |
-| `config/seeds/scrap_shop.json` | `ScrapShopItem` | a rotating Scrap Shop deal |
-| `config/seeds/campaign_bosses.json` | `CampaignBoss` | one PvE campaign boss (campaign, HP, element, weaknesses/resistances/mechanics) |
-| `config/seeds/boss_configs.json` | `BossConfig` | one PR Boss benchmark (lift name + bodyweight multiplier) |
-| `config/seeds/challenges.json` | `Challenge` | a rolling community challenge |
-| `config/seeds/badges.json` | `BadgeDef` | a built-in achievement badge (points + rule) — seeded via `sync_badge_defs()` |
-
-### ⚙️ Gameplay tuning (numbers)
-
-Balance knobs — token/stamina economy, gacha odds, combat/PvP numbers, league
-tiers & weekly rewards, XP-per-level and the readiness rest-day threshold —
-live in **`config/gameplay.json`** (loaded by `core/services/game_config.py`,
-bound into the services as module-level constants). Edit a number there and the
-running workers pick it up on their next code reload; no DB migration, and no
-code editing is needed to retune the game.
-
-> Structural constants that aren't "balance" (ragged slot ids, campaign event
-> maps, weekday names) intentionally stay in Python.
-
-
-### When seeding runs
-
-```powershell
-# Local (no Docker)
-.venv\Scripts\python manage.py create_demo_accounts
-
-# Inside Docker (also runs on web-container startup; seed_demo wraps it too)
-docker compose exec web python manage.py seed_demo
-```
-
-### How the seeder merges (get_or_create by `slug`)
-
-The command uses Django's `get_or_create(slug=…, defaults=…)`:
-
-- **New `slug`** → the row is inserted with the JSON's fields, then the demo
-  `player1` starter inventory/user records are set up.
-- **Existing `slug`** → the row is left untouched (get_or_create does **not**
-  update an already-existing row). To change an item that's already seeded,
-  either:
-  1. Edit it in the Django admin (`/admin/` — `Gear item defs` etc.), or
-  2. Delete the row and re-run the seeder, or
-  3. Recreate the database from scratch:
-     `docker compose down -v` → `docker compose up --build` → `seed_demo`.
-
-So the rule of thumb is: **add new slugs freely and re-seed; for edits, use the
-admin or delete-then-re-seed.**
-
-### Example — add a gear item with a new effect type
-
-Append to `config/seeds/gear_items.json` (inside the top-level `[ ]` array):
-
-```json
-{
-  "slug": "flux_cape",
-  "name": "Flux Cape",
-  "slot": "chest",
-  "rarity": "epic",
-  "icon": "fa-cape",
-  "effect_type": "scales_with",
-  "effect_domain": "cardio",
-  "effect_value": 0.5,
-  "effect_params": { "scales_from": "strength" },
-  "pack": "cardio_storm",
-  "weight": 40,
-  "description": "Adds 50% of your Strength base damage to Cardio sieges.",
-  "is_active": true,
-  "sort_order": 210
-}
-```
-
-`effect_type` / `effect_params` supported values are listed in the **Adding a
-gear item** section above and documented in depth in **docs/16**.
-
-### Example — add a Scrap Shop deal
-
-Append to `config/seeds/scrap_shop.json`:
-
-```json
-{
-  "slug": "scrap_energy_pack",
-  "name": "Energy Refill",
-  "icon": "fa-bolt",
-  "description": "Refills 3 stamina.",
-  "cost_scraps": 60,
-  "available_days": [0, 2, 4],
-  "reward_type": "stamina",
-  "reward_value": 3,
-  "is_active": true,
-  "sort_order": 60
-}
-```
-
-`available_days` is a list of weekday ints (`0`=Mon … `6`=Sun) — an empty list
-means **every day**. `reward_type` is `tokens` / `stamina` / `pack` (for `pack`,
-also set the `"pack"` key to a `packs.json` slug).
-
-### Disabling / experimenting
-
-- Set `"is_active": false` to hide an item or deal without deleting it — it stays
-  in the catalog but never drops/sells and is filtered from the UI.
-- Adjust `weight` to tune drop rates, `rarity` / `effect_value` to tune power, and
-  `sort_order` to control inventory ordering.
-
-### Verify after seeding
-
-```powershell
-.venv\Scripts\python manage.py check
-.venv\Scripts\python manage.py shell -c "from core.models import GearItemDef, GearPackDef, ScrapShopItem; print('gear', GearItemDef.objects.count(), 'packs', GearPackDef.objects.count(), 'scrap deals', ScrapShopItem.objects.count())"
-```
-
-Run the suite with `Testing` below. For the **Google Sheet** authoring flow
-(where `config/seeds/*.json` come from), see **docs/16** and **`tools/code.gs`**.
-
-
----
-
-## Testing
-
-```powershell
-.venv\Scripts\python manage.py test core --settings=flamingo_fitness.test_settings
-```
-
-The `test_settings` shim forces the SQLite fallback + a fast password hasher
-so the suite runs without the Docker stack (the repo `.env` points Postgres /
-Redis at container hostnames). Inside Docker, plain `manage.py test core`
-works as usual.
-
-The suite covers the XP math (endurance/strength/sleep/body-battery/nutrition),
-the gamification flow (PR boss bonuses, level-ups, token awards), the readiness
-thresholds, the token/combat economy (gacha, loadouts, sieges, PvP),
-leagues/challenges/flocks, badges and the API endpoints.
-
----
-
-## Demo credentials
-
-| Role      | Username | Password       |
-|-----------|----------|----------------|
-| Superuser | `admin`  | `adminpass123` |
-| Player    | `player1`| `playerpass123`|
-
-## Useful Django commands
-
-```powershell
-.venv\Scripts\python manage.py shell               # interactive shell
-.venv\Scripts\python manage.py create_demo_accounts # create admin + player (idempotent)
-.venv\Scripts\python manage.py seed_demo           # recreate demo data + pollers
-.venv\Scripts\python manage.py makemigrations core # after model changes
-.venv\Scripts\python manage.py migrate
-```

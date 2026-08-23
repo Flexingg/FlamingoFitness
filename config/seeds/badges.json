@@ -751,7 +751,7 @@
     "key": "conquests_5",
     "name": "Boss Slayer",
     "description": "Conquer 5 campaign bosses.",
-    "icon": "fa-swords",
+    "icon": "fa-skull-crossbones",
     "category": "PvE",
     "sort_order": 201,
     "points": 25,
