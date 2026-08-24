@@ -1,11 +1,192 @@
 <section class="hidden p-4 min-h-full bg-slate-900" id="pvp-view">
-    <div class="flex items-center gap-4 mb-6 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
-        <button class="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="pvp-back" onclick="backToPvPPlan()">
-            <i class="fa-solid fa-arrow-left text-xl"></i>
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-3 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-sm py-3 z-20 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <button class="w-11 h-11 rounded-2xl bg-slate-800 border border-slate-600 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="pvp-back" onclick="backToPvPPlan()">
+                <i class="fa-solid fa-arrow-left text-lg"></i>
+            </button>
+            <div>
+                <h2 class="text-2xl font-black text-white flex items-center gap-2 leading-none" id="pvp-header-title">
+                    <i class="fa-solid fa-fist-raised text-rose-500" id="pvp-header-icon"></i> PvP Arena
+                </h2>
+                <div class="text-[11px] font-bold text-slate-400 mt-1" id="pvp-header-sub">Gym Battles &amp; Fitness Duels</div>
+            </div>
+        </div>
+
+        <button id="pvp-post-bounty-btn" class="hidden bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-black text-xs px-3.5 py-2 rounded-2xl border-b-4 border-pink-800 active:border-b-0 active:translate-y-1 transition-all shadow-lg flex items-center gap-1.5" onclick="openCreateBountyModal()">
+            <i class="fa-solid fa-plus"></i> Post Bounty
         </button>
-        <h2 class="text-2xl font-black text-white flex items-center gap-2">
-            <i class="fa-solid fa-fist-raised text-green-400"></i> PvP
-        </h2>
     </div>
-    <div id="pvp-content"></div>
+
+    <!-- Mode Switcher Tabs: Gym Battles vs Bounties & Duels -->
+    <div class="flex bg-slate-800 rounded-2xl p-1.5 mb-5 border border-slate-600 shadow-inner" id="pvp-mode-tabs">
+        <button class="pvp-mode-btn active flex-1 py-2.5 text-xs font-black text-white bg-slate-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow" id="btn-mode-gyms" onclick="switchPvPMode('gyms')">
+            <i class="fa-solid fa-dumbbell text-rose-400"></i> Gym Battles
+        </button>
+        <button class="pvp-mode-btn flex-1 py-2.5 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-2 hover:text-slate-200" id="btn-mode-bounties" onclick="switchPvPMode('bounties')">
+            <i class="fa-solid fa-crosshairs text-pink-400"></i> Bounties &amp; Duels
+        </button>
+    </div>
+
+    <!-- Mode 1: Gym Battles Content Pane -->
+    <div id="pvp-gyms-pane">
+        <div id="pvp-content">
+            <div class="text-center py-10 text-slate-400 font-bold text-sm">
+                <i class="fa-solid fa-spinner fa-spin mr-2 text-rose-400"></i> Scouting the arena...
+            </div>
+        </div>
+    </div>
+
+    <!-- Mode 2: Bounties & Duels Content Pane -->
+    <div id="pvp-bounties-pane" class="hidden">
+        <!-- Currency Wallet Ribbon -->
+        <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-3 mb-4 flex items-center justify-between shadow-inner">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 text-sm">
+                    <i class="fa-solid fa-coins"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Tokens Staked</div>
+                    <div class="text-sm font-black text-white" id="bounty-wallet-tokens">0</div>
+                </div>
+            </div>
+            <div class="h-6 w-[1px] bg-slate-700"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-sm">
+                    <i class="fa-solid fa-recycle"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Scraps Staked</div>
+                    <div class="text-sm font-black text-white" id="bounty-wallet-scraps">0</div>
+                </div>
+            </div>
+            <div class="h-6 w-[1px] bg-slate-700"></div>
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-slate-400">Crushed</div>
+                    <div class="text-sm font-black text-white" id="bounty-total-won">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sub-tabs -->
+        <div class="bounties-tabs flex bg-slate-800 rounded-2xl p-1.5 mb-4 border border-slate-600 shadow-inner" id="bounties-tabs">
+            <button class="bounties-tab active flex-1 py-2 text-xs font-black text-white rounded-xl transition-all flex items-center justify-center gap-1.5" data-tab="active" onclick="switchBountiesTab('active')">
+                <i class="fa-solid fa-bolt text-yellow-400"></i> Active <span class="bg-slate-700 px-1.5 py-0.5 rounded-full text-[10px] hidden" id="bounty-badge-active">0</span>
+            </button>
+            <button class="bounties-tab flex-1 py-2 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-1.5" data-tab="open" onclick="switchBountiesTab('open')">
+                <i class="fa-solid fa-scroll text-pink-400"></i> Board
+            </button>
+            <button class="bounties-tab flex-1 py-2 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-1.5" data-tab="duels" onclick="switchBountiesTab('duels')">
+                <i class="fa-solid fa-handshake-angle text-blue-400"></i> Duels <span class="bg-blue-600 text-white px-1.5 py-0.5 rounded-full text-[10px] hidden" id="bounty-badge-duels">0</span>
+            </button>
+            <button class="bounties-tab flex-1 py-2 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-1.5" data-tab="vault" onclick="switchBountiesTab('vault')">
+                <i class="fa-solid fa-box-archive text-emerald-400"></i> Vault
+            </button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="space-y-3 pb-8" id="bounties-content">
+            <div class="text-center py-10 text-slate-400 font-bold text-sm">
+                <i class="fa-solid fa-spinner fa-spin mr-2 text-pink-400"></i> Loading contracts &amp; duels...
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Bounty Modal -->
+    <div class="modal-overlay" id="createBountyModal" style="z-index: 120;">
+        <div class="modal-content rounded-[2rem] p-6 border border-slate-700 shadow-2xl w-[92%] max-w-sm m-auto bg-slate-900 text-slate-100 max-h-[85vh] overflow-y-auto no-scrollbar">
+            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                <h3 class="text-xl font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-scroll text-pink-500"></i> Post New Bounty
+                </h3>
+                <button class="text-slate-400 hover:text-white" onclick="closeCreateBountyModal()">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="create-bounty-form" onsubmit="submitCreateBounty(event)" class="space-y-4">
+                <!-- Bounty Mode -->
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-1.5">Bounty Format</label>
+                    <div class="grid grid-cols-3 gap-2" id="bounty-type-selector">
+                        <button type="button" class="bounty-type-btn active bg-pink-600 text-white font-black text-xs py-2.5 rounded-xl border border-pink-500 text-center transition-all shadow" data-type="solo" onclick="selectBountyType('solo')">
+                            ⚡ Solo
+                        </button>
+                        <button type="button" class="bounty-type-btn bg-slate-800 text-slate-300 font-black text-xs py-2.5 rounded-xl border border-slate-700 text-center transition-all hover:bg-slate-700" data-type="open" onclick="selectBountyType('open')">
+                            📜 Open
+                        </button>
+                        <button type="button" class="bounty-type-btn bg-slate-800 text-slate-300 font-black text-xs py-2.5 rounded-xl border border-slate-700 text-center transition-all hover:bg-slate-700" data-type="duel" onclick="selectBountyType('duel')">
+                            ⚔️ 1v1 Duel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Opponent for Duel -->
+                <div id="duel-opponent-wrap" class="hidden">
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-1.5">Opponent Username</label>
+                    <input type="text" id="bounty-opponent" placeholder="e.g. friend_username" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-pink-500 shadow-inner">
+                </div>
+
+                <!-- Target Modality -->
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-1.5">Goal Metric</label>
+                    <select id="bounty-target-type" onchange="onTargetTypeChange()" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-bold text-sm focus:outline-none focus:border-pink-500 shadow-inner">
+                        <option value="steps">👟 Daily Steps (e.g. 10,000)</option>
+                        <option value="strength_volume">🏋️ Strength Tonnage (lbs) (e.g. 15,000)</option>
+                        <option value="cardio_minutes">🏃 Cardio Duration (mins) (e.g. 30)</option>
+                        <option value="water_ml">💧 Hydration (ml) (e.g. 2,500)</option>
+                        <option value="protein_g">🥗 Protein Target (g) (e.g. 140)</option>
+                        <option value="calories_burned">🔥 Active Calorie Burn (e.g. 500)</option>
+                        <option value="sleep_hours">🌙 Sleep Duration (hours) (e.g. 8.0)</option>
+                    </select>
+                </div>
+
+                <!-- Target Value -->
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label class="text-xs font-black uppercase text-slate-400">Target Value</label>
+                        <span class="text-xs font-bold text-pink-400" id="bounty-target-unit">steps</span>
+                    </div>
+                    <input type="number" id="bounty-target-value" step="any" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-extrabold text-base focus:outline-none focus:border-pink-500 shadow-inner" placeholder="10000" required>
+                </div>
+
+                <!-- Duration -->
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-400 mb-1.5">Time Window</label>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button type="button" class="duration-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2 rounded-xl border border-slate-700" data-hours="12" onclick="selectDuration(12)">12h</button>
+                        <button type="button" class="duration-btn active bg-pink-600 text-white font-bold text-xs py-2 rounded-xl border border-pink-500 shadow" data-hours="24" onclick="selectDuration(24)">24h</button>
+                        <button type="button" class="duration-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2 rounded-xl border border-slate-700" data-hours="48" onclick="selectDuration(48)">48h</button>
+                        <button type="button" class="duration-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-2 rounded-xl border border-slate-700" data-hours="168" onclick="selectDuration(168)">7 Days</button>
+                    </div>
+                    <input type="hidden" id="bounty-duration" value="24">
+                </div>
+
+                <!-- Wager Stash -->
+                <div class="bg-slate-800/60 border border-slate-700 rounded-2xl p-3 space-y-3">
+                    <div class="text-xs font-black text-amber-400 uppercase flex items-center gap-1.5">
+                        <i class="fa-solid fa-scale-balanced"></i> Escrow Wager (Optional)
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 mb-1">Tokens Wagered</label>
+                            <input type="number" id="bounty-wager-tokens" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-amber-300 font-bold text-sm focus:outline-none focus:border-amber-400 shadow-inner">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-400 mb-1">Scraps Wagered</label>
+                            <input type="number" id="bounty-wager-scraps" min="0" value="0" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-cyan-300 font-bold text-sm focus:outline-none focus:border-cyan-400 shadow-inner">
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" id="bounty-submit-btn" class="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-black text-sm py-3.5 rounded-2xl border-b-4 border-pink-800 active:border-b-0 active:translate-y-1 transition-all shadow-xl flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-lock"></i> Deploy Bounty
+                </button>
+            </form>
+        </div>
+    </div>
 </section>

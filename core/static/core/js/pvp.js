@@ -38,6 +38,8 @@
         return d.toLocaleString();
     }
 
+    window.currentPvPMode = 'gyms';
+
     window.backToPvPPlan = function () {
         if (window.goBack) { window.goBack(); return; }
         var view = document.getElementById('pvp-view');
@@ -45,25 +47,83 @@
         window.ensureSinglePanelVisible('skill-tree');
     };
 
-    window.loadPvP = function () {
+    window.switchPvPMode = function (mode) {
+        window.currentPvPMode = mode || 'gyms';
+        var btnGyms = document.getElementById('btn-mode-gyms');
+        var btnBounties = document.getElementById('btn-mode-bounties');
+        var paneGyms = document.getElementById('pvp-gyms-pane');
+        var paneBounties = document.getElementById('pvp-bounties-pane');
+        var postBountyBtn = document.getElementById('pvp-post-bounty-btn');
+        var titleEl = document.getElementById('pvp-header-title');
+        var subEl = document.getElementById('pvp-header-sub');
+
+        if (window.currentPvPMode === 'bounties') {
+            if (btnGyms) {
+                btnGyms.className = 'pvp-mode-btn flex-1 py-2.5 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-2 hover:text-slate-200';
+            }
+            if (btnBounties) {
+                btnBounties.className = 'pvp-mode-btn active flex-1 py-2.5 text-xs font-black text-white bg-slate-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow';
+            }
+            if (paneGyms) paneGyms.classList.add('hidden');
+            if (paneBounties) paneBounties.classList.remove('hidden');
+            if (postBountyBtn) postBountyBtn.classList.remove('hidden');
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-crosshairs text-pink-500"></i> Bounty Board';
+            if (subEl) subEl.textContent = '1v1 Fitness Duels & Contracts';
+
+            // Ensure bounties script is loaded and load state
+            var ensureBounties = function () {
+                if (typeof window.loadBountiesState === 'function') {
+                    window.loadBountiesState();
+                } else if (typeof window.loadBounties === 'function') {
+                    window.loadBounties();
+                }
+            };
+
+            if (window.LAZY_SCRIPT_URLS && window.LAZY_SCRIPT_URLS.bounties && typeof window.loadScript === 'function') {
+                window.loadScript(window.LAZY_SCRIPT_URLS.bounties).then(ensureBounties);
+            } else {
+                ensureBounties();
+            }
+        } else {
+            if (btnGyms) {
+                btnGyms.className = 'pvp-mode-btn active flex-1 py-2.5 text-xs font-black text-white bg-slate-700 rounded-xl transition-all flex items-center justify-center gap-2 shadow';
+            }
+            if (btnBounties) {
+                btnBounties.className = 'pvp-mode-btn flex-1 py-2.5 text-xs font-black text-slate-400 rounded-xl transition-all flex items-center justify-center gap-2 hover:text-slate-200';
+            }
+            if (paneGyms) paneGyms.classList.remove('hidden');
+            if (paneBounties) paneBounties.classList.add('hidden');
+            if (postBountyBtn) postBountyBtn.classList.add('hidden');
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-fist-raised text-rose-500"></i> PvP Arena';
+            if (subEl) subEl.textContent = 'Gym Battles & Territory Control';
+
+            window.fetchPvPGyms();
+        }
+    };
+
+    window.fetchPvPGyms = function () {
+        var content = document.getElementById('pvp-content');
+        if (content) content.innerHTML = '<div class="text-center py-10 text-slate-400 font-bold text-sm"><i class="fa-solid fa-spinner fa-spin mr-2 text-rose-400"></i> Scouting the arena…</div>';
+        fetch(STATE_URL, { credentials: 'same-origin' })
+            .then(function (res) {
+                if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
+                return res.ok ? res.json() : Promise.reject(res.status);
+            })
+            .then(function (data) { window.renderPvP(data); })
+            .catch(function (err) {
+                if (content) content.innerHTML = '<p class="text-slate-400 p-4">Could not load PvP (error ' + esc(err) + ').</p>';
+            });
+    };
+
+    window.loadPvP = function (defaultMode) {
         if (window.closeModal) window.closeModal();
 
         var runLoad = function () {
             var view = document.getElementById('pvp-view');
-            var content = document.getElementById('pvp-content');
             if (!view) { window.ffWarn('[pvp] pvp-view not found'); return; }
             window.ensureSinglePanelVisible('pvp-view');
             if (window.setActiveNav) window.setActiveNav('nav-pvp');
-            content.innerHTML = '<p class="text-slate-400">Scouting the arena…</p>';
-            fetch(STATE_URL, { credentials: 'same-origin' })
-                .then(function (res) {
-                    if (res.status === 401 || res.status === 403) throw new Error('not-authenticated');
-                    return res.ok ? res.json() : Promise.reject(res.status);
-                })
-                .then(function (data) { window.renderPvP(data); })
-                .catch(function (err) {
-                    if (content) content.innerHTML = '<p class="text-slate-400">Could not load PvP (error ' + esc(err) + ').</p>';
-                });
+            window.switchPvPMode(defaultMode || 'gyms');
         };
 
         if (typeof window.ensurePanelLoaded === 'function') {

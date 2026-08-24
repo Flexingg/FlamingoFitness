@@ -7,35 +7,46 @@
 let bountiesState = null;
 let currentBountiesTab = 'active';
 
+window.loadBountiesState = async function() {
+    try {
+        const res = await fetch('/bounties/state', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Failed to load bounties state');
+        const json = await res.json();
+        if (json.success) {
+            bountiesState = json.data;
+            renderBounties();
+        }
+    } catch (err) {
+        console.error('Error loading bounties state:', err);
+    }
+};
+
 window.loadBounties = function() {
+    if (window.loadPvP) {
+        return window.loadPvP('bounties');
+    }
+
     if (window.closeModal) window.closeModal();
-    if (window.Router) window.Router.push('bounties-view');
+    if (window.Router) window.Router.push('pvp-view');
 
     const runLoad = async function() {
-        const view = document.getElementById('bounties-view');
+        const view = document.getElementById('pvp-view') || document.getElementById('bounties-view');
         if (!view) return;
         if (window.ensureSinglePanelVisible) {
-            window.ensureSinglePanelVisible('bounties-view');
+            window.ensureSinglePanelVisible(view.id);
         } else {
             document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
             view.classList.remove('hidden');
         }
-
-        try {
-            const res = await fetch('/bounties/state', { credentials: 'same-origin' });
-            if (!res.ok) throw new Error('Failed to load bounties state');
-            const json = await res.json();
-            if (json.success) {
-                bountiesState = json.data;
-                renderBounties();
-            }
-        } catch (err) {
-            console.error('Error loading bounties:', err);
+        if (typeof window.switchPvPMode === 'function') {
+            window.switchPvPMode('bounties');
+        } else {
+            await window.loadBountiesState();
         }
     };
 
     if (typeof window.ensurePanelLoaded === 'function') {
-        return window.ensurePanelLoaded('bounties-view').then(runLoad);
+        return window.ensurePanelLoaded('pvp-view').then(runLoad);
     } else {
         return runLoad();
     }
