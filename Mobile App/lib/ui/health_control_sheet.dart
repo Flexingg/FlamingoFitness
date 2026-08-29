@@ -29,6 +29,7 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
 
   late TextEditingController _urlController;
   late TextEditingController _userController;
+  final TextEditingController _waterController = TextEditingController(text: '8');
 
   @override
   void initState() {
@@ -42,6 +43,7 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
   void dispose() {
     _urlController.dispose();
     _userController.dispose();
+    _waterController.dispose();
     super.dispose();
   }
 
@@ -100,6 +102,30 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
       if (result.success) {
         widget.onRefreshWebView();
       }
+    }
+  }
+
+  Future<void> _logWater(double oz) async {
+    HapticFeedback.mediumImpact();
+    if (!_isAuthorized) {
+      final ok = await _healthService.requestPermissions();
+      if (mounted) setState(() => _isAuthorized = ok);
+      if (!ok) return;
+    }
+    setState(() => _isSyncing = true);
+    final wrote = await _healthService.writeWater(oz);
+    final metrics = await _healthService.fetchTodayMetrics();
+    final result = await _apiService.syncHealthData(metrics);
+    if (mounted) {
+      setState(() {
+        _isSyncing = false;
+        _latestMetrics = metrics;
+        _syncSuccess = wrote;
+        _syncMessage = wrote
+            ? '💧 Logged ${oz.toStringAsFixed(0)} oz → Health Connect'
+            : '⚠️ Could not write water to Health Connect';
+      });
+      if (result.success) widget.onRefreshWebView();
     }
   }
 
@@ -351,6 +377,72 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
             ),
             const SizedBox(height: 20),
 
+            // Quick Log Water (native Health Connect / HealthKit write)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.water_drop, color: Colors.blueAccent, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        '💧 Quick Log Water',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [8.0, 16.0, 24.0, 32.0].map(_waterQuickBtn).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _waterController,
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'Amount (oz)',
+                            labelStyle: const TextStyle(color: Colors.white60),
+                            filled: true,
+                            fillColor: const Color(0xFF121226),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isSyncing
+                            ? null
+                            : () {
+                                final v = double.tryParse(_waterController.text) ?? 0;
+                                if (v > 0) _logWater(v);
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
             // Server Settings Section
             ExpansionTile(
               title: const Text(
@@ -423,6 +515,18 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _waterQuickBtn(double oz) {
+    return ActionChip(
+      label: Text('+${oz.toStringAsFixed(0)} oz'),
+      backgroundColor: const Color(0xFF2A2A50),
+      labelStyle: const TextStyle(
+        color: Colors.blueAccent,
+        fontWeight: FontWeight.bold,
+      ),
+      onPressed: _isSyncing ? null : () => _logWater(oz),
     );
   }
 

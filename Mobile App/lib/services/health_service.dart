@@ -73,9 +73,12 @@ class HealthService {
   Future<bool> requestPermissions() async {
     try {
       await configure();
-      // Request access for supported types
+      // Request READ for most types, but READ_WRITE for water so we can
+      // log water natively into Health Connect / HealthKit.
       final permissions = supportedTypes
-          .map((type) => HealthDataAccess.READ)
+          .map((type) => type == HealthDataType.WATER
+              ? HealthDataAccess.READ_WRITE
+              : HealthDataAccess.READ)
           .toList();
 
       final authorized = await _health.requestAuthorization(
@@ -87,6 +90,26 @@ class HealthService {
       return _isAuthorized;
     } catch (e) {
       debugPrint('Error requesting health permissions: $e');
+      return false;
+    }
+  }
+
+  /// Write a water intake sample to Health Connect / HealthKit natively.
+  /// [oz] is in US fluid ounces; the health package stores water in liters.
+  /// Returns true on success.
+  Future<bool> writeWater(double oz, {DateTime? time}) async {
+    try {
+      final now = time ?? DateTime.now();
+      final liters = oz / 33.814; // 1 US fl oz = 0.0295735 L
+      return await _health.writeHealthData(
+        value: liters,
+        type: HealthDataType.WATER,
+        startTime: now,
+        endTime: now,
+        recordingMethod: RecordingMethod.manual,
+      );
+    } catch (e) {
+      debugPrint('Error writing water: $e');
       return false;
     }
   }
