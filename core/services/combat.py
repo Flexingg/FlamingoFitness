@@ -1,9 +1,22 @@
-"""Combat / Token / Gacha / PvE / PvP service (Phase 9, docs/15 §5).
+"""Combat, Economy, Gacha, PvE Boss Battles & PvP Territory Control Service.
 
-Replaces the Phase 7 ``core/services/base_economy.py``. Every helper used from
-views/tasks/admin is re-exported from ``core/services/__init__.py`` (docs/08
-endurance-500 lesson). Time-sensitive functions accept ``now=None``; wallet
-mutations are atomic; saves use ``update_fields``.
+Architecture & Subsystems:
+1. **Player Economy & Wallets**:
+   - Manages Tokens (primary soft currency) and Scraps (salvage currency).
+   - Atomic wallet adjustments with `select_for_update` (`award_tokens`, `spend_tokens`).
+2. **Gacha Pack Opening Engine**:
+   - Loot box roll mechanics (`open_pack`, `bulk_open_pack`) with streak-based luck multipliers.
+   - Pity timers guaranteeing rare/epic/legendary items after consecutive pulls.
+3. **Gear Management & Salvage**:
+   - Gear inventory, stats calculation, equipping/unequipping, and scraping (`scrap_gear`).
+4. **PvE Campaign & Boss Combat**:
+   - Elemental affinity advantages (e.g. Endurance > Strength > Hydration > Nutrition > Sleep).
+   - Boss HP tracking, turns calculation, rewards, and boss PR progression (`attack_boss`).
+5. **PvP Gym Arena & Territory Control**:
+   - 7-day consistency scoring + gear power multipliers (`calculate_player_power`).
+   - Gym defense configuration and territory invasion battles (`attack_gym`).
+
+All methods requiring transactional atomicity use `@transaction.atomic`.
 """
 
 import logging

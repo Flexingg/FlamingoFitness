@@ -1,18 +1,30 @@
 /* ============================================================
-   Flamingo Fitness - client-side router for panel views.
-   Gives each dashboard panel a distinct, shareable URL by
-   storing a "#/slug" fragment via the History API, and restores
-   the matching panel on popstate (browser back/forward) and on
-   initial load / refresh / F5. Keeps the existing single-page
-   DOM; no server-side routing changes are required.
+   Flamingo Fitness - Client-Side SPA Router (router.js)
+   ------------------------------------------------------------
+   Architecture Overview:
+   - Manages Single Page Application (SPA) view routing using HTML5
+     History API and URL fragments (e.g. `#/nutrition`, `#/shop`).
+   - Links client hash changes to lazy-loaded panel partials and
+     dynamic DOM section visibility.
+   - Synchronizes bottom navigation tab active states via NAV_BY_PANEL.
+   - Handles deep links on page load, browser back/forward buttons (popstate),
+     and in-app back buttons via `window.AppRouter.back()`.
 
-   Load order: this file BEFORE dashboard.js.
+   Interaction Graph:
+   - Loaded BEFORE `dashboard.js` in `core/templates/core/dashboard.html`.
+   - Called by `dashboard.js:ensureSinglePanelVisible(panelId)` on panel open.
+   - Dispatches calls to global panel loaders (e.g., `window.loadNutrition()`,
+     `window.loadShop()`, `window.loadPvP()`, etc.).
    ============================================================ */
 
 (function () {
     'use strict';
 
-    // Panel id -> URL slug ("" = the skill-tree home). Pushed as "#/slug".
+    /**
+     * Maps DOM panel section IDs to URL hash slugs.
+     * Empty string '' maps directly to the root dashboard 'skill-tree' view.
+     * @type {Object.<string, string>}
+     */
     var SLUG_BY_PANEL = {
         'skill-tree': '',
         'nutrition-view': 'nutrition',
@@ -30,7 +42,11 @@
         'bounties-view': 'bounties'
     };
 
-    // Slug -> loader function used to render the panel on restore.
+    /**
+     * Maps URL slugs to global controller load functions.
+     * Each function fetches API data and mounts its corresponding view.
+     * @type {Object.<string, string>}
+     */
     var LOADER_BY_SLUG = {
         'nutrition': 'loadNutrition',
         'hydration': 'loadHydration',
@@ -47,7 +63,11 @@
         'bounties': 'loadBounties'
     };
 
-    // Panel id -> bottom-nav item to highlight (setActiveNav remaps combat views).
+    /**
+     * Maps DOM panel section IDs to bottom navigation bar element IDs.
+     * Ensures active tab highlights mirror the active on-screen panel.
+     * @type {Object.<string, string>}
+     */
     var NAV_BY_PANEL = {
         'skill-tree': 'nav-path',
         'nutrition-view': 'nav-path',
@@ -127,8 +147,11 @@
 
     // Public API -----------------------------------------------------------
     window.AppRouter = {
-        // Record a panel switch in the browser history. Called from
-        // dashboard.js' ensureSinglePanelVisible() whenever a panel opens.
+        /**
+         * Record a panel switch in browser history.
+         * Called by `dashboard.js:ensureSinglePanelVisible(panelId)` on every panel opening.
+         * @param {string} panelId - DOM ID of the panel being displayed (e.g. 'nutrition-view')
+         */
         navigate: function (panelId) {
             if (restoring) return;
             var target = SLUG_BY_PANEL[panelId];
@@ -137,7 +160,10 @@
             history.pushState({ panel: panelId }, '', hash);
         },
 
-        // Go back through app history (used by the in-app back arrows).
+        /**
+         * Walk back through client history.
+         * Used by in-app back buttons (`window.goBack()`). Falls back to root skill-tree if stack is empty.
+         */
         back: function () {
             if (window.history.length > 1) { history.back(); return; }
             // Nothing to walk - land cleanly on the skill tree.
@@ -145,8 +171,9 @@
             showHome();
         },
 
-        // Restore whatever panel matches the current URL on first paint and
-        // start listening for browser back/forward navigation.
+        /**
+         * Initialize popstate event listener and restore initial view from current URL hash on startup.
+         */
         init: function () {
             window.addEventListener('popstate', onPopState);
             restoring = true;

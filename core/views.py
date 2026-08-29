@@ -1,11 +1,28 @@
-"""Views for Flamingo Fitness (Steps 16-19).
+"""Core HTTP Views & REST API Endpoints for Flamingo Fitness.
 
-API endpoints (docs/02_api_contracts.md):
-  * GET  /api/v1/dashboard/state       -> dashboard JSON state
-  * GET  /api/v1/leaderboard/weekly    -> asymmetric XP leaderboard
-  * POST /api/v1/webhooks/home-assistant -> inbound smart-home data
-
-And the dashboard page view (Step 19) served at "/".
+Architecture & Endpoint Taxonomy:
+1. **Core SPA Shell & Lazy Partials**:
+   - `GET /` -> Dashboard shell (`core/templates/core/dashboard.html`).
+   - `GET /panel/<name>/` (`panel_view`) -> Lazy partial HTML loader for modals/panels.
+2. **Player Gamification & Dashboard HUD**:
+   - `GET /api/v1/dashboard/state` -> Top HUD stats, streaks, currency, skill tree nodes.
+   - `GET /api/v1/badges/` -> Achievement badges catalog, live criteria progress, points.
+   - `GET /api/v1/leagues/` -> Weekly tier divisions, promotion/demotion thresholds.
+3. **Modality Detail Endpoints**:
+   - `GET /api/v1/nutrition/` -> Macro targets, calories, history logs, meal breakdown.
+   - `GET /api/v1/hydration/` -> Daily fluid intake, water goal progress.
+   - `GET /api/v1/endurance/` -> Zone 2/3 and Zone 4/5 HIIT cardio minutes.
+   - `GET /api/v1/strength/` -> Workout sets, reps, tonnage, and 1RM calculations.
+   - `GET /api/v1/recovery/` -> Sleep duration, readiness score, and resting heart rate.
+4. **Combat & Economy**:
+   - `GET /api/v1/shop/state` & `POST /api/v1/shop/buy-pack` -> Gacha loot packs.
+   - `GET /api/v1/loadout/state` & `POST /api/v1/loadout/equip` -> Player gear slots.
+   - `GET /api/v1/boss/state` & `POST /api/v1/boss/attack` -> PvE Boss encounters.
+   - `GET /api/v1/pvp/state` & `POST /api/v1/pvp/attack` -> PvP Gym territory battles.
+   - `GET /bounties/state` & `POST /bounties/create` -> 1v1 Duels & Escrow Wagering.
+5. **Mobile & Smart-Home Ingestion Webhooks**:
+   - `POST /api/v1/health/sync` -> Inbound HealthKit & Health Connect biometric batches.
+   - `POST /api/v1/webhooks/home-assistant` -> Smart-home IoT events (scales, water dispensers).
 """
 
 import json

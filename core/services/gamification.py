@@ -1,16 +1,20 @@
-"""Gamification service layer (Steps 13 & 14).
+"""Gamification, Effort XP Calculation & Skill-Tree Progression Service.
 
-Implements the "Effort XP" rulebook from docs/03_gamification_math.md.
-
-The main entry points are:
-
-  * ``process_payload(user, source, event_type, payload, raw_log=None)``
-    converts a single payload into XP / resources.
-  * ``process_log(raw_log)`` wraps the above for a stored RawActivityLog and
-    marks it processed.
-
-Skill-tree progression (Step 14) is applied automatically by ``apply_to_skill_tree``
-as each XP entry is created.
+Architecture & Core Responsibilities:
+1. **Activity Processing Pipeline**:
+   - `process_payload`: Ingests sensor/health activity payloads from Apple HealthKit,
+     Android Health Connect, or manual web entries.
+   - Converts raw biometric data (steps, cardio minutes, tonnage lifted, water consumed,
+     sleep duration/scores) into normalized "Effort XP".
+2. **Modality XP Algorithms**:
+   - `endurance_xp`: Zone 2/3 (1.0x/min), Zone 4/5 HIIT (1.5x/min).
+   - `strength_xp`: Calculated from volume load / tonnage with RPE effort scaling.
+   - `nutrition_xp`: Macro adherence within target thresholds (protein & calories).
+   - `hydration_xp`: Milestones for meeting daily fluid requirements (ml).
+   - `recovery_xp`: Sleep duration and readiness scores above threshold.
+3. **Skill Tree & Leveling Engine**:
+   - `apply_to_skill_tree`: Distributes earned XP to corresponding modality trees.
+   - Handles level-up triggers (100 XP per level) and bonus token payouts.
 """
 
 import logging

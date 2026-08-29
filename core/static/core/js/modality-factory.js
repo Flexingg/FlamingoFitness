@@ -1,11 +1,31 @@
 /* ============================================================
-   Flamingo Fitness - Modality Controller Factory (Phase 6, docs/19 #22)
-   Provides window.createModalityController(config) to eliminate
-   boilerplate across modality detail controllers.
+   Flamingo Fitness - Modality Controller Factory (modality-factory.js)
+   ------------------------------------------------------------
+   Architecture Overview:
+   - Factory pattern used by the 5 modality detail views:
+     Nutrition, Hydration, Endurance, Strength, and Recovery.
+   - Generates standardized lifecycle methods for each modality:
+     1. Back navigation (`backTo<Modality>Plan`) -> routes through `window.goBack()`
+     2. Data fetching & skeleton loading (`load<Modality>`) -> calls `GET /api/v1/<modality>/`
+     3. DOM rendering & empty-state fallback (`render<Modality>`)
+     4. Skill tree progress card with level badges and XP progress bar
+   - Delegates modality-specific custom UI rendering via `config.renderCustomContent`.
    ============================================================ */
 (function () {
     'use strict';
 
+    /**
+     * Creates and registers global lifecycle handlers for a modality view.
+     * @param {Object} config
+     * @param {string} config.name - Modality slug (e.g. 'nutrition', 'hydration')
+     * @param {string} config.title - Display title (e.g. 'Nutrition', 'Hydration')
+     * @param {string} [config.apiUrl] - API URL (defaults to `/api/v1/<name>/`)
+     * @param {string} [config.icon] - FontAwesome icon class
+     * @param {string} [config.guidanceText] - Helpful tips banner text
+     * @param {Object} [config.emptyState] - Configuration for unlinked/empty data
+     * @param {function(HTMLElement, Object)} [config.renderCustomContent] - Custom renderer
+     * @returns {{load: function, render: function, back: function}}
+     */
     window.createModalityController = function (config) {
         var name = config.name; // e.g. 'nutrition', 'hydration', 'endurance', 'strength', 'recovery'
         var title = config.title;
@@ -18,6 +38,10 @@
         // 1. Back button handler
         var backFnName = 'backTo' + capName + 'Plan';
         window[backFnName] = function () {
+            if (typeof window.goBack === 'function') {
+                window.goBack();
+                return;
+            }
             var view = document.getElementById(viewId);
             if (view) view.classList.add('hidden');
             window.ensureSinglePanelVisible('skill-tree');

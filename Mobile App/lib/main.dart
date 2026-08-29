@@ -1,8 +1,23 @@
+/// Flamingo Fitness - Flutter Mobile Shell & Native Bridge (main.dart)
+/// -------------------------------------------------------------------
+/// Architecture Overview:
+/// - Hybrid Flutter application hosting the Django-powered web SPA via `webview_flutter`.
+/// - Native Bridge (`FlamingoNativeBridge`):
+///   Exposes JavaScript channel `window.FlamingoNative` for two-way communication:
+///   * `haptic:<type>` -> triggers device haptic engines (light, medium, heavy, selection).
+///   * `notify:<json>` -> dispatches native system notifications via Android/iOS channels.
+///   * `avatar:<url>` -> updates current user avatar cache.
+///   * `syncHealth:` -> prompts immediate biometric data harvest and sync to server.
+///   * `openSettings:` -> launches OS notification/health permission settings.
+/// - Background Health Sync:
+///   Aggregates HealthKit (iOS) and Health Connect (Android) metrics (steps, workouts,
+///   calories, hydration, sleep) and posts payloads to the backend API (`/api/v1/health/sync`).
+library;
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'models/health_metrics.dart';
 import 'services/api_service.dart';
 import 'services/health_service.dart';
 import 'ui/health_control_sheet.dart';
@@ -27,6 +42,7 @@ void main() async {
   runApp(const FlamingoApp());
 }
 
+/// Root widget configuring dark theme, brand typography, and route entry.
 class FlamingoApp extends StatelessWidget {
   const FlamingoApp({super.key});
 
@@ -69,9 +85,7 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
   double _loadProgress = 0.0;
   bool _hasError = false;
   String? _errorMessage;
-  bool _isHealthAuthorized = false;
   bool _isAutoSyncing = false;
-  String? _avatarUrl;
 
   @override
   void initState() {
@@ -209,8 +223,8 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
       }
     } else if (msg.startsWith('avatar:')) {
       final url = msg.substring(7);
-      if (url.isNotEmpty && mounted) {
-        setState(() => _avatarUrl = url);
+      if (url.isNotEmpty) {
+        debugPrint('Avatar updated via bridge: $url');
       }
     } else if (msg.startsWith('notify:')) {
       try {
@@ -239,12 +253,9 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
 
   Future<void> _checkHealthPermissions() async {
     final ok = await _healthService.checkPermissions();
-    if (mounted) {
-      setState(() => _isHealthAuthorized = ok);
-      if (ok) {
-        // Automatically sync on launch if authorized
-        _performBackgroundSync();
-      }
+    if (mounted && ok) {
+      // Automatically sync on launch if authorized
+      _performBackgroundSync();
     }
   }
 
@@ -317,6 +328,9 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
               LinearProgressIndicator(
                 value: _loadProgress > 0 ? _loadProgress : null,
                 color: primaryColor,
+                minHeight: 3,
+              ),
+
             // Error View with Retry Button
             if (_hasError)
               Center(

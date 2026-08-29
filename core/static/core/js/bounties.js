@@ -27,7 +27,7 @@ window.loadBounties = function() {
     }
 
     if (window.closeModal) window.closeModal();
-    if (window.Router) window.Router.push('pvp-view');
+    if (window.AppRouter) window.AppRouter.navigate('pvp-view');
 
     const runLoad = async function() {
         const view = document.getElementById('pvp-view') || document.getElementById('bounties-view');
@@ -53,17 +53,17 @@ window.loadBounties = function() {
 };
 
 window.backToBountiesPlan = function() {
-    if (window.Router) {
-        window.Router.navigate('');
+    if (typeof window.goBack === 'function') {
+        window.goBack();
+        return;
+    }
+    const view = document.getElementById('bounties-view') || document.getElementById('pvp-view');
+    if (view) view.classList.add('hidden');
+    if (window.ensureSinglePanelVisible) {
+        window.ensureSinglePanelVisible('skill-tree');
     } else {
-        const view = document.getElementById('bounties-view');
-        if (view) view.classList.add('hidden');
-        if (window.ensureSinglePanelVisible) {
-            window.ensureSinglePanelVisible('skill-tree');
-        } else {
-            const dash = document.getElementById('skill-tree');
-            if (dash) dash.classList.remove('hidden');
-        }
+        const dash = document.getElementById('skill-tree');
+        if (dash) dash.classList.remove('hidden');
     }
 };
 

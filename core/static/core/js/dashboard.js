@@ -1,12 +1,25 @@
 /* ============================================================
-   Flamingo Fitness - vanilla JS dashboard controller
-   Fetches /api/v1/dashboard/state and renders the shell.
-   Reference: docs/02_api_contracts.md, docs/04_frontend_architecture.md
+   Flamingo Fitness - Main Dashboard Controller (dashboard.js)
+   ------------------------------------------------------------
+   Architecture Overview:
+   - Primary orchestrator for the single-page application (SPA) shell.
+   - Fetches and renders player gamification state from `GET /api/v1/dashboard/state`.
+   - Renders the interactive Skill Tree (S-curve path connecting Recovery,
+     Strength, Endurance, Hydration, Nutrition, and PR Boss nodes).
+   - Manages top HUD: Streak, Level, Total XP, Energy, Tokens, Scraps, Buffs.
+   - Orchestrates lazy panel loading (`/panel/<name>/`) and script injection
+     via `ensurePanelLoaded` and `ensureSinglePanelVisible`.
+   - Coordinates with `router.js` (`window.AppRouter`) for client URL hash syncing.
+   - Integrates with the Flutter Native Bridge (`window.FlamingoNative`) for haptics,
+     avatar updates, and notifications.
    ============================================================ */
 
 (function () {
     'use strict';
 
+    /**
+     * Metadata mapping for the 5 primary fitness modalities and their DOM nodes.
+     */
     var MODALITY_META = {
         strength:  { node: 'node-strength',  cls: 'node-strength' },
         endurance: { node: 'node-endurance', cls: 'node-endurance' },
@@ -15,13 +28,18 @@
         recovery:  { node: 'node-recovery',  cls: 'node-recovery' }
     };
 
-    // Every panel that can be opened from the bottom nav / skill-tree nodes.
+    /**
+     * Complete list of registered panel view DOM IDs.
+     * Used by `hideAllPanels()` to ensure mutual exclusivity when switching views.
+     */
     var PANEL_IDS = ['skill-tree', 'nutrition-view', 'hydration-view',
         'endurance-view', 'strength-view', 'boss-view', 'recovery-view',
         'shop-view', 'loadout-view', 'battle-view', 'pvp-view',
-        'badges-view', 'leagues-view'];
+        'badges-view', 'leagues-view', 'bounties-view'];
 
-    // Maps each panel to the bottom-nav tab it belongs to.
+    /**
+     * Maps each panel view to its corresponding bottom-nav highlight tab ID.
+     */
     var PANEL_NAV = {
         'skill-tree': 'nav-path',
         'nutrition-view': 'nav-path', 'hydration-view': 'nav-path',
@@ -29,13 +47,14 @@
         'boss-view': 'nav-path', 'recovery-view': 'nav-path',
         'shop-view': 'nav-shop', 'loadout-view': 'nav-loadout',
         'battle-view': 'nav-battle', 'pvp-view': 'nav-pvp',
-        'badges-view': 'nav-badges', 'leagues-view': 'nav-leagues'
+        'badges-view': 'nav-badges', 'leagues-view': 'nav-leagues',
+        'bounties-view': 'nav-pvp'
     };
 
-    // Panel history is tracked by the browser via AppRouter (router.js), which
-    // records the active panel in the URL fragment so back/forward work naturally.
-    // Hide ALL panels so opening a new one REPLACES the current view instead
-    // of stacking underneath it (Phase 8 bug-fix).
+    /**
+     * Hides all open panel views and loading hints.
+     * Prevents panels from stacking or bleeding underneath one another.
+     */
     window.hideAllPanels = function () {
         PANEL_IDS.forEach(function (id) {
             var el = document.getElementById(id);
@@ -47,9 +66,11 @@
         if (err) err.classList.add('hidden');
     };
 
-    // Bottom-nav active-tab management. The four combat views (Shop/Loadout/
-    // Battle/PvP) live behind the center "Game" FAB, so opening any of them
-    // highlights the Game button instead of a (now removed) standalone tab.
+    /**
+     * Synchronizes active tab highlights on the bottom navigation bar.
+     * Remaps combat/RPG tabs (Shop, Loadout, Battle, PvP) to the central Game FAB.
+     * @param {string} id - Target navigation tab element ID (e.g. 'nav-path', 'nav-shop')
+     */
     window.setActiveNav = function (id) {
         var remap = {
             'nav-shop': 'nav-game', 'nav-loadout': 'nav-game',

@@ -165,7 +165,7 @@ def list_gear_item(user, user_gear_id, price_type, price_amount):
 def buy_marketplace_item(buyer, listing_id):
     """Purchase an active marketplace listing."""
     listing = (
-        MarketplaceListing.objects.select_for_update()
+        MarketplaceListing.objects.select_for_update(of=("self",))
         .filter(pk=listing_id, is_active=True)
         .select_related("seller", "gear_item", "user_gear")
         .first()

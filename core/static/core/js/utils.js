@@ -1,9 +1,15 @@
 /* ============================================================
-   Flamingo Fitness - shared utility functions (Phase 1, docs/19).
-   Loaded FIRST so every controller can use window.ffLog,
-   window.ffWarn, window.ffError, window.loadScript,
-   window.escHtml, window.csrfToken, window.haptic,
-   window.fmoney, window.showToast, window.emptyStateHTML etc.
+   Flamingo Fitness - Shared Utility Library (utils.js)
+   ------------------------------------------------------------
+   Architecture Overview:
+   - Primary utility runtime loaded FIRST before all view controllers.
+   - Provides safe logging, dynamic script injection (`loadScript`),
+     XSS-safe HTML escaping (`escHtml`), and unified CSRF extraction (`csrfToken`).
+   - Native device haptic bridge with web vibration fallback (`haptic`).
+   - Gamified celebration modals with sound and particle effects:
+     `celebrateLevelUp`, `celebrateBadge`, `confettiBurst`.
+   - Toast notification system (`showToast`).
+   - Standardized empty-state and skeleton rendering (`emptyStateHTML`, `renderSkeleton`).
    ============================================================ */
 (function () {
     'use strict';
@@ -14,26 +20,31 @@
     // ------------------------------------------------------------------
     window.ffDEBUG = window.ffDEBUG || false;
 
+    /** Safe debug logging (suppressed in production unless ffDEBUG=true). */
     window.ffLog = function () {
         if (window.ffDEBUG) {
             Function.prototype.apply.call(console.log, console, arguments);
         }
     };
 
+    /** Safe warning logging (suppressed in production unless ffDEBUG=true). */
     window.ffWarn = function () {
         if (window.ffDEBUG) {
             Function.prototype.apply.call(console.warn, console, arguments);
         }
     };
 
+    /** Unconditional error logging to browser console. */
     window.ffError = function () {
         Function.prototype.apply.call(console.error, console, arguments);
     };
 
-    // ------------------------------------------------------------------
-    // Lazy script loading — dynamically injects a <script> tag and
-    // returns a Promise that resolves when the script loads.
-    // ------------------------------------------------------------------
+    /**
+     * Lazy script loader — dynamically injects a <script> tag.
+     * Returns a Promise that resolves when the script loads or rejects on error.
+     * @param {string} url - Static script URL to inject
+     * @returns {Promise<void>}
+     */
     window.loadScript = function (url) {
         return new Promise(function (resolve, reject) {
             var s = document.createElement('script');

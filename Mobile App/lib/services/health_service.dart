@@ -1,3 +1,14 @@
+/// Health Data Ingestion Service (health_service.dart)
+/// --------------------------------------------------
+/// Architecture & Hardware Integration:
+/// - Singleton wrapping the Flutter `health` package for cross-platform biometric reads.
+/// - Android: Interfaces with Google Health Connect (`androidx.health.connect.client`).
+/// - iOS: Interfaces with Apple HealthKit (`HKHealthStore`).
+/// - Collects daily steps, active/total calorie burn, distance, sleep stages,
+///   water intake, bodyweight, workouts, and heart rate.
+/// - Produces serialized `HealthMetricsPayload` models ready for backend sync.
+library;
+
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:health/health.dart';

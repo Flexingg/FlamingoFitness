@@ -2402,6 +2402,10 @@ class AvatarUploadTests(TestCase):
         self.assertIn("avatar", resp.json()["user"])
         self.assertIn("dicebear", resp.json()["user"]["avatar"])
 
+
+class MediaServingWhiteNoiseTests(SimpleTestCase):
+    """Media-serving WhiteNoise middleware unit tests."""
+
     def test_post_startup_avatar_is_served_by_media_middleware(self):
         """Freshly uploaded avatars must not fall through WhiteNoise's index.
 
@@ -2441,8 +2445,6 @@ class AvatarUploadTests(TestCase):
                 # Release the streaming file handle before the temp dir is
                 # removed (Windows holds an open handle and would block cleanup).
                 resp.close()
-
-
 
 
 class AuthCookieSchemeTests(TestCase):
@@ -3996,7 +3998,7 @@ class SynthesizedAudioAndSoundEffectsTests(TestCase):
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode("utf-8")
-        self.assertIn("audio.js", html)
+        self.assertRegex(html, r"audio(\.[0-9a-f]+)?\.js")
 
         # Profile template contains sound effects card & toggle
         resp_prof = self.client.get("/profile/")
