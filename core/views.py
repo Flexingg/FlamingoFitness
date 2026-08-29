@@ -423,10 +423,15 @@ def hydration_state(request):
     """GET /api/v1/hydration/
 
     Returns today's hydration summary, the full hydration history, the
-    hydration skill-tree state, and whether SparkyFitness is linked.
+    hydration skill-tree state, whether SparkyFitness is linked, the user's
+    custom water bottles, and their primary hydration source.
     """
-    from .services import summarize_hydration
-    from .models import SkillTree
+    from .services import (
+        build_hydration_history,
+        ensure_default_bottles,
+        primary_hydration_source,
+    )
+    from .models import PlayerProfile, SkillTree
 
     logs = _bounded_logs(
         request,
@@ -434,18 +439,8 @@ def hydration_state(request):
             user=request.user, event_type="hydration"
         ).order_by("-occurred_at"),
     )
-    _raw = _raw_requested(request)
-    history = []
-    for _log in logs:
-        _item = summarize_hydration(_log)
-        if _raw:
-            _item["raw_payload"] = _log.payload
-        history.append(_item)
-    
-    # Debug logging to help diagnose hydration data issues
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"[hydration] User {request.user.username}: found {logs.count()} hydration logs, history length {len(history)}")
+
+    history = build_hydration_history(logs, include_raw=_raw_requested(request))
 
     today_str = timezone.localdate().isoformat()
     today = next((h for h in history if h["date"] == today_str), None)
@@ -463,12 +458,23 @@ def hydration_state(request):
     ).first()
     has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
 
+    profile = PlayerProfile.objects.get_or_create(user=request.user)[0]
+    bottles = ensure_default_bottles(request.user)
+    primary = primary_hydration_source(
+        profile, sparky_linked=(sparky is not None and has_key)
+    )
+
     return JsonResponse(
         {
             "linked": sparky is not None,
             "demo": sparky is not None and not has_key,
             "today": today,
             "history": history,
+            "bottles": [
+                {"id": b.id, "name": b.name, "capacity_oz": b.capacity_oz}
+                for b in bottles
+            ],
+            "primary_source": primary,
             "skill_tree": {
                 "level": st.level,
                 "xp": st.xp,
@@ -477,6 +483,192 @@ def hydration_state(request):
             },
         }
     )
+
+
+@login_required
+def water_add(request):
+    """POST /api/v1/hydration/water/add  body: {amount_oz, bottle_id?, source?}
+
+    Logs water against the user's primary hydration source. If the primary
+    source is SparkyFitness (linked), it pushes to Sparky AND records locally;
+    otherwise it records a local log tagged with the primary source.
+    """
+    import json
+    from .services import create_water_log, primary_hydration_source
+    from .models import PlayerProfile, UserIntegration, Provider, WaterBottle
+    from .services.sparky_client import SparkyFitnessClient
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    try:
+        amount_oz = float(body.get("amount_oz") or body.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount_oz = 0
+    if amount_oz <= 0:
+        return JsonResponse({"success": False, "error": "amount_oz must be > 0"}, status=400)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+    profile = PlayerProfile.objects.get_or_create(user=request.user)[0]
+    source = body.get("source") or primary_hydration_source(
+        profile, sparky_linked=(sparky is not None and has_key)
+    )
+
+    pushed_to_sparky = False
+    if source == "sparkyfitness" and sparky and has_key:
+        try:
+            SparkyFitnessClient().post_water_intake(
+                sparky.credentials["api_key"],
+                water_ml=round(amount_oz * 29.5735, 1),
+            )
+            pushed_to_sparky = True
+        except Exception as exc:  # best-effort push; still record locally
+            import logging
+            logging.getLogger(__name__).warning(
+                "water_add: Sparky push failed: %s", exc
+            )
+
+    create_water_log(
+        request.user,
+        amount_oz,
+        source=source,
+        pushed_to_sparky=pushed_to_sparky,
+    )
+    return JsonResponse(
+        {"success": True, "amount_oz": amount_oz, "source": source,
+         "pushed_to_sparky": pushed_to_sparky}
+    )
+
+
+@login_required
+def water_remove(request):
+    """POST /api/v1/hydration/water/remove  body: {amount_oz, source?}
+
+    Subtracts water from today's total (a negative hydration log). Removals are
+    local adjustments (the upstream provider APIs don't support deletions).
+    """
+    import json
+    from .services import create_water_log, primary_hydration_source
+    from .models import PlayerProfile, UserIntegration, Provider
+
+    if request.method != "POST":
+        return JsonResponse({"success": False, "error": "POST required"}, status=405)
+
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+    try:
+        amount_oz = float(body.get("amount_oz") or body.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount_oz = 0
+    if amount_oz <= 0:
+        return JsonResponse({"success": False, "error": "amount_oz must be > 0"}, status=400)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+    profile = PlayerProfile.objects.get_or_create(user=request.user)[0]
+    source = body.get("source") or primary_hydration_source(
+        profile, sparky_linked=(sparky is not None and has_key)
+    )
+
+    create_water_log(request.user, -amount_oz, source=source, pushed_to_sparky=False)
+    return JsonResponse({"success": True, "amount_oz": -amount_oz, "source": source})
+
+
+@login_required
+def water_bottles(request):
+    """GET/POST/DELETE /api/v1/hydration/bottles/
+
+    GET returns the user's custom bottle sizes. POST upserts the whole list
+    (bottles not present are deleted). Each item: {id?, name, capacity_oz}.
+    """
+    import json
+    from .models import WaterBottle
+
+    if request.method == "GET":
+        bottles = request.user.water_bottles.all()
+        return JsonResponse(
+            {
+                "bottles": [
+                    {"id": b.id, "name": b.name, "capacity_oz": b.capacity_oz}
+                    for b in bottles
+                ]
+            }
+        )
+
+    if request.method == "POST":
+        try:
+            body = json.loads(request.body or b"{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"success": False, "error": "Invalid JSON"}, status=400)
+
+        items = body.get("bottles")
+        if not isinstance(items, list):
+            return JsonResponse({"success": False, "error": "bottles list required"}, status=400)
+
+        kept_ids = []
+        for idx, item in enumerate(items):
+            try:
+                cap = float(item.get("capacity_oz") or 0)
+            except (TypeError, ValueError):
+                cap = 0
+            if cap <= 0:
+                continue
+            name = (item.get("name") or "Bottle")[:50]
+            if item.get("id"):
+                bottle = WaterBottle.objects.filter(
+                    id=item["id"], user=request.user
+                ).first()
+                if bottle:
+                    bottle.capacity_oz = cap
+                    bottle.name = name
+                    bottle.sort_order = idx
+                    bottle.save()
+                    kept_ids.append(bottle.id)
+                    continue
+            new = WaterBottle.objects.create(
+                user=request.user, name=name, capacity_oz=cap, sort_order=idx
+            )
+            kept_ids.append(new.id)
+
+        # Remove any bottles the user dropped from the list.
+        request.user.water_bottles.exclude(id__in=kept_ids).delete()
+
+        bottles = request.user.water_bottles.all()
+        return JsonResponse(
+            {
+                "success": True,
+                "bottles": [
+                    {"id": b.id, "name": b.name, "capacity_oz": b.capacity_oz}
+                    for b in bottles
+                ],
+            }
+        )
+
+    return JsonResponse({"success": False, "error": "Method not allowed"}, status=405)
+
+
+@login_required
+def water_bottle_delete(request, bottle_id):
+    """DELETE /api/v1/hydration/bottles/{id}"""
+    from .models import WaterBottle
+
+    if request.method == "DELETE":
+        WaterBottle.objects.filter(id=bottle_id, user=request.user).delete()
+        return JsonResponse({"success": True})
+    return JsonResponse({"success": False, "error": "Method not allowed"}, status=405)
 
 
 
@@ -2352,4 +2544,4 @@ def claim_bounty_view(request, bounty_id):
 
 
 
-
+

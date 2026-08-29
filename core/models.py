@@ -367,6 +367,24 @@ class PlayerProfile(models.Model):
         return f"{self.user.username} profile ({self.tokens} tokens)"
 
 
+class WaterBottle(models.Model):
+    """A user's custom water-bottle size for quick one-tap water logging."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="water_bottles"
+    )
+    name = models.CharField(max_length=50, default="Bottle")
+    capacity_oz = models.FloatField(help_text="Capacity in fluid ounces")
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+
+    def __str__(self):
+        return f"{self.name} ({self.capacity_oz}oz)"
+
+
 class GearPackDef(models.Model):
     """A themed Gacha pack (e.g. Iron Roost, Alchemist's Pack)."""
 

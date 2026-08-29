@@ -32,6 +32,7 @@ from core.models import (
     UserBadge,
     UserGear,
     UserIntegration,
+    WaterBottle,
     XPLedger,
 )
 from core.services.gamification import (
@@ -4214,4 +4215,88 @@ class BountyBoardAndFitnessDuelsTests(TestCase):
 
 
 
-
+
+
+
+class WaterLoggingTests(TestCase):
+    """Manual water logging: custom bottle sizes + add/remove + primary source."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="waterer", password="pw")
+        self.client.login(username="waterer", password="pw")
+
+    def _state(self):
+        return self.client.get("/api/v1/hydration/").json()
+
+    def _add(self, oz):
+        return self.client.post(
+            "/api/v1/hydration/water/add",
+            data=json.dumps({"amount_oz": oz}),
+            content_type="application/json",
+        )
+
+    def _remove(self, oz):
+        return self.client.post(
+            "/api/v1/hydration/water/remove",
+            data=json.dumps({"amount_oz": oz}),
+            content_type="application/json",
+        )
+
+    def test_state_includes_bottles_and_primary_source(self):
+        resp = self.client.get("/api/v1/hydration/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        # a default bottle is seeded
+        self.assertEqual(len(data["bottles"]), 1)
+        self.assertEqual(data["bottles"][0]["capacity_oz"], 24.0)
+        # no sparky linked -> health_connect default
+        self.assertEqual(data["primary_source"], "health_connect")
+
+    def test_water_add_updates_today_total(self):
+        self.assertEqual(self._add(24).status_code, 200)
+        self.assertEqual(self._add(24).status_code, 200)
+        self.assertEqual(self._state()["today"]["water"], 48.0)
+
+    def test_water_remove_subtracts(self):
+        self._add(24)
+        self._add(24)
+        self._remove(24)
+        self.assertEqual(self._state()["today"]["water"], 24.0)
+
+    def test_water_add_awards_day_xp(self):
+        # default goal is 80oz -> hitting it earns 30 hydration XP
+        self._add(80)
+        entries = XPLedger.objects.filter(user=self.user, modality=Modality.HYDRATION)
+        self.assertTrue(entries.exists())
+        self.assertGreaterEqual(sum(e.amount for e in entries), 30)
+
+    def test_add_requires_positive_amount(self):
+        resp = self._add(0)
+        self.assertEqual(resp.status_code, 400)
+
+    def test_bottles_upsert_replaces_list(self):
+        resp = self.client.post(
+            "/api/v1/hydration/bottles/",
+            data=json.dumps({"bottles": [
+                {"name": "Hydro Flask", "capacity_oz": 32},
+                {"name": "Nalgene", "capacity_oz": 48},
+            ]}),
+            content_type="application/json",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()["bottles"]
+        self.assertEqual(len(data), 2)
+        caps = sorted(b["capacity_oz"] for b in data)
+        self.assertEqual(caps, [32.0, 48.0])
+
+    def test_bottles_delete(self):
+        b = WaterBottle.objects.create(user=self.user, name="Extra", capacity_oz=12, sort_order=5)
+        resp = self.client.delete(f"/api/v1/hydration/bottles/{b.id}/delete")
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(WaterBottle.objects.filter(pk=b.pk).exists())
+
+    def test_bottle_ids_used_in_state(self):
+        self._add(16)  # ensures hydration exists
+        data = self._state()
+        self.assertIn("bottles", data)
+        self.assertTrue(all("id" in b and "capacity_oz" in b for b in data["bottles"]))

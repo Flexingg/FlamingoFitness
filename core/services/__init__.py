@@ -168,6 +168,13 @@ from .bounties import (  # noqa: F401
     expire_stale_bounties,
     get_bounties_state,
 )
+from .hydration import (  # noqa: F401
+    award_day_hydration,
+    build_hydration_history,
+    create_water_log,
+    ensure_default_bottles,
+    primary_hydration_source,
+)
 
 
 

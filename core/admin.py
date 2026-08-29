@@ -28,6 +28,7 @@ from .models import (
     UserBadge,
     UserGear,
     UserIntegration,
+    WaterBottle,
     XPLedger,
 )
 
@@ -308,3 +309,10 @@ class PvPMatchAdmin(admin.ModelAdmin):
     list_filter = ("did_win",)
     search_fields = ("attacker__username", "defender__username")
 
+
+
+@admin.register(WaterBottle)
+class WaterBottleAdmin(admin.ModelAdmin):
+    list_display = ("user", "name", "capacity_oz", "sort_order")
+    list_filter = ("user",)
+    search_fields = ("user__username", "name")
