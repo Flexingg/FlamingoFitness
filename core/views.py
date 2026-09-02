@@ -2397,7 +2397,7 @@ def nutrition_snaps_list(request):
             "entry_date": d.entry_date.isoformat(),
             "status": d.status,
             "has_image": bool(d.image or d.image_base64),
-            "image_url": d.image.url if d.image else None,
+            "image_url": d.image.url if d.image else (d.image_base64 if d.image_base64 else None),
             "extracted_items": d.extracted_items,
             "created_at": d.created_at.isoformat(),
         })
@@ -2452,7 +2452,7 @@ def nutrition_snap_upload(request):
             "meal_type": draft.meal_type,
             "status": draft.status,
             "extracted_items": draft.extracted_items,
-            "image_url": draft.image.url if draft.image else None,
+            "image_url": draft.image.url if draft.image else (draft.image_base64 if draft.image_base64 else None),
         },
     })
 

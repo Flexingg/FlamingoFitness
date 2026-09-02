@@ -11,6 +11,7 @@ library;
 
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 import '../models/health_metrics.dart';
 
@@ -116,6 +117,18 @@ class HealthService {
   Future<void> installHealthConnect() async {
     if (Platform.isAndroid) {
       await _health.installHealthConnect();
+    }
+  }
+
+  /// Open Health Connect permissions or app settings on the device.
+  Future<void> openHealthConnectSettings() async {
+    if (Platform.isAndroid) {
+      try {
+        const channel = MethodChannel('com.flamingo.fitness/notifications');
+        await channel.invokeMethod('openHealthConnectSettings');
+      } catch (e) {
+        debugPrint('Error opening Health Connect settings: $e');
+      }
     }
   }
 

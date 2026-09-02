@@ -1,15 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/health_metrics.dart';
 import '../services/api_service.dart';
 import '../services/health_service.dart';
 
 class HealthControlSheet extends StatefulWidget {
   final VoidCallback onRefreshWebView;
+  final ValueChanged<String>? onExecuteJavaScript;
 
   const HealthControlSheet({
     super.key,
     required this.onRefreshWebView,
+    this.onExecuteJavaScript,
   });
 
   @override
@@ -66,10 +70,17 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
   Future<void> _requestPermissions() async {
     HapticFeedback.mediumImpact();
     final ok = await _healthService.requestPermissions();
-    setState(() => _isAuthorized = ok);
-    if (ok) {
-      final metrics = await _healthService.fetchTodayMetrics();
-      setState(() => _latestMetrics = metrics);
+    if (mounted) {
+      setState(() => _isAuthorized = ok);
+      if (ok) {
+        final metrics = await _healthService.fetchTodayMetrics();
+        setState(() => _latestMetrics = metrics);
+      } else {
+        await _healthService.openHealthConnectSettings();
+        setState(() {
+          _syncMessage = 'Opening Health Connect Settings... Please grant permissions for Flamingo Fitness.';
+        });
+      }
     }
   }
 
@@ -150,6 +161,46 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
         }
       });
       if (result.success) widget.onRefreshWebView();
+    }
+  }
+
+  Future<void> _snapMealCamera() async {
+    try {
+      HapticFeedback.mediumImpact();
+      final picker = ImagePicker();
+      final photo = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 85,
+      );
+      if (photo != null && mounted) {
+        Navigator.of(context).pop();
+        final bytes = await photo.readAsBytes();
+        final b64 = base64Encode(bytes);
+        if (widget.onExecuteJavaScript != null) {
+          widget.onExecuteJavaScript!('''
+            if (window.openSnapMealModal) {
+              window.openSnapMealModal();
+              setTimeout(function() {
+                if (window.onFoodPhotoCaptured) {
+                  window.onFoodPhotoCaptured('data:image/jpeg;base64,$b64');
+                }
+              }, 400);
+            }
+          ''');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in _snapMealCamera: $e');
+    }
+  }
+
+  void _openFoodSearch() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).pop();
+    if (widget.onExecuteJavaScript != null) {
+      widget.onExecuteJavaScript!('if (window.openSearchFoodsModal) window.openSearchFoodsModal();');
     }
   }
 
@@ -283,19 +334,30 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
                       ],
                     ),
                   ),
-                  if (!_isAuthorized)
-                    ElevatedButton(
-                      onPressed: _isChecking ? null : _requestPermissions,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!_isAuthorized)
+                        ElevatedButton(
+                          onPressed: _isChecking ? null : _requestPermissions,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          ),
+                          child: const Text('Connect', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: 'Open Health Connect Settings',
+                        onPressed: () => _healthService.openHealthConnectSettings(),
+                        icon: const Icon(Icons.settings, color: Colors.white70, size: 22),
                       ),
-                      child: const Text('Connect', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -581,10 +643,7 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
                     children: [
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            widget.onRefreshWebView();
-                          },
+                          onPressed: _snapMealCamera,
                           icon: const Icon(Icons.camera_alt, size: 18),
                           label: const Text('Snap Meal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           style: ElevatedButton.styleFrom(
@@ -598,10 +657,7 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            widget.onRefreshWebView();
-                          },
+                          onPressed: _openFoodSearch,
                           icon: const Icon(Icons.search, size: 18),
                           label: const Text('Search DB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           style: OutlinedButton.styleFrom(
@@ -760,18 +816,6 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _waterQuickBtn(double oz) {
-    return ActionChip(
-      label: Text('+${oz.toStringAsFixed(0)} oz'),
-      backgroundColor: const Color(0xFF2A2A50),
-      labelStyle: const TextStyle(
-        color: Colors.blueAccent,
-        fontWeight: FontWeight.bold,
-      ),
-      onPressed: _isSyncing ? null : () => _logWater(oz),
     );
   }
 

@@ -133,10 +133,17 @@
         var html = '<div style="text-align: left;">';
         html += '<p style="color: #94a3b8; font-size: 0.88rem; margin-bottom: 14px;">Take a picture and add a quick note. Sparky will match it to your recent foods, and you can review it before logging.</p>';
 
-        html += '<div style="margin-bottom: 12px;">';
-        html += '<label style="display: block; font-size: 0.78rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 6px;">Meal Photo</label>';
-        html += '<input type="file" id="snap-file-input" accept="image/*" capture="environment" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px dashed rgba(168, 85, 247, 0.5); border-radius: 12px; color: #fff; font-size: 0.85rem;">';
-        html += '<div id="snap-preview-container" style="display: none; margin-top: 10px; text-align: center;"><img id="snap-preview-img" style="max-height: 140px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);" /></div>';
+        html += '<div style="margin-bottom: 14px;">';
+        html += '<label style="display: block; font-size: 0.78rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 8px;">Meal Photo</label>';
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">';
+        html += '<button type="button" id="btn-snap-camera" style="padding: 12px; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);"><i class="fa-solid fa-camera"></i> Take Photo</button>';
+        html += '<button type="button" id="btn-snap-gallery" style="padding: 12px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #e2e8f0; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fa-solid fa-image"></i> Choose File</button>';
+        html += '</div>';
+        html += '<input type="file" id="snap-file-input" accept="image/*" style="display: none;">';
+        html += '<div id="snap-preview-container" style="display: none; margin-top: 10px; text-align: center; position: relative;">';
+        html += '<img id="snap-preview-img" style="max-height: 160px; max-width: 100%; border-radius: 12px; border: 2px solid #a855f7; box-shadow: 0 4px 16px rgba(0,0,0,0.4);" />';
+        html += '<div id="snap-preview-badge" style="margin-top: 6px; font-size: 0.75rem; color: #4ade80; font-weight: 800;"><i class="fa-solid fa-circle-check"></i> Photo Ready</div>';
+        html += '</div>';
         html += '</div>';
 
         html += '<div style="margin-bottom: 12px;">';
@@ -164,11 +171,44 @@
         var fileInput = document.getElementById('snap-file-input');
         var previewContainer = document.getElementById('snap-preview-container');
         var previewImg = document.getElementById('snap-preview-img');
+        var capturedBase64 = null;
+
+        window.onFoodPhotoCaptured = function (base64OrDataUri) {
+            capturedBase64 = base64OrDataUri;
+            if (previewImg) previewImg.src = base64OrDataUri;
+            if (previewContainer) previewContainer.style.display = 'block';
+        };
+
+        var btnCamera = document.getElementById('btn-snap-camera');
+        if (btnCamera) {
+            btnCamera.onclick = function () {
+                if (window.FlamingoNative && window.FlamingoNative.snapFoodPhoto) {
+                    window.FlamingoNative.snapFoodPhoto('camera');
+                } else if (fileInput) {
+                    fileInput.setAttribute('capture', 'environment');
+                    fileInput.click();
+                }
+            };
+        }
+
+        var btnGallery = document.getElementById('btn-snap-gallery');
+        if (btnGallery) {
+            btnGallery.onclick = function () {
+                if (window.FlamingoNative && window.FlamingoNative.snapFoodPhoto) {
+                    window.FlamingoNative.snapFoodPhoto('gallery');
+                } else if (fileInput) {
+                    fileInput.removeAttribute('capture');
+                    fileInput.click();
+                }
+            };
+        }
+
         if (fileInput) {
             fileInput.onchange = function () {
                 if (fileInput.files && fileInput.files[0]) {
                     var reader = new FileReader();
                     reader.onload = function (e) {
+                        capturedBase64 = e.target.result;
                         if (previewImg) previewImg.src = e.target.result;
                         if (previewContainer) previewContainer.style.display = 'block';
                     };
@@ -182,13 +222,21 @@
             btnUpload.onclick = function () {
                 var noteVal = document.getElementById('snap-note-input').value;
                 var mealTypeVal = document.getElementById('snap-meal-type').value;
+
+                if (!noteVal && !capturedBase64 && (!fileInput || !fileInput.files || !fileInput.files[0])) {
+                    alert('Please capture a photo or enter a note about your meal.');
+                    return;
+                }
+
                 btnUpload.disabled = true;
                 btnUpload.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing...';
 
                 var formData = new FormData();
                 formData.append('note', noteVal);
                 formData.append('meal_type', mealTypeVal);
-                if (fileInput && fileInput.files && fileInput.files[0]) {
+                if (capturedBase64) {
+                    formData.append('image_base64', capturedBase64);
+                } else if (fileInput && fileInput.files && fileInput.files[0]) {
                     formData.append('image', fileInput.files[0]);
                 }
 

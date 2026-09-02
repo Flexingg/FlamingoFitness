@@ -17,7 +17,9 @@ library;
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'services/api_service.dart';
 import 'services/health_service.dart';
 import 'ui/health_control_sheet.dart';
@@ -147,6 +149,28 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
         onMessageReceived: _handleBridgeMessage,
       )
       ..loadRequest(Uri.parse(serverUrl));
+
+    final platform = _webViewController.platform;
+    if (platform is AndroidWebViewController) {
+      platform.setOnShowFileSelector((FileSelectorParams params) async {
+        try {
+          final picker = ImagePicker();
+          final isCapture = params.isCaptureEnabled;
+          final XFile? photo = await picker.pickImage(
+            source: isCapture ? ImageSource.camera : ImageSource.gallery,
+            maxWidth: 1280,
+            maxHeight: 1280,
+            imageQuality: 85,
+          );
+          if (photo != null) {
+            return [Uri.file(photo.path).toString()];
+          }
+        } catch (e) {
+          debugPrint('Error in setOnShowFileSelector: $e');
+        }
+        return [];
+      });
+    }
   }
 
   Future<void> _injectJavaScriptBridge() async {
@@ -160,6 +184,16 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
         requestPermissions: function() {
           if (window.FlamingoNativeBridge) {
             window.FlamingoNativeBridge.postMessage('requestPermissions');
+          }
+        },
+        openHealthConnectSettings: function() {
+          if (window.FlamingoNativeBridge) {
+            window.FlamingoNativeBridge.postMessage('openHealthConnectSettings');
+          }
+        },
+        snapFoodPhoto: function(source) {
+          if (window.FlamingoNativeBridge) {
+            window.FlamingoNativeBridge.postMessage('snapFoodPhoto:' + (source || 'camera'));
           }
         },
         showNotification: function(title, body) {
@@ -211,6 +245,26 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
     await _webViewController.runJavaScript(js);
   }
 
+  Future<void> _pickFoodPhotoNative(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? photo = await picker.pickImage(
+        source: source,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 85,
+      );
+      if (photo != null) {
+        final bytes = await photo.readAsBytes();
+        final b64 = base64Encode(bytes);
+        final js = "if (window.onFoodPhotoCaptured) window.onFoodPhotoCaptured('data:image/jpeg;base64,$b64');";
+        await _webViewController.runJavaScript(js);
+      }
+    } catch (e) {
+      debugPrint('Error in _pickFoodPhotoNative: $e');
+    }
+  }
+
   void _handleBridgeMessage(JavaScriptMessage message) async {
     final msg = message.message;
     debugPrint('Bridge message received: $msg');
@@ -219,6 +273,15 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
       _performBackgroundSync();
     } else if (msg == 'requestPermissions') {
       _showHealthControlSheet();
+    } else if (msg == 'openHealthConnectSettings') {
+      try {
+        await _healthService.openHealthConnectSettings();
+      } catch (e) {
+        debugPrint('Error invoking openHealthConnectSettings: $e');
+      }
+    } else if (msg.startsWith('snapFoodPhoto:')) {
+      final sourceStr = msg.split(':')[1];
+      _pickFoodPhotoNative(sourceStr == 'gallery' ? ImageSource.gallery : ImageSource.camera);
     } else if (msg.startsWith('logWater:') || msg.startsWith('writeWater:')) {
       final parts = msg.split(':');
       final oz = double.tryParse(parts.length > 1 ? parts[1] : '') ?? 0.0;
@@ -324,6 +387,9 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
         onRefreshWebView: () {
           _checkHealthPermissions();
           _webViewController.loadRequest(Uri.parse(_apiService.baseUrl));
+        },
+        onExecuteJavaScript: (js) {
+          _webViewController.runJavaScript(js);
         },
       ),
     );

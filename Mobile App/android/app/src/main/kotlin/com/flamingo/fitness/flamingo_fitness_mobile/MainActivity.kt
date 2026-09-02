@@ -51,6 +51,10 @@ class MainActivity : FlutterActivity() {
                     openAppNotificationSettings()
                     result.success(true)
                 }
+                "openHealthConnectSettings" -> {
+                    openHealthConnectSettings()
+                    result.success(true)
+                }
                 "showNotification" -> {
                     val title = call.argument<String>("title") ?: "🦩 Flamingo Fitness"
                     val body = call.argument<String>("body") ?: "Time to level up your habits!"
@@ -121,6 +125,58 @@ class MainActivity : FlutterActivity() {
             startActivity(intent)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun openHealthConnectSettings() {
+        // Try 1: Open app-specific permissions in Health Connect
+        try {
+            val intent = Intent("androidx.health.connect.client.ACTION_MANAGE_HEALTH_PERMISSIONS").apply {
+                putExtra(Intent.EXTRA_PACKAGE_NAME, packageName)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return
+            }
+        } catch (e: Exception) {
+            android.util.Log.d("HealthConnect", "ACTION_MANAGE_HEALTH_PERMISSIONS failed: ${e.message}")
+        }
+
+        // Try 2: Open generic Health Connect Settings screen
+        try {
+            val intent = Intent("androidx.health.ACTION_HEALTH_CONNECT_SETTINGS").apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                return
+            }
+        } catch (e: Exception) {
+            android.util.Log.d("HealthConnect", "ACTION_HEALTH_CONNECT_SETTINGS failed: ${e.message}")
+        }
+
+        // Try 3: Health Connect app launcher if installed as separate app
+        try {
+            val intent = packageManager.getLaunchIntentForPackage("com.google.android.apps.healthdata")
+            if (intent != null) {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                startActivity(intent)
+                return
+            }
+        } catch (e: Exception) {
+            android.util.Log.d("HealthConnect", "Launch com.google.android.apps.healthdata failed: ${e.message}")
+        }
+
+        // Try 4: Application details settings (Android App Info -> Permissions)
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("HealthConnect", "ACTION_APPLICATION_DETAILS_SETTINGS failed: ${e.message}")
         }
     }
 
