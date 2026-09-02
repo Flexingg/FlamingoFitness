@@ -12,6 +12,7 @@ without credentials. With DEMO=False (the default), an empty-key integration
 returns no data so the UI surfaces the real-data "Link SparkyFitness" CTA.
 """
 
+import json
 from datetime import date, timedelta
 from datetime import time as dt_time
 
@@ -77,9 +78,83 @@ class SparkyFitnessClient(MockAPIClient):
         return {}
 
 
-    def search_foods(self, api_key, query):
-        """Search the SparkyFitness food database or return realistic matches."""
+    def search_external_foods(self, api_key, query):
+        """Search Sparky's integrated external catalogs (Open Food Facts, FatSecret, Nutritionix) for new foods."""
         query_str = (query or "").strip()
+        if not api_key or not query_str:
+            return []
+
+        results = []
+
+        # 1. Open Food Facts via Sparky
+        off_res = self._get(api_key, "/foods/openfoodfacts/search", params={"query": query_str, "page": 1})
+        off_items = []
+        if isinstance(off_res, dict):
+            off_items = off_res.get("products") or off_res.get("items") or off_res.get("foods") or []
+        elif isinstance(off_res, list):
+            off_items = off_res
+
+        for item in off_items[:15]:
+            nutr = item.get("nutriments") or item.get("data") or {}
+            cal = nutr.get("energy-kcal") or nutr.get("energy-kcal_serving") or nutr.get("calories") or 0.0
+            pro = nutr.get("proteins") or nutr.get("proteins_serving") or nutr.get("protein") or 0.0
+            carb = nutr.get("carbohydrates") or nutr.get("carbohydrates_serving") or nutr.get("carbs") or 0.0
+            fat = nutr.get("fat") or nutr.get("fat_serving") or 0.0
+            name = item.get("product_name") or item.get("name") or query_str
+            brand = item.get("brands") or item.get("brand") or "Open Food Facts"
+            serving = item.get("serving_size") or "100g"
+
+            try:
+                cal_val = float(cal)
+            except (ValueError, TypeError):
+                cal_val = 0.0
+
+            results.append({
+                "id": f"off-{item.get('id') or item.get('code') or abs(hash(name))}",
+                "food_id": f"off-{item.get('id') or item.get('code') or ''}",
+                "variant_id": None,
+                "name": str(name).strip(),
+                "brand": str(brand).strip(),
+                "calories": round(cal_val, 1),
+                "protein": round(float(pro or 0.0), 1),
+                "carbs": round(float(carb or 0.0), 1),
+                "fat": round(float(fat or 0.0), 1),
+                "serving": str(serving),
+                "is_custom": False,
+                "source": "sparky_openfoodfacts",
+            })
+
+        # 2. FatSecret via Sparky if configured and fewer than 5 results
+        if len(results) < 5:
+            fs_res = self._get(api_key, "/foods/fatsecret/search", params={"search": query_str})
+            fs_items = []
+            if isinstance(fs_res, dict):
+                fs_items = fs_res.get("foods") or fs_res.get("food") or fs_res.get("items") or []
+            elif isinstance(fs_res, list):
+                fs_items = fs_res
+
+            for item in fs_items[:10]:
+                results.append({
+                    "id": f"fs-{item.get('food_id') or abs(hash(item.get('food_name', '')))}",
+                    "food_id": str(item.get("food_id") or ""),
+                    "variant_id": None,
+                    "name": str(item.get("food_name") or query_str).strip(),
+                    "brand": str(item.get("brand_name") or "FatSecret").strip(),
+                    "calories": float(item.get("calories") or 0.0),
+                    "protein": float(item.get("protein") or 0.0),
+                    "carbs": float(item.get("carbs") or 0.0),
+                    "fat": float(item.get("fat") or 0.0),
+                    "serving": str(item.get("serving_description") or "1 serving"),
+                    "is_custom": False,
+                    "source": "sparky_fatsecret",
+                })
+
+        return results
+
+    def search_foods(self, api_key, query, include_external=True, use_ai_fallback=False):
+        """Search the SparkyFitness food database, expanding to external catalogs and Sparky AI if needed."""
+        query_str = (query or "").strip()
+        formatted = []
         if api_key and query_str:
             # 1. Try dedicated search endpoint
             res = self._get(api_key, "/foods/search", params={"search": query_str, "checkCustom": True})
@@ -98,7 +173,6 @@ class SparkyFitnessClient(MockAPIClient):
                     items = res_paginated["foods"]
 
             if items:
-                formatted = []
                 for item in items:
                     variant = item.get("default_variant") or {}
                     variant_data = variant.get("data") or {}
@@ -121,6 +195,37 @@ class SparkyFitnessClient(MockAPIClient):
                         "is_custom": bool(item.get("is_custom", False)),
                         "source": "sparky_db",
                     })
+
+            # 3. If no/few items and include_external is True, expand to Sparky external catalogs!
+            if (not formatted or len(formatted) < 3) and include_external:
+                external_items = self.search_external_foods(api_key, query_str)
+                if external_items:
+                    seen_names = {f["name"].lower() for f in formatted}
+                    for ext in external_items:
+                        if ext["name"].lower() not in seen_names:
+                            formatted.append(ext)
+                            seen_names.add(ext["name"].lower())
+
+            # 4. If still empty and use_ai_fallback is True, generate with Sparky native AI!
+            if not formatted and use_ai_fallback:
+                ai_item = self.generate_food_ai(api_key, query_str)
+                if ai_item:
+                    formatted.append({
+                        "id": "sparky-ai-new",
+                        "food_id": None,
+                        "variant_id": None,
+                        "name": ai_item["name"],
+                        "brand": "Sparky AI (New Food)",
+                        "calories": ai_item["calories"],
+                        "protein": ai_item["protein"],
+                        "carbs": ai_item["carbs"],
+                        "fat": ai_item["fat"],
+                        "serving": ai_item["serving"],
+                        "is_custom": True,
+                        "source": "sparky_ai",
+                    })
+
+            if formatted:
                 return formatted
 
         # Catalog fallback / offline library
@@ -310,6 +415,80 @@ class SparkyFitnessClient(MockAPIClient):
                     pass
             return res
         return None
+
+    def generate_food_ai(self, api_key, food_name, unit="serving"):
+        """Use Sparky's native AI to generate nutritional breakdown for a new food, and format it."""
+        if not food_name:
+            return None
+
+        # 1. Try /chat/food-options first
+        options = self.generate_food_options_ai(api_key, food_name, unit)
+        if options:
+            if isinstance(options, list) and options:
+                opt = options[0]
+                return {
+                    "name": opt.get("name") or food_name,
+                    "calories": float(opt.get("calories") or 0.0),
+                    "protein": float(opt.get("protein") or 0.0),
+                    "carbs": float(opt.get("carbs") or 0.0),
+                    "fat": float(opt.get("fat") or 0.0),
+                    "serving": opt.get("serving_size") or f"1 {unit}",
+                    "brand": "Sparky AI",
+                    "confidence": 0.92,
+                }
+            elif isinstance(options, dict) and (options.get("calories") is not None or options.get("energy")):
+                return {
+                    "name": options.get("name") or food_name,
+                    "calories": float(options.get("calories") or options.get("energy") or 0.0),
+                    "protein": float(options.get("protein") or 0.0),
+                    "carbs": float(options.get("carbs") or 0.0),
+                    "fat": float(options.get("fat") or 0.0),
+                    "serving": options.get("serving_size") or f"1 {unit}",
+                    "brand": "Sparky AI",
+                    "confidence": 0.90,
+                }
+
+        # 2. Fallback to Sparky /chat
+        prompt = f"Estimate the nutritional breakdown for '{food_name}' (1 {unit}). Output valid JSON with keys: name, calories, protein, carbs, fat, serving_size."
+        chat_res = self.chat_ai(api_key, prompt)
+        if chat_res:
+            item = chat_res[0] if isinstance(chat_res, list) and chat_res else chat_res
+            if isinstance(item, dict):
+                return {
+                    "name": item.get("name") or food_name,
+                    "calories": float(item.get("calories") or 0.0),
+                    "protein": float(item.get("protein") or 0.0),
+                    "carbs": float(item.get("carbs") or 0.0),
+                    "fat": float(item.get("fat") or 0.0),
+                    "serving": item.get("serving_size") or f"1 {unit}",
+                    "brand": "Sparky AI",
+                    "confidence": 0.88,
+                }
+        return None
+
+    def create_custom_food(self, api_key, name, calories, protein, carbs=0.0, fat=0.0, serving="1 serving", brand="Custom"):
+        """Create a new custom food item in SparkyFitness backend."""
+        if not api_key or not name:
+            return None
+
+        payload = {
+            "name": str(name).strip(),
+            "brand": str(brand or "Custom").strip(),
+            "is_custom": True,
+            "is_public": False,
+            "default_variant": {
+                "serving_size": str(serving or "1 serving"),
+                "serving_weight": 100.0,
+                "data": {
+                    "calories": float(calories or 0.0),
+                    "protein": float(protein or 0.0),
+                    "carbs": float(carbs or 0.0),
+                    "fat": float(fat or 0.0),
+                }
+            }
+        }
+        res = self._post(api_key, "/foods", json_data=payload)
+        return res
 
     def post_water_intake(self, api_key, water_ml, entry_date=None):
         """Send a water intake log to SparkyFitness API."""

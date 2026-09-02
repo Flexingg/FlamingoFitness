@@ -134,9 +134,9 @@ class NutritionMatchingService:
         if matched_items:
             return matched_items
 
-        # 2. Search Sparky database / offline catalog (Priority 2)
+        # 2. Search Sparky database / catalog (Priority 2)
         if note_clean:
-            db_results = self.client.search_foods(self.api_key, note_clean)
+            db_results = self.client.search_foods(self.api_key, note_clean, include_external=False)
             if db_results:
                 best_match = db_results[0]
                 item_cal = round(best_match["calories"] * multiplier, 1)
@@ -156,42 +156,86 @@ class NutritionMatchingService:
                     "quantity": multiplier,
                     "unit": best_match.get("serving", "serving"),
                     "match_source": "sparky_db",
+                    "confidence": 0.85,
+                }]
+
+        # 3. Expand search to Sparky external catalogs (Open Food Facts / FatSecret) (Priority 3)
+        if self.api_key and note_clean:
+            ext_results = self.client.search_external_foods(self.api_key, note_clean)
+            if ext_results:
+                best_ext = ext_results[0]
+                item_cal = round(best_ext["calories"] * multiplier, 1)
+                item_pro = round(best_ext["protein"] * multiplier, 1)
+                item_carb = round(best_ext.get("carbs", 0.0) * multiplier, 1)
+                item_fat = round(best_ext.get("fat", 0.0) * multiplier, 1)
+
+                return [{
+                    "food_id": best_ext.get("food_id"),
+                    "variant_id": None,
+                    "name": best_ext["name"],
+                    "brand": best_ext.get("brand", "Open Food Facts"),
+                    "calories": item_cal,
+                    "protein": item_pro,
+                    "carbs": item_carb,
+                    "fat": item_fat,
+                    "quantity": multiplier,
+                    "unit": best_ext.get("serving", "serving"),
+                    "match_source": "sparky_openfoodfacts",
                     "confidence": 0.80,
                 }]
 
-        # 3. Sparky Native AI Assistance (/chat/food-options or /chat) (Priority 3)
-        if self.api_key and note_clean:
-            sparky_ai_opt = self.client.generate_food_options_ai(self.api_key, note_clean)
-            if sparky_ai_opt and isinstance(sparky_ai_opt, list) and sparky_ai_opt:
-                first = sparky_ai_opt[0]
+        # 4. Use Sparky Native AI to generate new food and persist in Sparky DB (Priority 4)
+        if self.api_key:
+            food_target = note_clean if note_clean else f"{meal_type} Plate"
+            ai_item = self.client.generate_food_ai(self.api_key, food_target)
+            if ai_item:
+                item_cal = round(ai_item["calories"] * multiplier, 1)
+                item_pro = round(ai_item["protein"] * multiplier, 1)
+                item_carb = round(ai_item["carbs"] * multiplier, 1)
+                item_fat = round(ai_item["fat"] * multiplier, 1)
+                unit_str = ai_item.get("serving", "serving")
+
+                # Persist the newly created food directly in SparkyFitness DB
+                created_res = self.client.create_custom_food(
+                    self.api_key,
+                    name=ai_item["name"],
+                    calories=item_cal,
+                    protein=item_pro,
+                    carbs=item_carb,
+                    fat=item_fat,
+                    serving=unit_str,
+                    brand="Sparky AI",
+                )
+                created_id = created_res.get("id") if isinstance(created_res, dict) else None
+
                 return [{
-                    "food_id": None,
+                    "food_id": created_id,
                     "variant_id": None,
-                    "name": first.get("name") or note_clean,
-                    "brand": "Sparky AI",
-                    "calories": round(float(first.get("calories") or 350) * multiplier, 1),
-                    "protein": round(float(first.get("protein") or 25) * multiplier, 1),
-                    "carbs": round(float(first.get("carbs") or 30) * multiplier, 1),
-                    "fat": round(float(first.get("fat") or 10) * multiplier, 1),
+                    "name": ai_item["name"],
+                    "brand": "Sparky AI (New Food Created)",
+                    "calories": item_cal,
+                    "protein": item_pro,
+                    "carbs": item_carb,
+                    "fat": item_fat,
                     "quantity": multiplier,
-                    "unit": first.get("unit") or "serving",
-                    "match_source": "sparky_ai",
-                    "confidence": 0.75,
+                    "unit": unit_str,
+                    "match_source": "sparky_ai_created",
+                    "confidence": 0.90,
                 }]
 
-        # 4. Fallback estimation based on note or photo presence
-        label = note_clean if note_clean else "Logged Meal"
+        # 5. Fallback estimation based on note or photo presence
+        label = note_clean if note_clean else f"{meal_type} Meal"
         return [{
             "food_id": None,
             "variant_id": None,
             "name": label,
-            "brand": "Meal Estimation",
-            "calories": 450.0 * multiplier,
-            "protein": 30.0 * multiplier,
-            "carbs": 40.0 * multiplier,
-            "fat": 15.0 * multiplier,
+            "brand": "Sparky Estimation",
+            "calories": round(450.0 * multiplier, 1),
+            "protein": round(30.0 * multiplier, 1),
+            "carbs": round(40.0 * multiplier, 1),
+            "fat": round(15.0 * multiplier, 1),
             "quantity": multiplier,
-            "unit": "plate / serving",
-            "match_source": "sparky_ai" if self.api_key else "estimation",
-            "confidence": 0.65,
+            "unit": "1 serving",
+            "match_source": "sparky_estimation",
+            "confidence": 0.70,
         }]

@@ -299,10 +299,16 @@
             var badgeText = 'Recent Food';
             if (it.match_source === 'sparky_db') {
                 badgeCls = 'db';
-                badgeText = 'Database';
-            } else if (it.match_source === 'vision_estimation') {
+                badgeText = 'Sparky Database';
+            } else if (it.match_source === 'sparky_openfoodfacts') {
+                badgeCls = 'db';
+                badgeText = 'Open Food Facts';
+            } else if (it.match_source === 'sparky_ai_created' || it.match_source === 'sparky_ai') {
                 badgeCls = 'ai';
-                badgeText = 'AI Estimation';
+                badgeText = '✨ Sparky AI (New Food Created)';
+            } else if (it.match_source === 'sparky_estimation') {
+                badgeCls = 'ai';
+                badgeText = 'Sparky AI Estimation';
             }
 
             html += '<div class="snap-review-item-row" id="review-item-' + idx + '">';
@@ -396,37 +402,65 @@
         var resultsList = document.getElementById('live-search-results-list');
 
         function performSearch(q) {
-            resultsList.innerHTML = '<div style="padding: 12px; text-align: center; color: #94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Searching Sparky database...</div>';
-            fetch('/api/v1/nutrition/search-foods/?q=' + encodeURIComponent(q))
+            resultsList.innerHTML = '<div style="padding: 12px; text-align: center; color: #94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Searching Sparky database & external catalogs...</div>';
+            fetch('/api/v1/nutrition/search-foods/?q=' + encodeURIComponent(q) + '&expand=true')
                 .then(function (res) { return res.json(); })
                 .then(function (data) {
                     var items = data.results || [];
-                    if (!items.length) {
-                        resultsList.innerHTML = '<div style="padding: 12px; text-align: center; color: #64748b;">No matching foods found.</div>';
-                        return;
-                    }
                     resultsList.innerHTML = '';
-                    items.forEach(function (f) {
-                        var card = document.createElement('div');
-                        card.className = 'food-result-item';
-                        card.innerHTML = '<div>' +
-                            '<div style="font-weight: 800; font-size: 0.9rem; color: #fff;">' + f.name + '</div>' +
-                            '<div style="font-size: 0.75rem; color: #94a3b8;">' + (f.brand ? f.brand + ' • ' : '') + f.serving + '</div>' +
-                            '</div>' +
-                            '<div style="display: flex; align-items: center; gap: 10px;">' +
-                            '<div style="text-align: right;">' +
-                            '<div style="font-weight: 900; color: #c084fc; font-size: 0.85rem;">' + Math.round(f.protein || 0) + 'g P</div>' +
-                            '<div style="font-size: 0.75rem; color: #94a3b8;">' + Math.round(f.calories || 0) + ' cal</div>' +
-                            '</div>' +
-                            '<button class="recent-food-add-btn" style="width: 32px; height: 32px;"><i class="fa-solid fa-plus"></i></button>' +
-                            '</div>';
 
-                        card.onclick = function () {
-                            if (window.closeModal) window.closeModal();
-                            window.quickLogFood(f, 1.0);
+                    if (!items.length) {
+                        resultsList.innerHTML = '<div style="padding: 12px; text-align: center; color: #64748b;">No matching foods found in database or external catalogs.</div>';
+                    } else {
+                        items.forEach(function (f) {
+                            var badgeHtml = '';
+                            if (f.source === 'sparky_openfoodfacts') {
+                                badgeHtml = '<span style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 0.68rem; padding: 2px 6px; border-radius: 6px; font-weight: 700; margin-left: 6px;"><i class="fa-solid fa-earth-americas"></i> Open Food Facts</span>';
+                            } else if (f.source === 'sparky_ai') {
+                                badgeHtml = '<span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 0.68rem; padding: 2px 6px; border-radius: 6px; font-weight: 700; margin-left: 6px;"><i class="fa-solid fa-wand-magic-sparkles"></i> Sparky AI</span>';
+                            } else if (f.is_custom) {
+                                badgeHtml = '<span style="background: rgba(234, 179, 8, 0.2); color: #facc15; font-size: 0.68rem; padding: 2px 6px; border-radius: 6px; font-weight: 700; margin-left: 6px;">Custom</span>';
+                            }
+
+                            var card = document.createElement('div');
+                            card.className = 'food-result-item';
+                            card.innerHTML = '<div>' +
+                                '<div style="font-weight: 800; font-size: 0.9rem; color: #fff; display: flex; align-items: center; flex-wrap: wrap;">' + f.name + badgeHtml + '</div>' +
+                                '<div style="font-size: 0.75rem; color: #94a3b8;">' + (f.brand ? f.brand + ' • ' : '') + f.serving + '</div>' +
+                                '</div>' +
+                                '<div style="display: flex; align-items: center; gap: 10px;">' +
+                                '<div style="text-align: right;">' +
+                                '<div style="font-weight: 900; color: #c084fc; font-size: 0.85rem;">' + Math.round(f.protein || 0) + 'g P</div>' +
+                                '<div style="font-size: 0.75rem; color: #94a3b8;">' + Math.round(f.calories || 0) + ' cal</div>' +
+                                '</div>' +
+                                '<button class="recent-food-add-btn" style="width: 32px; height: 32px;"><i class="fa-solid fa-plus"></i></button>' +
+                                '</div>';
+
+                            card.onclick = function () {
+                                if (window.closeModal) window.closeModal();
+                                window.quickLogFood(f, 1.0);
+                            };
+                            resultsList.appendChild(card);
+                        });
+                    }
+
+                    // Always provide option to create new food with Sparky AI
+                    var aiBanner = document.createElement('div');
+                    aiBanner.style.cssText = 'background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(126, 34, 206, 0.15) 100%); border: 1px dashed rgba(168, 85, 247, 0.4); border-radius: 12px; padding: 12px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px;';
+                    aiBanner.innerHTML = '<div>' +
+                        '<div style="font-weight: 800; font-size: 0.88rem; color: #e9d5ff;"><i class="fa-solid fa-wand-magic-sparkles"></i> Make with Sparky AI</div>' +
+                        '<div style="font-size: 0.75rem; color: #cbd5e1;">Generate macros and save as a new food.</div>' +
+                        '</div>' +
+                        '<button type="button" id="btn-make-ai-food" style="padding: 8px 14px; background: #a855f7; border: none; border-radius: 10px; color: #fff; font-weight: 800; font-size: 0.8rem; cursor: pointer; white-space: nowrap;"><i class="fa-solid fa-plus"></i> Make with AI</button>';
+                    resultsList.appendChild(aiBanner);
+
+                    var btnAi = aiBanner.querySelector('#btn-make-ai-food');
+                    if (btnAi) {
+                        btnAi.onclick = function (e) {
+                            e.stopPropagation();
+                            window.openCreateFoodAiModal(q);
                         };
-                        resultsList.appendChild(card);
-                    });
+                    }
                 })
                 .catch(function () {
                     resultsList.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444;">Error querying foods.</div>';
@@ -443,6 +477,194 @@
                 debounceTimer = setTimeout(function () {
                     performSearch(searchInput.value);
                 }, 300);
+            };
+        }
+    };
+
+    // Open Create Food with Sparky AI Modal
+    window.openCreateFoodAiModal = function (initialName) {
+        if (window.closeModal) window.closeModal();
+
+        var modalTitle = document.getElementById('modal-title');
+        var modalDesc = document.getElementById('modal-desc');
+        var modalAction = document.getElementById('modal-action');
+        var modalIcon = document.querySelector('.modal-icon i');
+
+        if (modalTitle) modalTitle.textContent = 'Create Food with Sparky AI';
+        if (modalIcon) modalIcon.className = 'fa-solid fa-wand-magic-sparkles';
+        if (modalAction) modalAction.style.display = 'none';
+
+        var queryName = initialName || '';
+        var html = '<div style="text-align: left;">';
+        html += '<p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Ask Sparky AI to estimate macros and save as a new custom food in your SparkyFitness database.</p>';
+
+        html += '<div style="margin-bottom: 10px;">';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Food Name / Meal</label>';
+        html += '<div style="display: flex; gap: 8px;">';
+        html += '<input type="text" id="ai-food-name" value="' + queryName.replace(/"/g, '&quot;') + '" placeholder="e.g. Teriyaki Salmon with Quinoa" style="flex: 1; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.9rem;" />';
+        html += '<button type="button" id="btn-trigger-ai" style="padding: 10px 14px; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.82rem; cursor: pointer; white-space: nowrap;"><i class="fa-solid fa-wand-sparkles"></i> Generate</button>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Serving Size</label>';
+        html += '<input type="text" id="ai-food-serving" value="1 serving" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.9rem;" />';
+        html += '</div>';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Meal Slot</label>';
+        html += '<select id="ai-food-meal-type" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700;">';
+        html += '<option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option>';
+        html += '</select>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 16px;">';
+        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 2px;">Calories</label><input type="number" id="ai-food-cal" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fff; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #c084fc; margin-bottom: 2px;">Protein (g)</label><input type="number" id="ai-food-pro" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #c084fc; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">Carbs (g)</label><input type="number" id="ai-food-carb" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #38bdf8; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #fbbf24; margin-bottom: 2px;">Fat (g)</label><input type="number" id="ai-food-fat" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fbbf24; font-weight: 800; text-align: center;" /></div>';
+        html += '</div>';
+
+        html += '<div style="display: flex; gap: 8px;">';
+        html += '<button type="button" id="btn-save-and-log" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.88rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);"><i class="fa-solid fa-cloud-arrow-up"></i> Save & Log (+XP)</button>';
+        html += '<button type="button" id="btn-save-only" style="padding: 12px 14px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; color: #e2e8f0; font-weight: 700; font-size: 0.82rem; cursor: pointer;">Save to DB Only</button>';
+        html += '</div>';
+
+        html += '</div>';
+
+        if (modalDesc) modalDesc.innerHTML = html;
+        if (window.openModal) window.openModal();
+
+        function triggerAiGeneration() {
+            var nameVal = document.getElementById('ai-food-name').value.trim();
+            var servingVal = document.getElementById('ai-food-serving').value.trim();
+            if (!nameVal) {
+                alert('Please enter a food name to generate.');
+                return;
+            }
+            var btnGen = document.getElementById('btn-trigger-ai');
+            btnGen.disabled = true;
+            btnGen.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Estimating...';
+
+            fetch('/api/v1/nutrition/ai-generate-food/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken') || ''
+                },
+                body: JSON.stringify({ food_name: nameVal, unit: servingVal })
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                btnGen.disabled = false;
+                btnGen.innerHTML = '<i class="fa-solid fa-wand-sparkles"></i> Generate';
+                if (data.success && data.food) {
+                    var f = data.food;
+                    document.getElementById('ai-food-cal').value = Math.round(f.calories || 0);
+                    document.getElementById('ai-food-pro').value = Math.round(f.protein || 0);
+                    document.getElementById('ai-food-carb').value = Math.round(f.carbs || 0);
+                    document.getElementById('ai-food-fat').value = Math.round(f.fat || 0);
+                    if (f.serving) document.getElementById('ai-food-serving').value = f.serving;
+                    if (window.showToast) window.showToast('✨ Sparky AI estimated nutritional profile!');
+                }
+            })
+            .catch(function () {
+                btnGen.disabled = false;
+                btnGen.innerHTML = '<i class="fa-solid fa-wand-sparkles"></i> Generate';
+            });
+        }
+
+        var btnTrigger = document.getElementById('btn-trigger-ai');
+        if (btnTrigger) btnTrigger.onclick = triggerAiGeneration;
+
+        // Auto-trigger if queryName provided
+        if (queryName) {
+            triggerAiGeneration();
+        }
+
+        var btnSaveLog = document.getElementById('btn-save-and-log');
+        if (btnSaveLog) {
+            btnSaveLog.onclick = function () {
+                var nameVal = document.getElementById('ai-food-name').value.trim();
+                var servingVal = document.getElementById('ai-food-serving').value.trim();
+                var mealVal = document.getElementById('ai-food-meal-type').value;
+                var calVal = parseFloat(document.getElementById('ai-food-cal').value) || 0;
+                var proVal = parseFloat(document.getElementById('ai-food-pro').value) || 0;
+                var carbVal = parseFloat(document.getElementById('ai-food-carb').value) || 0;
+                var fatVal = parseFloat(document.getElementById('ai-food-fat').value) || 0;
+
+                if (!nameVal) {
+                    alert('Food name is required.');
+                    return;
+                }
+
+                btnSaveLog.disabled = true;
+                btnSaveLog.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving & Logging...';
+
+                window.quickLogFood({
+                    name: nameVal,
+                    food_name: nameVal,
+                    calories: calVal,
+                    protein: proVal,
+                    carbs: carbVal,
+                    fat: fatVal,
+                    serving: servingVal,
+                    unit: servingVal,
+                    brand: 'Sparky AI',
+                    create_custom: true,
+                    meal_type: mealVal
+                }, 1.0);
+
+                if (window.closeModal) window.closeModal();
+            };
+        }
+
+        var btnSaveOnly = document.getElementById('btn-save-only');
+        if (btnSaveOnly) {
+            btnSaveOnly.onclick = function () {
+                var nameVal = document.getElementById('ai-food-name').value.trim();
+                var servingVal = document.getElementById('ai-food-serving').value.trim();
+                var calVal = parseFloat(document.getElementById('ai-food-cal').value) || 0;
+                var proVal = parseFloat(document.getElementById('ai-food-pro').value) || 0;
+                var carbVal = parseFloat(document.getElementById('ai-food-carb').value) || 0;
+                var fatVal = parseFloat(document.getElementById('ai-food-fat').value) || 0;
+
+                btnSaveOnly.disabled = true;
+                btnSaveOnly.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+                fetch('/api/v1/nutrition/create-food/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({
+                        name: nameVal,
+                        calories: calVal,
+                        protein: proVal,
+                        carbs: carbVal,
+                        fat: fatVal,
+                        serving: servingVal,
+                        brand: 'Sparky AI'
+                    })
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (data.success) {
+                        if (window.closeModal) window.closeModal();
+                        if (window.showToast) window.showToast('✅ Saved ' + nameVal + ' to Sparky database!');
+                    } else {
+                        alert('Could not save food: ' + (data.error || 'Server error'));
+                        btnSaveOnly.disabled = false;
+                        btnSaveOnly.innerHTML = 'Save to DB Only';
+                    }
+                })
+                .catch(function () {
+                    alert('Error saving custom food.');
+                    btnSaveOnly.disabled = false;
+                    btnSaveOnly.innerHTML = 'Save to DB Only';
+                });
             };
         }
     };

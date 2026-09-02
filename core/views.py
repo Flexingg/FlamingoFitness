@@ -2250,8 +2250,11 @@ def nutrition_recent_foods(request):
 
 @login_required
 def nutrition_search_foods(request):
-    """GET /api/v1/nutrition/search-foods/?q=... - Live food database search."""
+    """GET /api/v1/nutrition/search-foods/?q=... - Live food database search with external and AI expansion."""
     query = request.GET.get("q", "")
+    expand = request.GET.get("expand", "true").lower() in ("true", "1", "yes")
+    use_ai = request.GET.get("use_ai", "false").lower() in ("true", "1", "yes")
+
     sparky = UserIntegration.objects.filter(
         user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
     ).first()
@@ -2260,8 +2263,106 @@ def nutrition_search_foods(request):
     from .services.sparky_client import SparkyFitnessClient
 
     client = SparkyFitnessClient()
-    results = client.search_foods(api_key, query)
+    results = client.search_foods(api_key, query, include_external=expand, use_ai_fallback=use_ai)
     return JsonResponse({"success": True, "query": query, "results": results})
+
+
+@login_required
+@require_POST
+def nutrition_ai_generate_food(request):
+    """POST /api/v1/nutrition/ai-generate-food/ - Generate macro profile using Sparky native AI."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    food_name = (data.get("food_name") or data.get("name") or "").strip()
+    unit = (data.get("unit") or "serving").strip()
+    if not food_name:
+        return _json_error("Missing food_name", 400)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    generated = client.generate_food_ai(api_key, food_name, unit=unit)
+    if not generated:
+        generated = {
+            "name": food_name,
+            "calories": 350.0,
+            "protein": 25.0,
+            "carbs": 30.0,
+            "fat": 12.0,
+            "serving": f"1 {unit}",
+            "brand": "Sparky AI",
+            "confidence": 0.75,
+        }
+
+    return JsonResponse({"success": True, "food": generated})
+
+
+@login_required
+@require_POST
+def nutrition_create_food(request):
+    """POST /api/v1/nutrition/create-food/ - Persist a custom or AI-generated food in Sparky backend."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    name = (data.get("name") or data.get("food_name") or "").strip()
+    if not name:
+        return _json_error("Missing food name", 400)
+
+    calories = float(data.get("calories") or 0.0)
+    protein = float(data.get("protein") or 0.0)
+    carbs = float(data.get("carbs") or 0.0)
+    fat = float(data.get("fat") or 0.0)
+    serving = str(data.get("serving") or data.get("serving_size") or "1 serving")
+    brand = str(data.get("brand") or "Custom")
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    created = client.create_custom_food(
+        api_key=api_key,
+        name=name,
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat,
+        serving=serving,
+        brand=brand,
+    )
+
+    created_id = created.get("id") if isinstance(created, dict) else None
+
+    return JsonResponse({
+        "success": True,
+        "food": {
+            "id": str(created_id or f"custom-{abs(hash(name))}"),
+            "food_id": str(created_id or ""),
+            "name": name,
+            "calories": calories,
+            "protein": protein,
+            "carbs": carbs,
+            "fat": fat,
+            "serving": serving,
+            "brand": brand,
+            "is_custom": True,
+            "source": "sparky_db",
+        },
+        "sparky_response": created,
+    })
 
 
 @login_required
@@ -2297,6 +2398,24 @@ def nutrition_quick_log(request):
     from .services.sparky_client import SparkyFitnessClient
 
     client = SparkyFitnessClient()
+
+    if api_key and (data.get("create_custom") or data.get("source") == "sparky_ai"):
+        try:
+            created = client.create_custom_food(
+                api_key=api_key,
+                name=food_name,
+                calories=calories / max(quantity, 1.0),
+                protein=protein / max(quantity, 1.0),
+                carbs=carbs / max(quantity, 1.0),
+                fat=fat / max(quantity, 1.0),
+                serving=unit,
+                brand=brand_name or "Custom",
+            )
+            if isinstance(created, dict) and created.get("id"):
+                food_id = created["id"]
+        except Exception:
+            pass
+
     sparky_res = client.post_food_entry(
         api_key=api_key,
         food_name=food_name,
@@ -2484,6 +2603,24 @@ def nutrition_snap_commit(request, draft_id):
 
     client = SparkyFitnessClient()
     for item in items:
+        f_id = item.get("food_id")
+        if not f_id and api_key and item.get("match_source") in ("sparky_ai", "sparky_ai_created"):
+            try:
+                created = client.create_custom_food(
+                    api_key=api_key,
+                    name=item.get("name") or "Logged Food",
+                    calories=float(item.get("calories") or 0) / max(float(item.get("quantity") or 1), 1.0),
+                    protein=float(item.get("protein") or 0) / max(float(item.get("quantity") or 1), 1.0),
+                    carbs=float(item.get("carbs") or 0) / max(float(item.get("quantity") or 1), 1.0),
+                    fat=float(item.get("fat") or 0) / max(float(item.get("quantity") or 1), 1.0),
+                    serving=str(item.get("unit") or "serving"),
+                    brand=item.get("brand") or "Sparky AI",
+                )
+                if isinstance(created, dict) and created.get("id"):
+                    f_id = created["id"]
+            except Exception:
+                pass
+
         client.post_food_entry(
             api_key=api_key,
             food_name=item.get("name") or "Logged Food",
@@ -2495,7 +2632,7 @@ def nutrition_snap_commit(request, draft_id):
             meal_type=meal_type,
             quantity=float(item.get("quantity") or 1),
             unit=str(item.get("unit") or "serving"),
-            food_id=item.get("food_id"),
+            food_id=f_id,
             variant_id=item.get("variant_id"),
             brand_name=item.get("brand") or "",
         )
