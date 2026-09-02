@@ -1,0 +1,62 @@
+name: Build & Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Android Release & Upload
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: './Mobile App'
+        run: flutter pub get
+
+      - name: Build Android APK
+        working-directory: './Mobile App'
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle (AAB)
+        working-directory: './Mobile App'
+        run: flutter build appbundle --release
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p release_assets
+          cp "Mobile App/build/app/outputs/flutter-apk/app-release.apk" "release_assets/FlamingoFitness-${{ github.ref_name }}.apk"
+          cp "Mobile App/build/app/outputs/bundle/release/app-release.aab" "release_assets/FlamingoFitness-${{ github.ref_name }}.aab"
+
+      - name: Create GitHub Release & Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
