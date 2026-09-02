@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
             name='FoodSnapDraft',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('image', models.ImageField(blank=True, null=True, upload_to='food_snaps/%Y/%m/')),
+                ('image', models.FileField(blank=True, null=True, upload_to='food_snaps/%Y/%m/')),
                 ('image_base64', models.TextField(blank=True, default='', help_text='Base64 encoded photo for offline sync or direct client uploads.')),
                 ('note', models.TextField(blank=True, default='', help_text="User-provided notes, e.g. 'Chipotle bowl with double chicken and brown rice'")),
                 ('meal_type', models.CharField(default='Lunch', max_length=50)),

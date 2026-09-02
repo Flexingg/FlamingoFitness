@@ -1195,7 +1195,7 @@ class FoodSnapDraft(models.Model):
     user = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="food_snap_drafts"
     )
-    image = models.ImageField(upload_to="food_snaps/%Y/%m/", blank=True, null=True)
+    image = models.FileField(upload_to="food_snaps/%Y/%m/", blank=True, null=True)
     image_base64 = models.TextField(
         blank=True,
         default="",
