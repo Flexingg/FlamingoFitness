@@ -288,10 +288,30 @@
         }
 
         if (draft.note) {
-            html += '<div style="background: rgba(30, 41, 59, 0.6); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 12px;"><strong>Note:</strong> ' + draft.note + '</div>';
+            html += '<div style="background: rgba(30, 41, 59, 0.6); border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 12px;"><strong>Meal Note:</strong> ' + draft.note + '</div>';
         }
 
-        html += '<div style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px;">Matched Items</div>';
+        var itemStates = items.map(function (it) {
+            return {
+                raw: it,
+                selected: true,
+                multiplier: it.quantity || 1.0,
+                baseCal: it.calories || 0,
+                basePro: it.protein || 0,
+                baseCarb: it.carbs || 0,
+                baseFat: it.fat || 0
+            };
+        });
+
+        // Total Meal Macro Summary Card
+        html += '<div id="snap-review-summary" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; display: flex; justify-content: space-around; text-align: center;">';
+        html += '<div><div style="font-size: 0.68rem; color: #94a3b8; font-weight: 700;">TOTAL CAL</div><div id="sum-cal" style="font-weight: 900; font-size: 1.05rem; color: #fff;">0</div></div>';
+        html += '<div><div style="font-size: 0.68rem; color: #c084fc; font-weight: 700;">PROTEIN</div><div id="sum-pro" style="font-weight: 900; font-size: 1.05rem; color: #c084fc;">0g</div></div>';
+        html += '<div><div style="font-size: 0.68rem; color: #38bdf8; font-weight: 700;">CARBS</div><div id="sum-carb" style="font-weight: 900; font-size: 1.05rem; color: #38bdf8;">0g</div></div>';
+        html += '<div><div style="font-size: 0.68rem; color: #fbbf24; font-weight: 700;">FAT</div><div id="sum-fat" style="font-weight: 900; font-size: 1.05rem; color: #fbbf24;">0g</div></div>';
+        html += '</div>';
+
+        html += '<div style="font-size: 0.8rem; font-weight: 800; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px;">Decomposed Food Items (' + items.length + ')</div>';
         html += '<div id="review-items-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">';
 
         items.forEach(function (it, idx) {
@@ -305,41 +325,144 @@
                 badgeText = 'Open Food Facts';
             } else if (it.match_source === 'sparky_ai_created' || it.match_source === 'sparky_ai') {
                 badgeCls = 'ai';
-                badgeText = '✨ Sparky AI (New Food Created)';
+                badgeText = '✨ Sparky AI';
             } else if (it.match_source === 'sparky_estimation') {
                 badgeCls = 'ai';
                 badgeText = 'Sparky AI Estimation';
             }
 
-            html += '<div class="snap-review-item-row" id="review-item-' + idx + '">';
-            html += '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">';
+            html += '<div class="snap-review-item-row" id="review-item-' + idx + '" style="padding: 10px; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;">';
+            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">';
+            html += '<div style="display: flex; align-items: center; gap: 8px;">';
+            html += '<input type="checkbox" id="chk-item-' + idx + '" checked style="width: 18px; height: 18px; accent-color: #10b981; cursor: pointer;" />';
             html += '<div>';
-            html += '<div style="font-weight: 800; font-size: 0.92rem; color: #fff;">' + it.name + '</div>';
-            html += '<span class="snap-badge ' + badgeCls + '">' + badgeText + '</span>';
+            html += '<div style="font-weight: 800; font-size: 0.9rem; color: #fff;">' + it.name + '</div>';
+            html += '<span class="snap-badge ' + badgeCls + '" style="font-size: 0.65rem;">' + badgeText + '</span>';
+            html += '</div>';
             html += '</div>';
             html += '<div style="text-align: right;">';
-            html += '<div style="font-weight: 900; color: #c084fc;">' + Math.round(it.protein || 0) + 'g Protein</div>';
-            html += '<div style="font-size: 0.8rem; color: #94a3b8;">' + Math.round(it.calories || 0) + ' kcal</div>';
+            html += '<div id="val-pro-' + idx + '" style="font-weight: 900; color: #c084fc; font-size: 0.88rem;">' + Math.round(it.protein || 0) + 'g P</div>';
+            html += '<div id="val-cal-' + idx + '" style="font-size: 0.75rem; color: #94a3b8;">' + Math.round(it.calories || 0) + ' kcal</div>';
             html += '</div>';
             html += '</div>';
+
+            // Multiplier controls
+            html += '<div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 4px;">';
+            html += '<span style="font-size: 0.72rem; color: #94a3b8;">Portion:</span>';
+            html += '<button type="button" class="btn-step-sub" data-idx="' + idx + '" style="width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(15, 23, 42, 0.8); color: #fff; cursor: pointer; font-weight: 800;">-</button>';
+            html += '<span id="val-mult-' + idx + '" style="font-weight: 800; font-size: 0.82rem; min-width: 32px; text-align: center; color: #fff;">1.0x</span>';
+            html += '<button type="button" class="btn-step-add" data-idx="' + idx + '" style="width: 24px; height: 24px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(15, 23, 42, 0.8); color: #fff; cursor: pointer; font-weight: 800;">+</button>';
+            html += '</div>';
+
             html += '</div>';
         });
 
         html += '</div>';
 
         html += '<div style="display: flex; gap: 10px;">';
-        html += '<button id="btn-snap-commit" style="flex: 1; padding: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 14px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-cloud-arrow-up"></i> Commit to Sparky (+XP)</button>';
+        html += '<button id="btn-snap-commit" style="flex: 1; padding: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 14px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-cloud-arrow-up"></i> Commit Meal to Sparky (+XP)</button>';
         html += '</div>';
         html += '</div>';
 
         if (modalDesc) modalDesc.innerHTML = html;
         if (window.openModal) window.openModal();
 
+        function updateReviewTotals() {
+            var totalCal = 0, totalPro = 0, totalCarb = 0, totalFat = 0;
+            itemStates.forEach(function (state, idx) {
+                var mult = state.multiplier;
+                var cal = Math.round(state.baseCal * mult);
+                var pro = Math.round(state.basePro * mult);
+
+                var elCal = document.getElementById('val-cal-' + idx);
+                var elPro = document.getElementById('val-pro-' + idx);
+                var elMult = document.getElementById('val-mult-' + idx);
+                if (elCal) elCal.textContent = cal + ' kcal';
+                if (elPro) elPro.textContent = pro + 'g P';
+                if (elMult) elMult.textContent = mult.toFixed(1) + 'x';
+
+                if (state.selected) {
+                    totalCal += state.baseCal * mult;
+                    totalPro += state.basePro * mult;
+                    totalCarb += state.baseCarb * mult;
+                    totalFat += state.baseFat * mult;
+                }
+            });
+
+            var sumCal = document.getElementById('sum-cal');
+            var sumPro = document.getElementById('sum-pro');
+            var sumCarb = document.getElementById('sum-carb');
+            var sumFat = document.getElementById('sum-fat');
+            if (sumCal) sumCal.textContent = Math.round(totalCal);
+            if (sumPro) sumPro.textContent = Math.round(totalPro) + 'g';
+            if (sumCarb) sumCarb.textContent = Math.round(totalCarb) + 'g';
+            if (sumFat) sumFat.textContent = Math.round(totalFat) + 'g';
+        }
+
+        // Bind checkboxes
+        items.forEach(function (it, idx) {
+            var chk = document.getElementById('chk-item-' + idx);
+            if (chk) {
+                chk.onchange = function () {
+                    itemStates[idx].selected = chk.checked;
+                    var row = document.getElementById('review-item-' + idx);
+                    if (row) {
+                        row.style.opacity = chk.checked ? '1' : '0.4';
+                    }
+                    updateReviewTotals();
+                };
+            }
+        });
+
+        // Bind stepper buttons
+        var subButtons = modalDesc.querySelectorAll('.btn-step-sub');
+        subButtons.forEach(function (btn) {
+            btn.onclick = function () {
+                var idx = parseInt(btn.getAttribute('data-idx'), 10);
+                if (itemStates[idx] && itemStates[idx].multiplier > 0.5) {
+                    itemStates[idx].multiplier = Math.max(0.5, Math.round((itemStates[idx].multiplier - 0.5) * 10) / 10);
+                    updateReviewTotals();
+                }
+            };
+        });
+
+        var addButtons = modalDesc.querySelectorAll('.btn-step-add');
+        addButtons.forEach(function (btn) {
+            btn.onclick = function () {
+                var idx = parseInt(btn.getAttribute('data-idx'), 10);
+                if (itemStates[idx] && itemStates[idx].multiplier < 5.0) {
+                    itemStates[idx].multiplier = Math.round((itemStates[idx].multiplier + 0.5) * 10) / 10;
+                    updateReviewTotals();
+                }
+            };
+        });
+
+        // Initialize totals
+        updateReviewTotals();
+
         var btnCommit = document.getElementById('btn-snap-commit');
         if (btnCommit) {
             btnCommit.onclick = function () {
+                var selectedItems = [];
+                itemStates.forEach(function (state) {
+                    if (state.selected) {
+                        var copy = Object.assign({}, state.raw);
+                        copy.quantity = state.multiplier;
+                        copy.calories = Math.round(state.baseCal * state.multiplier);
+                        copy.protein = Math.round(state.basePro * state.multiplier);
+                        copy.carbs = Math.round(state.baseCarb * state.multiplier);
+                        copy.fat = Math.round(state.baseFat * state.multiplier);
+                        selectedItems.push(copy);
+                    }
+                });
+
+                if (!selectedItems.length) {
+                    alert('Please select at least one food item to log.');
+                    return;
+                }
+
                 btnCommit.disabled = true;
-                btnCommit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging to Sparky...';
+                btnCommit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging ' + selectedItems.length + ' item(s) to Sparky...';
 
                 fetch('/api/v1/nutrition/snaps/' + draft.id + '/commit/', {
                     method: 'POST',
@@ -348,7 +471,7 @@
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
                     body: JSON.stringify({
-                        items: items,
+                        items: selectedItems,
                         meal_type: draft.meal_type || 'Lunch'
                     })
                 })
@@ -357,7 +480,7 @@
                     if (resData.success) {
                         if (window.closeModal) window.closeModal();
                         if (window.showToast) {
-                            window.showToast('Logged meal to SparkyFitness! (+' + (resData.xp_awarded || 0) + ' XP)');
+                            window.showToast('Logged ' + selectedItems.length + ' item(s) to SparkyFitness! (+' + (resData.xp_awarded || 0) + ' XP)');
                         }
                         if (window.loadNutrition) window.loadNutrition();
                     } else {
@@ -669,6 +792,190 @@
         }
     };
 
+    // Open Barcode Scanner Modal
+    window.openBarcodeScannerModal = function () {
+        if (window.closeModal) window.closeModal();
+
+        var modalTitle = document.getElementById('modal-title');
+        var modalDesc = document.getElementById('modal-desc');
+        var modalAction = document.getElementById('modal-action');
+        var modalIcon = document.querySelector('.modal-icon i');
+
+        if (modalTitle) modalTitle.textContent = 'Scan Food Barcode';
+        if (modalIcon) modalIcon.className = 'fa-solid fa-barcode';
+        if (modalAction) modalAction.style.display = 'none';
+
+        var html = '<div style="text-align: left;">';
+        html += '<p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Aim your camera at the barcode on any packaged food or drink to look up verified macros.</p>';
+
+        html += '<div id="barcode-viewport-wrap" style="position: relative; width: 100%; height: 220px; background: #0f172a; border-radius: 16px; overflow: hidden; border: 2px solid rgba(168, 85, 247, 0.4); margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">';
+        html += '<video id="barcode-video" playsinline autoplay muted style="width: 100%; height: 100%; object-fit: cover;"></video>';
+        html += '<div style="position: absolute; width: 70%; height: 120px; border: 2px dashed #a855f7; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4); pointer-events: none; display: flex; align-items: center; justify-content: center;">';
+        html += '<div style="width: 90%; height: 2px; background: #00F0FF; box-shadow: 0 0 8px #00F0FF;"></div>';
+        html += '</div>';
+        html += '<div id="barcode-cam-status" style="position: absolute; bottom: 8px; font-size: 0.75rem; color: #94a3b8; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 6px;">Initializing camera...</div>';
+        html += '</div>';
+
+        html += '<div style="margin-bottom: 14px;">';
+        html += '<div style="display: flex; gap: 8px;">';
+        html += '<input type="text" id="manual-barcode-input" placeholder="Or enter barcode (e.g. 3017620422003)" style="flex: 1; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.85rem;" />';
+        html += '<button type="button" id="btn-manual-barcode-lookup" style="padding: 10px 14px; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.85rem; cursor: pointer;">Lookup</button>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div id="barcode-result-card" style="display: none; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 14px; padding: 12px; margin-bottom: 14px;"></div>';
+
+        html += '</div>';
+
+        if (modalDesc) modalDesc.innerHTML = html;
+        if (window.openModal) window.openModal();
+
+        var video = document.getElementById('barcode-video');
+        var camStatus = document.getElementById('barcode-cam-status');
+        var resultCard = document.getElementById('barcode-result-card');
+        var activeStream = null;
+        var scanning = true;
+
+        function stopCamera() {
+            scanning = false;
+            if (activeStream) {
+                activeStream.getTracks().forEach(function (track) { track.stop(); });
+                activeStream = null;
+            }
+        }
+
+        function handleBarcodeFound(code) {
+            if (!code || !scanning) return;
+            scanning = false;
+            stopCamera();
+
+            if (window.FlamingoNative && window.FlamingoNative.haptic) {
+                window.FlamingoNative.haptic('medium');
+            }
+
+            if (camStatus) camStatus.textContent = 'Found barcode: ' + code;
+            if (resultCard) {
+                resultCard.style.display = 'block';
+                resultCard.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 12px;"><i class="fa-solid fa-spinner fa-spin"></i> Looking up barcode in Sparky...</div>';
+            }
+
+            fetch('/api/v1/nutrition/barcode/?code=' + encodeURIComponent(code))
+                .then(function (res) { return res.json(); })
+                .then(function (data) {
+                    if (data.success && data.food) {
+                        var f = data.food;
+                        var cardHtml = '<div style="margin-bottom: 8px;">';
+                        cardHtml += '<div style="font-weight: 800; font-size: 1rem; color: #fff;">' + f.name + '</div>';
+                        cardHtml += '<div style="font-size: 0.78rem; color: #94a3b8;">' + (f.brand ? f.brand + ' • ' : '') + f.serving + '</div>';
+                        cardHtml += '</div>';
+
+                        cardHtml += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; background: rgba(15, 23, 42, 0.6); padding: 8px; border-radius: 10px; margin-bottom: 12px; text-align: center;">';
+                        cardHtml += '<div><div style="font-size: 0.7rem; color: #94a3b8; font-weight: 700;">CAL</div><div style="font-weight: 800; color: #fff;">' + Math.round(f.calories || 0) + '</div></div>';
+                        cardHtml += '<div><div style="font-size: 0.7rem; color: #c084fc; font-weight: 700;">PRO</div><div style="font-weight: 800; color: #c084fc;">' + Math.round(f.protein || 0) + 'g</div></div>';
+                        cardHtml += '<div><div style="font-size: 0.7rem; color: #38bdf8; font-weight: 700;">CARB</div><div style="font-weight: 800; color: #38bdf8;">' + Math.round(f.carbs || 0) + 'g</div></div>';
+                        cardHtml += '<div><div style="font-size: 0.7rem; color: #fbbf24; font-weight: 700;">FAT</div><div style="font-weight: 800; color: #fbbf24;">' + Math.round(f.fat || 0) + 'g</div></div>';
+                        cardHtml += '</div>';
+
+                        cardHtml += '<div style="display: flex; gap: 8px;">';
+                        cardHtml += '<button type="button" id="btn-barcode-log" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);"><i class="fa-solid fa-plus"></i> Log to Sparky (+XP)</button>';
+                        cardHtml += '<button type="button" id="btn-barcode-rescan" style="padding: 12px 14px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; color: #e2e8f0; font-weight: 700; font-size: 0.85rem; cursor: pointer;"><i class="fa-solid fa-arrows-rotate"></i> Rescan</button>';
+                        cardHtml += '</div>';
+
+                        resultCard.innerHTML = cardHtml;
+
+                        var btnLog = document.getElementById('btn-barcode-log');
+                        if (btnLog) {
+                            btnLog.onclick = function () {
+                                if (window.closeModal) window.closeModal();
+                                window.quickLogFood(f, 1.0);
+                            };
+                        }
+
+                        var btnRescan = document.getElementById('btn-barcode-rescan');
+                        if (btnRescan) {
+                            btnRescan.onclick = function () {
+                                resultCard.style.display = 'none';
+                                startCamera();
+                            };
+                        }
+                    } else {
+                        resultCard.innerHTML = '<div style="text-align: center; color: #f87171; padding: 10px;">Barcode not found. Try searching by name or generate with Sparky AI.</div><button type="button" id="btn-barcode-search-fallback" style="width: 100%; margin-top: 8px; padding: 10px; background: #a855f7; border: none; border-radius: 10px; color: #fff; font-weight: 800;">Search or Make with AI</button>';
+                        var btnFall = document.getElementById('btn-barcode-search-fallback');
+                        if (btnFall) {
+                            btnFall.onclick = function () {
+                                window.openSearchFoodsModal();
+                            };
+                        }
+                    }
+                })
+                .catch(function () {
+                    resultCard.innerHTML = '<div style="color: #ef4444; padding: 8px; text-align: center;">Error looking up barcode.</div>';
+                });
+        }
+
+        function startCamera() {
+            scanning = true;
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(function (stream) {
+                        activeStream = stream;
+                        if (video) {
+                            video.srcObject = stream;
+                            video.play();
+                        }
+                        if (camStatus) camStatus.textContent = 'Point camera at barcode';
+
+                        if ('BarcodeDetector' in window) {
+                            var detector = new window.BarcodeDetector({
+                                formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
+                            });
+
+                            function detectLoop() {
+                                if (!scanning || !video) return;
+                                detector.detect(video)
+                                    .then(function (barcodes) {
+                                        if (barcodes && barcodes.length > 0) {
+                                            handleBarcodeFound(barcodes[0].rawValue);
+                                        } else if (scanning) {
+                                            requestAnimationFrame(detectLoop);
+                                        }
+                                    })
+                                    .catch(function () {
+                                        if (scanning) requestAnimationFrame(detectLoop);
+                                    });
+                            }
+                            detectLoop();
+                        } else {
+                            if (camStatus) camStatus.textContent = 'Camera active (enter barcode below if detector unsupported)';
+                        }
+                    })
+                    .catch(function () {
+                        if (camStatus) camStatus.textContent = 'Camera unavailable (enter barcode below)';
+                    });
+            } else {
+                if (camStatus) camStatus.textContent = 'Camera unsupported (enter barcode below)';
+            }
+        }
+
+        startCamera();
+
+        var btnManual = document.getElementById('btn-manual-barcode-lookup');
+        var manualInput = document.getElementById('manual-barcode-input');
+        if (btnManual && manualInput) {
+            btnManual.onclick = function () {
+                var val = manualInput.value.trim();
+                if (val) {
+                    handleBarcodeFound(val);
+                }
+            };
+            manualInput.onkeydown = function (e) {
+                if (e.key === 'Enter') {
+                    btnManual.click();
+                }
+            };
+        }
+    };
+
     // Open Quick Log Modal
     window.openQuickLogModal = function () {
         if (window.closeModal) window.closeModal();
@@ -828,6 +1135,14 @@
             window.openQuickLogModal();
         };
         actionsRow.appendChild(quickBtn);
+
+        var scanBtn = document.createElement('button');
+        scanBtn.className = 'nutrition-action-btn barcode-cta';
+        scanBtn.innerHTML = '<i class="fa-solid fa-barcode"></i> Scan Code';
+        scanBtn.onclick = function () {
+            window.openBarcodeScannerModal();
+        };
+        actionsRow.appendChild(scanBtn);
 
         hero.appendChild(actionsRow);
 

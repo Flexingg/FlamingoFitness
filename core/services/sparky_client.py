@@ -490,6 +490,67 @@ class SparkyFitnessClient(MockAPIClient):
         res = self._post(api_key, "/foods", json_data=payload)
         return res
 
+    def lookup_barcode(self, api_key, barcode):
+        """Look up food nutrition by barcode via Sparky backend (local DB + external fallback)."""
+        code = str(barcode or "").strip()
+        if not api_key or not code:
+            return None
+
+        # 1. Query Sparky /foods/barcode/{barcode}
+        res = self._get(api_key, f"/foods/barcode/{code}")
+        if isinstance(res, dict) and res.get("food"):
+            food = res["food"]
+            variant = food.get("default_variant") or {}
+            variant_data = variant.get("data") or {}
+            cal = variant.get("calories") or variant_data.get("calories") or 0.0
+            pro = variant.get("protein") or variant_data.get("protein") or 0.0
+            carb = variant.get("carbs") or variant_data.get("carbs") or 0.0
+            fat = variant.get("fat") or variant_data.get("fat") or 0.0
+            serving_sz = variant.get("serving_size") or "100"
+            serving_un = variant.get("serving_unit") or "g"
+            serving_label = f"{serving_sz} {serving_un}".strip()
+
+            return {
+                "name": food.get("name") or "Scanned Product",
+                "brand": food.get("brand") or "",
+                "barcode": code,
+                "calories": float(cal),
+                "protein": float(pro),
+                "carbs": float(carb),
+                "fat": float(fat),
+                "serving": serving_label,
+                "food_id": str(food.get("id") or ""),
+                "variant_id": str(variant.get("id") or ""),
+                "source": res.get("source") or "barcode",
+            }
+
+        # 2. Fallback to /foods/openfoodfacts/barcode/{barcode} if needed
+        off_res = self._get(api_key, f"/foods/openfoodfacts/barcode/{code}")
+        if isinstance(off_res, dict):
+            prod = off_res.get("product") or off_res
+            nutr = prod.get("nutriments") or {}
+            cal = nutr.get("energy-kcal") or nutr.get("energy-kcal_100g") or 0.0
+            pro = nutr.get("proteins") or nutr.get("proteins_100g") or 0.0
+            carb = nutr.get("carbohydrates") or nutr.get("carbohydrates_100g") or 0.0
+            fat = nutr.get("fat") or nutr.get("fat_100g") or 0.0
+            name = prod.get("product_name") or prod.get("product_name_en")
+            if name:
+                return {
+                    "name": str(name).strip(),
+                    "brand": str(prod.get("brands") or "").strip(),
+                    "barcode": code,
+                    "calories": float(cal or 0.0),
+                    "protein": float(pro or 0.0),
+                    "carbs": float(carb or 0.0),
+                    "fat": float(fat or 0.0),
+                    "serving": str(prod.get("serving_size") or "100g"),
+                    "food_id": None,
+                    "variant_id": None,
+                    "source": "openfoodfacts_barcode",
+                }
+
+        return None
+
     def post_water_intake(self, api_key, water_ml, entry_date=None):
         """Send a water intake log to SparkyFitness API."""
         if not entry_date:

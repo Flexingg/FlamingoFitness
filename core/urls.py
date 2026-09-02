@@ -23,6 +23,7 @@ urlpatterns = [
     path("nutrition/search-foods/", views.nutrition_search_foods, name="nutrition_search_foods"),
     path("nutrition/ai-generate-food/", views.nutrition_ai_generate_food, name="nutrition_ai_generate_food"),
     path("nutrition/create-food/", views.nutrition_create_food, name="nutrition_create_food"),
+    path("nutrition/barcode/", views.nutrition_barcode_lookup, name="nutrition_barcode_lookup"),
     path("nutrition/quick-log/", views.nutrition_quick_log, name="nutrition_quick_log"),
     path("nutrition/snaps/", views.nutrition_snaps_list, name="nutrition_snaps_list"),
     path("nutrition/snaps/upload/", views.nutrition_snap_upload, name="nutrition_snap_upload"),

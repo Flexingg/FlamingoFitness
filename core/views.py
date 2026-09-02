@@ -2366,6 +2366,28 @@ def nutrition_create_food(request):
 
 
 @login_required
+def nutrition_barcode_lookup(request):
+    """GET /api/v1/nutrition/barcode/?code=... - Instant barcode scan lookup via Sparky backend."""
+    code = (request.GET.get("code") or "").strip()
+    if not code:
+        return _json_error("Missing barcode", 400)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    food = client.lookup_barcode(api_key, code)
+    if not food:
+        return JsonResponse({"success": False, "barcode": code, "error": f"Barcode {code} not found."})
+
+    return JsonResponse({"success": True, "barcode": code, "food": food})
+
+
+@login_required
 @require_POST
 def nutrition_quick_log(request):
     """POST /api/v1/nutrition/quick-log/ - 1-tap food logging to Sparky & immediate XP award."""

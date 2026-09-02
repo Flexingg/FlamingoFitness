@@ -93,6 +93,16 @@ class NutritionMatchingService:
         portions = _extract_portions(note_clean)
         multiplier = portions.get("multiplier", 1.0)
 
+        # Multi-Item Decomposition Check: if note contains multiple items/delimiters
+        is_multi_candidate = bool(
+            re.search(r"[,;]|\band\b|\bwith\b|\+", note_clean, re.IGNORECASE)
+            and len(note_clean.split()) >= 3
+        )
+        if is_multi_candidate and self.api_key:
+            decomposed = self.decompose_multi_item_meal(note_clean)
+            if len(decomposed) > 1:
+                return decomposed
+
         # 1. Fetch user's recent and frequent foods (Priority 1)
         recent_foods = self.client.get_recent_foods(self.api_key, days=30)
         note_tokens = _tokenize(note_clean)
@@ -239,3 +249,86 @@ class NutritionMatchingService:
             "match_source": "sparky_estimation",
             "confidence": 0.70,
         }]
+
+    def decompose_multi_item_meal(self, note: str) -> List[Dict[str, Any]]:
+        """Decompose a multi-item meal note into individual foods using Sparky native /chat AI."""
+        if not self.api_key or not note:
+            return []
+
+        ai_service = self.client.get_active_ai_service(self.api_key)
+        config_id = ai_service.get("id") if ai_service else None
+        if not config_id:
+            return []
+
+        payload = {
+            "service_config_id": str(config_id),
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        f"Decompose the following meal into a list of individual food items with estimated calories, protein, carbs, and fat per item:\n\n{note}\n\n"
+                        "Format each item clearly with header '### <Item Name>' followed by Calories, Protein, Carbohydrates, and Fat."
+                    ),
+                }
+            ],
+        }
+
+        res = self.client._post(self.api_key, "/chat", json_data=payload)
+        content = res.get("content") or res.get("message") if isinstance(res, dict) else None
+        if not content or not isinstance(content, str):
+            return []
+
+        items: List[Dict[str, Any]] = []
+        sections = re.split(r"###\s*(?:\d+\.\s*)?", content)
+        for sec in sections[1:]:
+            lines = [line.strip() for line in sec.strip().split("\n") if line.strip()]
+            if not lines:
+                continue
+            name = re.sub(r"[\*\#]", "", lines[0]).strip()
+            if not name or any(w in name.lower() for w in ("total", "summary", "notes", "disclaimer")):
+                continue
+
+            cal_m = re.search(r"calories[\*\:\s]+([0-9\.]+)", sec, re.IGNORECASE)
+            pro_m = re.search(r"protein[\*\:\s]+([0-9\.]+)", sec, re.IGNORECASE)
+            carb_m = re.search(r"carbohydrates?[\*\:\s]+([0-9\.]+)", sec, re.IGNORECASE)
+            fat_m = re.search(r"fat[\*\:\s]+([0-9\.]+)", sec, re.IGNORECASE)
+
+            cal = float(cal_m.group(1)) if cal_m else 0.0
+            pro = float(pro_m.group(1)) if pro_m else 0.0
+            carb = float(carb_m.group(1)) if carb_m else 0.0
+            fat = float(fat_m.group(1)) if fat_m else 0.0
+
+            if cal == 0.0 and pro == 0.0 and carb == 0.0 and fat == 0.0:
+                continue
+
+            # Automatically persist newly decomposed food item into user's Sparky database
+            try:
+                self.client.create_custom_food(
+                    self.api_key,
+                    name=name,
+                    calories=cal,
+                    protein=pro,
+                    carbs=carb,
+                    fat=fat,
+                    serving="1 serving",
+                    brand="Sparky AI",
+                )
+            except Exception:
+                pass
+
+            items.append({
+                "food_id": None,
+                "variant_id": None,
+                "name": name,
+                "brand": "Sparky AI",
+                "calories": cal,
+                "protein": pro,
+                "carbs": carb,
+                "fat": fat,
+                "quantity": 1.0,
+                "unit": "serving",
+                "match_source": "sparky_ai_created",
+                "confidence": 0.92,
+            })
+
+        return items

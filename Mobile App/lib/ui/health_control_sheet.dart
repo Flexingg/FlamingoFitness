@@ -204,6 +204,14 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
     }
   }
 
+  void _openBarcodeScanner() {
+    HapticFeedback.selectionClick();
+    Navigator.of(context).pop();
+    if (widget.onExecuteJavaScript != null) {
+      widget.onExecuteJavaScript!('if (window.openBarcodeScannerModal) window.openBarcodeScannerModal();');
+    }
+  }
+
   Future<void> _saveSettings() async {
     HapticFeedback.lightImpact();
     await _apiService.setBaseUrl(_urlController.text);
@@ -659,10 +667,24 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
                         child: OutlinedButton.icon(
                           onPressed: _openFoodSearch,
                           icon: const Icon(Icons.search, size: 18),
-                          label: const Text('Search DB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          label: const Text('Search', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.purpleAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _openBarcodeScanner,
+                          icon: const Icon(Icons.qr_code_scanner, size: 18),
+                          label: const Text('Barcode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Color(0xFF00F0FF)),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),

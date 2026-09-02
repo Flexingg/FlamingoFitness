@@ -3169,6 +3169,12 @@ html.light .duo-row-sub {
     color: #e2e8f0;
 }
 
+.nutrition-action-btn.barcode-cta {
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(0, 240, 255, 0.3);
+    color: #38bdf8;
+}
+
 .nutrition-action-btn:hover {
     transform: translateY(-2px);
     filter: brightness(1.1);
