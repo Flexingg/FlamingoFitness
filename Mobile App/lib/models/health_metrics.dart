@@ -50,6 +50,32 @@ class HealthMetrics {
     DateTime? capturedAt,
   }) : capturedAt = capturedAt ?? DateTime.now();
 
+  factory HealthMetrics.empty() => HealthMetrics();
+
+  HealthMetrics copyWith({
+    int? steps,
+    double? activeCalories,
+    double? distanceMeters,
+    double? sleepHours,
+    double? deepSleepHours,
+    double? waterMl,
+    double? weightKg,
+    List<WorkoutEntry>? workouts,
+    DateTime? capturedAt,
+  }) {
+    return HealthMetrics(
+      steps: steps ?? this.steps,
+      activeCalories: activeCalories ?? this.activeCalories,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      sleepHours: sleepHours ?? this.sleepHours,
+      deepSleepHours: deepSleepHours ?? this.deepSleepHours,
+      waterMl: waterMl ?? this.waterMl,
+      weightKg: weightKg ?? this.weightKg,
+      workouts: workouts ?? this.workouts,
+      capturedAt: capturedAt ?? this.capturedAt,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'steps': steps,
         'active_calories': activeCalories,

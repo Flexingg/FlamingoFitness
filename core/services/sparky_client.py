@@ -79,33 +79,237 @@ class SparkyFitnessClient(MockAPIClient):
 
     def search_foods(self, api_key, query):
         """Search the SparkyFitness food database or return realistic matches."""
-        query_str = (query or "").strip().lower()
-        if api_key:
-            res = self._get(api_key, "/foods", params={"search": query_str, "limit": 15})
+        query_str = (query or "").strip()
+        if api_key and query_str:
+            # 1. Try dedicated search endpoint
+            res = self._get(api_key, "/foods/search", params={"search": query_str, "checkCustom": True})
+            items = []
             if isinstance(res, list) and res:
-                return res
-            if isinstance(res, dict) and "items" in res:
-                return res["items"]
+                items = res
+            elif isinstance(res, dict) and "foods" in res:
+                items = res["foods"]
+            elif isinstance(res, dict) and "items" in res:
+                items = res["items"]
+
+            # 2. Fallback to paginated endpoint if empty
+            if not items:
+                res_paginated = self._get(api_key, "/foods/foods-paginated", params={"searchTerm": query_str, "itemsPerPage": 20})
+                if isinstance(res_paginated, dict) and "foods" in res_paginated:
+                    items = res_paginated["foods"]
+
+            if items:
+                formatted = []
+                for item in items:
+                    variant = item.get("default_variant") or {}
+                    variant_data = variant.get("data") or {}
+                    cal = item.get("calories") or variant_data.get("calories") or 0.0
+                    pro = item.get("protein") or variant_data.get("protein") or 0.0
+                    carb = item.get("carbs") or variant_data.get("carbs") or 0.0
+                    fat = item.get("fat") or variant_data.get("fat") or 0.0
+                    serving = variant.get("serving_size") or item.get("serving_size") or "1 serving"
+                    formatted.append({
+                        "id": str(item.get("id") or ""),
+                        "food_id": str(item.get("id") or ""),
+                        "variant_id": str(variant.get("id") or ""),
+                        "name": item.get("name") or item.get("food_name") or "Food",
+                        "brand": item.get("brand") or item.get("brand_name") or "",
+                        "calories": float(cal),
+                        "protein": float(pro),
+                        "carbs": float(carb),
+                        "fat": float(fat),
+                        "serving": str(serving),
+                        "is_custom": bool(item.get("is_custom", False)),
+                        "source": "sparky_db",
+                    })
+                return formatted
 
         # Catalog fallback / offline library
         common_foods = [
-            {"id": "food-1", "name": "Chicken Breast (Cooked, Skinless)", "calories": 165, "protein": 31.0, "carbs": 0.0, "fat": 3.6, "serving": "100g"},
-            {"id": "food-2", "name": "Eggs (Large, Whole)", "calories": 74, "protein": 6.3, "carbs": 0.4, "fat": 5.0, "serving": "1 egg"},
-            {"id": "food-3", "name": "Egg Whites", "calories": 52, "protein": 11.0, "carbs": 0.7, "fat": 0.2, "serving": "100g"},
-            {"id": "food-4", "name": "Whey Protein Powder", "calories": 120, "protein": 24.0, "carbs": 3.0, "fat": 1.5, "serving": "1 scoop (30g)"},
-            {"id": "food-5", "name": "Greek Yogurt (Nonfat Plain)", "calories": 100, "protein": 17.0, "carbs": 6.0, "fat": 0.7, "serving": "170g"},
-            {"id": "food-6", "name": "Salmon Fillet (Wild Caught)", "calories": 208, "protein": 22.0, "carbs": 0.0, "fat": 13.0, "serving": "100g"},
-            {"id": "food-7", "name": "Ground Beef (93/7 Lean)", "calories": 172, "protein": 24.0, "carbs": 0.0, "fat": 8.0, "serving": "100g"},
-            {"id": "food-8", "name": "Brown Rice (Cooked)", "calories": 218, "protein": 4.5, "carbs": 45.8, "fat": 1.6, "serving": "1 cup (195g)"},
-            {"id": "food-9", "name": "Oatmeal (Rolled Oats, Dry)", "calories": 150, "protein": 5.0, "carbs": 27.0, "fat": 2.5, "serving": "1/2 cup (40g)"},
-            {"id": "food-10", "name": "Sweet Potato (Baked)", "calories": 103, "protein": 2.3, "carbs": 23.6, "fat": 0.2, "serving": "1 medium (114g)"},
-            {"id": "food-11", "name": "Avocado (Hass)", "calories": 160, "protein": 2.0, "carbs": 8.5, "fat": 14.7, "serving": "1/2 avocado (100g)"},
-            {"id": "food-12", "name": "Broccoli (Steamed)", "calories": 55, "protein": 3.7, "carbs": 11.2, "fat": 0.6, "serving": "1 cup (156g)"},
+            {"id": "food-1", "name": "Chicken Breast (Cooked, Skinless)", "calories": 165, "protein": 31.0, "carbs": 0.0, "fat": 3.6, "serving": "100g", "brand": "Generic"},
+            {"id": "food-2", "name": "Eggs (Large, Whole)", "calories": 74, "protein": 6.3, "carbs": 0.4, "fat": 5.0, "serving": "1 egg", "brand": "Generic"},
+            {"id": "food-3", "name": "Egg Whites", "calories": 52, "protein": 11.0, "carbs": 0.7, "fat": 0.2, "serving": "100g", "brand": "Generic"},
+            {"id": "food-4", "name": "Whey Protein Powder", "calories": 120, "protein": 24.0, "carbs": 3.0, "fat": 1.5, "serving": "1 scoop (30g)", "brand": "Optimum Nutrition"},
+            {"id": "food-5", "name": "Greek Yogurt (Nonfat Plain)", "calories": 100, "protein": 17.0, "carbs": 6.0, "fat": 0.7, "serving": "170g", "brand": "Fage / Chobani"},
+            {"id": "food-6", "name": "Salmon Fillet (Wild Caught)", "calories": 208, "protein": 22.0, "carbs": 0.0, "fat": 13.0, "serving": "100g", "brand": "Generic"},
+            {"id": "food-7", "name": "Ground Beef (93/7 Lean)", "calories": 172, "protein": 24.0, "carbs": 0.0, "fat": 8.0, "serving": "100g", "brand": "Generic"},
+            {"id": "food-8", "name": "Brown Rice (Cooked)", "calories": 218, "protein": 4.5, "carbs": 45.8, "fat": 1.6, "serving": "1 cup (195g)", "brand": "Generic"},
+            {"id": "food-9", "name": "Oatmeal (Rolled Oats, Dry)", "calories": 150, "protein": 5.0, "carbs": 27.0, "fat": 2.5, "serving": "1/2 cup (40g)", "brand": "Quaker"},
+            {"id": "food-10", "name": "Sweet Potato (Baked)", "calories": 103, "protein": 2.3, "carbs": 23.6, "fat": 0.2, "serving": "1 medium (114g)", "brand": "Generic"},
+            {"id": "food-11", "name": "Avocado (Hass)", "calories": 160, "protein": 2.0, "carbs": 8.5, "fat": 14.7, "serving": "1/2 avocado (100g)", "brand": "Generic"},
+            {"id": "food-12", "name": "Broccoli (Steamed)", "calories": 55, "protein": 3.7, "carbs": 11.2, "fat": 0.6, "serving": "1 cup (156g)", "brand": "Generic"},
+            {"id": "food-13", "name": "Protein Bar", "calories": 210, "protein": 20.0, "carbs": 22.0, "fat": 7.0, "serving": "1 bar (60g)", "brand": "Quest / Barebells"},
+            {"id": "food-14", "name": "Whole Milk (Organic)", "calories": 150, "protein": 8.0, "carbs": 12.0, "fat": 8.0, "serving": "1 cup (240ml)", "brand": "Generic"},
+            {"id": "food-15", "name": "Almonds (Raw)", "calories": 164, "protein": 6.0, "carbs": 6.0, "fat": 14.0, "serving": "1 oz (28g)", "brand": "Generic"},
+            {"id": "food-16", "name": "Banana (Medium)", "calories": 105, "protein": 1.3, "carbs": 27.0, "fat": 0.3, "serving": "1 medium (118g)", "brand": "Generic"},
         ]
         if not query_str:
             return common_foods
 
-        return [f for f in common_foods if query_str in f["name"].lower()]
+        q_lower = query_str.lower()
+        return [f for f in common_foods if q_lower in f["name"].lower() or q_lower in f.get("brand", "").lower()]
+
+    def get_recent_foods(self, api_key, days=14):
+        """Fetch and rank user's recent and frequent foods from SparkyFitness history."""
+        if not api_key:
+            return self.search_foods("", "")[:8]
+
+        today = timezone.localdate()
+        start_date = (today - timedelta(days=days)).isoformat()
+        end_date = today.isoformat()
+
+        entries = self._get(api_key, f"/food-entries/range/{start_date}/{end_date}")
+        if not isinstance(entries, list):
+            entries = []
+
+        food_map = {}
+        for entry in entries:
+            name = (entry.get("food_name") or entry.get("name") or "").strip()
+            if not name:
+                continue
+            key = name.lower()
+            if key not in food_map:
+                food_map[key] = {
+                    "id": str(entry.get("food_id") or entry.get("id") or ""),
+                    "food_id": str(entry.get("food_id") or ""),
+                    "variant_id": str(entry.get("variant_id") or ""),
+                    "name": name,
+                    "brand": entry.get("brand_name") or entry.get("brand") or "",
+                    "calories": float(entry.get("calories") or 0.0),
+                    "protein": float(entry.get("protein") or 0.0),
+                    "carbs": float(entry.get("carbs") or 0.0),
+                    "fat": float(entry.get("fat") or 0.0),
+                    "serving": f"{entry.get('quantity', 1)} {entry.get('unit', 'serving')}".strip(),
+                    "meal_type": entry.get("meal_type") or "Lunch",
+                    "frequency": 1,
+                    "last_logged": entry.get("entry_date") or today.isoformat(),
+                    "source": "sparky_recent",
+                }
+            else:
+                food_map[key]["frequency"] += 1
+                entry_date = entry.get("entry_date") or ""
+                if entry_date >= food_map[key]["last_logged"]:
+                    food_map[key]["last_logged"] = entry_date
+                    food_map[key]["calories"] = float(entry.get("calories") or food_map[key]["calories"])
+                    food_map[key]["protein"] = float(entry.get("protein") or food_map[key]["protein"])
+                    food_map[key]["carbs"] = float(entry.get("carbs") or food_map[key]["carbs"])
+                    food_map[key]["fat"] = float(entry.get("fat") or food_map[key]["fat"])
+
+        # Also incorporate recent meal templates
+        recent_meals = self._get(api_key, "/meals/recent", params={"limit": 6})
+        if isinstance(recent_meals, list):
+            for m in recent_meals:
+                m_name = (m.get("name") or "").strip()
+                if m_name and m_name.lower() not in food_map:
+                    food_map[m_name.lower()] = {
+                        "id": str(m.get("id") or ""),
+                        "name": m_name,
+                        "brand": "Meal Template",
+                        "calories": float(m.get("calories") or 0.0),
+                        "protein": float(m.get("protein") or 0.0),
+                        "carbs": float(m.get("carbs") or 0.0),
+                        "fat": float(m.get("fat") or 0.0),
+                        "serving": "1 meal",
+                        "meal_type": m.get("meal_type") or "Lunch",
+                        "frequency": 3,
+                        "last_logged": today.isoformat(),
+                        "is_meal": True,
+                        "source": "sparky_meal_template",
+                    }
+
+        # Sort by frequency (descending) and recency
+        ranked = sorted(
+            food_map.values(),
+            key=lambda x: (x["frequency"], x["last_logged"]),
+            reverse=True,
+        )
+        return ranked if ranked else self.search_foods("", "")[:8]
+
+    def get_meal_types(self, api_key):
+        """Fetch user's configured meal types from SparkyFitness or default slots."""
+        defaults = [
+            {"id": "breakfast", "name": "Breakfast", "sort_order": 1},
+            {"id": "lunch", "name": "Lunch", "sort_order": 2},
+            {"id": "dinner", "name": "Dinner", "sort_order": 3},
+            {"id": "snack", "name": "Snack", "sort_order": 4},
+        ]
+        if not api_key:
+            return defaults
+
+        res = self._get(api_key, "/meal-types")
+        if isinstance(res, list) and res:
+            return [{"id": str(m.get("id") or m.get("name")), "name": m.get("name"), "sort_order": m.get("sort_order", 99)} for m in res]
+        return defaults
+
+    def get_active_ai_service(self, api_key):
+        """Fetch active AI service configuration from SparkyFitness."""
+        if not api_key:
+            return None
+        res = self._get(api_key, "/chat/ai-service-settings/active")
+        if isinstance(res, dict) and res.get("id"):
+            return res
+        return None
+
+    def generate_food_options_ai(self, api_key, food_name, unit="serving"):
+        """Use Sparky's native AI to generate nutritional options for a food description."""
+        if not api_key or not food_name:
+            return None
+
+        ai_service = self.get_active_ai_service(api_key)
+        config_id = ai_service.get("id") if ai_service else None
+
+        payload = {
+            "foodName": str(food_name),
+            "unit": str(unit or "serving"),
+        }
+        if config_id:
+            payload["service_config_id"] = str(config_id)
+
+        res = self._post(api_key, "/chat/food-options", json_data=payload)
+        if isinstance(res, dict):
+            # If content is a raw JSON string from Sparky AI, parse it
+            content = res.get("content")
+            if isinstance(content, str):
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    pass
+            return res
+        return None
+
+    def chat_ai(self, api_key, prompt):
+        """Send a prompt to Sparky's native /chat endpoint to estimate nutritional breakdown."""
+        if not api_key or not prompt:
+            return None
+
+        ai_service = self.get_active_ai_service(api_key)
+        config_id = ai_service.get("id") if ai_service else None
+
+        payload = {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a nutritional assistant. Return a JSON array of food items matching the user's note with fields: name, calories, protein, carbs, fat, quantity, unit.",
+                },
+                {"role": "user", "content": str(prompt)},
+            ]
+        }
+        if config_id:
+            payload["service_config_id"] = str(config_id)
+
+        res = self._post(api_key, "/chat", json_data=payload)
+        if isinstance(res, dict):
+            content = res.get("content") or res.get("message")
+            if isinstance(content, str):
+                try:
+                    # Clean markdown fences if any
+                    clean_str = content.strip()
+                    if clean_str.startswith("```"):
+                        clean_str = clean_str.split("\n", 1)[-1].rsplit("```", 1)[0]
+                    return json.loads(clean_str)
+                except json.JSONDecodeError:
+                    pass
+            return res
+        return None
 
     def post_water_intake(self, api_key, water_ml, entry_date=None):
         """Send a water intake log to SparkyFitness API."""
@@ -120,7 +324,22 @@ class SparkyFitnessClient(MockAPIClient):
             return self._post(api_key, "/measurements/water-intake", json_data=payload)
         return {"status": "mock_recorded", **payload}
 
-    def post_food_entry(self, api_key, food_name, calories, protein, carbs=0, fat=0, entry_date=None, meal_type="Lunch"):
+    def post_food_entry(
+        self,
+        api_key,
+        food_name,
+        calories,
+        protein,
+        carbs=0,
+        fat=0,
+        entry_date=None,
+        meal_type="Lunch",
+        quantity=1,
+        unit="serving",
+        food_id=None,
+        variant_id=None,
+        brand_name="",
+    ):
         """Send a food entry to SparkyFitness API."""
         if not entry_date:
             entry_date = timezone.localdate().isoformat()
@@ -132,10 +351,17 @@ class SparkyFitnessClient(MockAPIClient):
             "fat": float(fat or 0),
             "entry_date": entry_date,
             "meal_type": meal_type,
-            "quantity": 1,
-            "unit": "serving",
+            "quantity": float(quantity or 1),
+            "unit": str(unit or "serving"),
             "source": "flamingo_sync",
         }
+        if food_id:
+            payload["food_id"] = str(food_id)
+        if variant_id:
+            payload["variant_id"] = str(variant_id)
+        if brand_name:
+            payload["brand_name"] = str(brand_name)
+
         if api_key:
             return self._post(api_key, "/food-entries", json_data=payload)
         return {"status": "mock_recorded", **payload}

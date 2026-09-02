@@ -128,6 +128,10 @@ def build_hydration_history(logs, include_raw=False):
             l for l in day_logs
             if l.source == Provider.SPARKYFITNESS and not (l.payload or {}).get("manual")
         ]
+        health_auto = [
+            l for l in day_logs
+            if l.source in (Provider.HEALTH_CONNECT, Provider.HEALTHKIT) and not (l.payload or {}).get("manual")
+        ]
 
         if sparky_auto:
             base = sum(log_water_amount(l) for l in sparky_auto)
@@ -137,6 +141,13 @@ def build_hydration_history(logs, include_raw=False):
             ]
             total = base + sum(log_water_amount(l) for l in extras)
             merged_entries = _merge_entries(sparky_auto + extras)
+        elif health_auto:
+            latest_health_log = max(health_auto, key=lambda l: l.occurred_at)
+            base = log_water_amount(latest_health_log)
+            manual_logs = [l for l in day_logs if (l.payload or {}).get("manual")]
+            manual_total = sum(log_water_amount(l) for l in manual_logs)
+            total = max(base, manual_total)
+            merged_entries = _merge_entries(day_logs)
         else:
             total = sum(log_water_amount(l) for l in day_logs)
             merged_entries = _merge_entries(day_logs)

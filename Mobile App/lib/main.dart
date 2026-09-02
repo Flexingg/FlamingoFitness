@@ -182,6 +182,16 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
             window.FlamingoNativeBridge.postMessage('avatar:' + url);
           }
         },
+        logWater: function(oz) {
+          if (window.FlamingoNativeBridge) {
+            window.FlamingoNativeBridge.postMessage('logWater:' + oz);
+          }
+        },
+        writeWater: function(oz) {
+          if (window.FlamingoNativeBridge) {
+            window.FlamingoNativeBridge.postMessage('logWater:' + oz);
+          }
+        },
         haptic: function(type) {
           if (window.FlamingoNativeBridge) {
             window.FlamingoNativeBridge.postMessage('haptic:' + (type || 'light'));
@@ -209,6 +219,12 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
       _performBackgroundSync();
     } else if (msg == 'requestPermissions') {
       _showHealthControlSheet();
+    } else if (msg.startsWith('logWater:') || msg.startsWith('writeWater:')) {
+      final parts = msg.split(':');
+      final oz = double.tryParse(parts.length > 1 ? parts[1] : '') ?? 0.0;
+      if (oz > 0) {
+        _logWaterNative(oz);
+      }
     } else if (msg == 'requestNotificationPermission') {
       try {
         await _notificationChannel.invokeMethod('requestNotificationPermission');
@@ -248,6 +264,20 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
       } else {
         HapticFeedback.lightImpact();
       }
+    }
+  }
+
+  Future<void> _logWaterNative(double oz) async {
+    try {
+      HapticFeedback.mediumImpact();
+      final wrote = await _healthService.writeWater(oz);
+      debugPrint('Natively logged $oz oz to Health Connect: $wrote');
+      if (wrote) {
+        final metrics = await _healthService.fetchTodayMetrics();
+        await _apiService.syncHealthData(metrics);
+      }
+    } catch (e) {
+      debugPrint('Error writing water natively from bridge: $e');
     }
   }
 

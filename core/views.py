@@ -45,6 +45,7 @@ from .models import (
     BossConfig,
     CampaignBoss,
     CampaignProgress,
+    FoodSnapDraft,
     GearItemDef,
     GearPackDef,
     Gym,
@@ -402,12 +403,18 @@ def nutrition_state(request):
     ).first()
     has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
 
+    pending_snaps_count = FoodSnapDraft.objects.filter(
+        user=request.user,
+        status__in=[FoodSnapDraft.Status.PENDING, FoodSnapDraft.Status.ANALYZED]
+    ).count()
+
     return JsonResponse(
         {
             "linked": sparky is not None,
             "demo": sparky is not None and not has_key,
             "today": today,
             "history": history,
+            "pending_snaps_count": pending_snaps_count,
             "skill_tree": {
                 "level": st.level,
                 "xp": st.xp,
@@ -1787,6 +1794,7 @@ def sync_health_data(request):
         water_oz = round(water_ml / 29.5735, 1)
 
     if water_oz > 0:
+        goal_val = float(metrics.get("water_goal_oz", 80) or metrics.get("water_goal", 80) or 80)
         log = RawActivityLog.objects.create(
             user=user,
             source=source,
@@ -1794,8 +1802,10 @@ def sync_health_data(request):
             payload={
                 "date": today_str,
                 "water_intake_oz": water_oz,
-                "water_goal_oz": float(metrics.get("water_goal_oz", 80) or 80),
-                "source": "health_connect",
+                "water_goal_oz": goal_val,
+                "water_goal": goal_val,
+                "source": "health_connect" if source == Provider.HEALTH_CONNECT else "healthkit",
+                "manual": False,
             },
             occurred_at=now,
         )
@@ -2219,6 +2229,28 @@ def source_preferences_view(request):
 @login_required
 def foods_search(request):
     """GET /foods/search/ - Search food catalog via SparkyFitness API client."""
+    return nutrition_search_foods(request)
+
+
+@login_required
+def nutrition_recent_foods(request):
+    """GET /api/v1/nutrition/recent-foods/ - User's frequent and recent foods from Sparky."""
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    recent = client.get_recent_foods(api_key, days=30)
+    meal_types = client.get_meal_types(api_key)
+    return JsonResponse({"success": True, "recent_foods": recent, "meal_types": meal_types})
+
+
+@login_required
+def nutrition_search_foods(request):
+    """GET /api/v1/nutrition/search-foods/?q=... - Live food database search."""
     query = request.GET.get("q", "")
     sparky = UserIntegration.objects.filter(
         user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
@@ -2230,6 +2262,321 @@ def foods_search(request):
     client = SparkyFitnessClient()
     results = client.search_foods(api_key, query)
     return JsonResponse({"success": True, "query": query, "results": results})
+
+
+@login_required
+@require_POST
+def nutrition_quick_log(request):
+    """POST /api/v1/nutrition/quick-log/ - 1-tap food logging to Sparky & immediate XP award."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return _json_error("Invalid JSON body", 400)
+
+    food_name = (data.get("food_name") or data.get("name") or "").strip()
+    if not food_name:
+        return _json_error("Missing food_name", 400)
+
+    calories = float(data.get("calories") or 0.0)
+    protein = float(data.get("protein") or 0.0)
+    carbs = float(data.get("carbs") or 0.0)
+    fat = float(data.get("fat") or 0.0)
+    meal_type = data.get("meal_type") or "Lunch"
+    quantity = float(data.get("quantity") or 1.0)
+    unit = str(data.get("unit") or "serving")
+    food_id = data.get("food_id")
+    variant_id = data.get("variant_id")
+    brand_name = data.get("brand_name") or ""
+    entry_date = data.get("entry_date") or timezone.localdate().isoformat()
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+
+    client = SparkyFitnessClient()
+    sparky_res = client.post_food_entry(
+        api_key=api_key,
+        food_name=food_name,
+        calories=calories,
+        protein=protein,
+        carbs=carbs,
+        fat=fat,
+        entry_date=entry_date,
+        meal_type=meal_type,
+        quantity=quantity,
+        unit=unit,
+        food_id=food_id,
+        variant_id=variant_id,
+        brand_name=brand_name,
+    )
+
+    # Update Flamingo activity log & XP
+    from .services.gamification import process_log
+
+    occurred_at = timezone.make_aware(
+        timezone.datetime.combine(timezone.localdate(), timezone.datetime.min.time())
+    )
+    day_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=occurred_at,
+    ).first()
+
+    current_entries = (day_log.payload.get("food_entries") if day_log else []) or []
+    current_entries.append({
+        "name": food_name,
+        "food_name": food_name,
+        "calories": calories,
+        "protein": protein,
+        "carbs": carbs,
+        "fat": fat,
+        "quantity": quantity,
+        "unit": unit,
+        "meal_type": meal_type,
+    })
+
+    tot_cal = sum(float(e.get("calories", 0)) for e in current_entries)
+    tot_pro = sum(float(e.get("protein", 0)) for e in current_entries)
+    tot_carb = sum(float(e.get("carbs", 0)) for e in current_entries)
+    tot_fat = sum(float(e.get("fat", 0)) for e in current_entries)
+
+    payload = {
+        "date": entry_date,
+        "entry_date": entry_date,
+        "calories": tot_cal,
+        "protein": tot_pro,
+        "carbs": tot_carb,
+        "fat": tot_fat,
+        "food_entries": current_entries,
+    }
+    if day_log and "calorie_goal" in day_log.payload:
+        payload["calorie_goal"] = day_log.payload["calorie_goal"]
+    if day_log and "protein_goal" in day_log.payload:
+        payload["protein_goal"] = day_log.payload["protein_goal"]
+
+    if not day_log:
+        day_log = RawActivityLog(
+            user=request.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            occurred_at=occurred_at,
+        )
+    day_log.payload = payload
+    day_log.save()
+
+    xp_awarded = process_log(day_log)
+
+    return JsonResponse({
+        "success": True,
+        "food_name": food_name,
+        "calories": calories,
+        "protein": protein,
+        "xp_awarded": xp_awarded,
+        "sparky_response": sparky_res,
+    })
+
+
+@login_required
+def nutrition_snaps_list(request):
+    """GET /api/v1/nutrition/snaps/ - List pending food snap drafts."""
+    drafts = FoodSnapDraft.objects.filter(
+        user=request.user,
+        status__in=[FoodSnapDraft.Status.PENDING, FoodSnapDraft.Status.ANALYZED],
+    ).order_by("-created_at")
+
+    results = []
+    for d in drafts:
+        results.append({
+            "id": d.id,
+            "note": d.note,
+            "meal_type": d.meal_type,
+            "entry_date": d.entry_date.isoformat(),
+            "status": d.status,
+            "has_image": bool(d.image or d.image_base64),
+            "image_url": d.image.url if d.image else None,
+            "extracted_items": d.extracted_items,
+            "created_at": d.created_at.isoformat(),
+        })
+    return JsonResponse({"success": True, "drafts": results, "count": len(results)})
+
+
+@login_required
+@require_POST
+def nutrition_snap_upload(request):
+    """POST /api/v1/nutrition/snaps/ - Upload meal photo + note for queue/processing."""
+    note = request.POST.get("note", "")
+    meal_type = request.POST.get("meal_type", "Lunch")
+    image_file = request.FILES.get("image")
+    image_b64 = request.POST.get("image_base64", "")
+
+    if not note and not image_file and not image_b64:
+        try:
+            data = json.loads(request.body or b"{}")
+            note = data.get("note", "")
+            meal_type = data.get("meal_type", "Lunch")
+            image_b64 = data.get("image_base64", "")
+        except Exception:
+            pass
+
+    draft = FoodSnapDraft.objects.create(
+        user=request.user,
+        note=note,
+        meal_type=meal_type,
+        image=image_file if image_file else None,
+        image_base64=image_b64 if not image_file else "",
+        status=FoodSnapDraft.Status.PENDING,
+    )
+
+    # Run smart matching
+    from .services.nutrition_matcher import NutritionMatchingService
+
+    matcher = NutritionMatchingService(request.user)
+    matched = matcher.match_note_and_image(
+        note=draft.note,
+        image_base64=draft.image_base64 or ("present" if draft.image else None),
+        meal_type=draft.meal_type,
+    )
+    draft.extracted_items = matched
+    draft.status = FoodSnapDraft.Status.ANALYZED
+    draft.save(update_fields=["extracted_items", "status"])
+
+    return JsonResponse({
+        "success": True,
+        "draft": {
+            "id": draft.id,
+            "note": draft.note,
+            "meal_type": draft.meal_type,
+            "status": draft.status,
+            "extracted_items": draft.extracted_items,
+            "image_url": draft.image.url if draft.image else None,
+        },
+    })
+
+
+@login_required
+@require_POST
+def nutrition_snap_commit(request, draft_id):
+    """POST /api/v1/nutrition/snaps/<int:draft_id>/commit/ - Commit items from draft to Sparky & XP."""
+    draft = FoodSnapDraft.objects.filter(user=request.user, id=draft_id).first()
+    if not draft:
+        return _json_error("Draft not found", 404)
+
+    try:
+        data = json.loads(request.body or b"{}")
+    except Exception:
+        data = {}
+
+    items = data.get("items") or draft.extracted_items or []
+    meal_type = data.get("meal_type") or draft.meal_type or "Lunch"
+    entry_date = data.get("entry_date") or draft.entry_date.isoformat()
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+    from .services.gamification import process_log
+
+    client = SparkyFitnessClient()
+    for item in items:
+        client.post_food_entry(
+            api_key=api_key,
+            food_name=item.get("name") or "Logged Food",
+            calories=float(item.get("calories") or 0),
+            protein=float(item.get("protein") or 0),
+            carbs=float(item.get("carbs") or 0),
+            fat=float(item.get("fat") or 0),
+            entry_date=entry_date,
+            meal_type=meal_type,
+            quantity=float(item.get("quantity") or 1),
+            unit=str(item.get("unit") or "serving"),
+            food_id=item.get("food_id"),
+            variant_id=item.get("variant_id"),
+            brand_name=item.get("brand") or "",
+        )
+
+    # Record in Flamingo activity log
+    occurred_at = timezone.make_aware(
+        timezone.datetime.combine(timezone.localdate(), timezone.datetime.min.time())
+    )
+    day_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=occurred_at,
+    ).first()
+
+    current_entries = (day_log.payload.get("food_entries") if day_log else []) or []
+    for item in items:
+        current_entries.append({
+            "name": item.get("name"),
+            "food_name": item.get("name"),
+            "calories": item.get("calories", 0),
+            "protein": item.get("protein", 0),
+            "carbs": item.get("carbs", 0),
+            "fat": item.get("fat", 0),
+            "quantity": item.get("quantity", 1),
+            "unit": item.get("unit", "serving"),
+            "meal_type": meal_type,
+        })
+
+    tot_cal = sum(float(e.get("calories", 0)) for e in current_entries)
+    tot_pro = sum(float(e.get("protein", 0)) for e in current_entries)
+    tot_carb = sum(float(e.get("carbs", 0)) for e in current_entries)
+    tot_fat = sum(float(e.get("fat", 0)) for e in current_entries)
+
+    payload = {
+        "date": entry_date,
+        "entry_date": entry_date,
+        "calories": tot_cal,
+        "protein": tot_pro,
+        "carbs": tot_carb,
+        "fat": tot_fat,
+        "food_entries": current_entries,
+    }
+    if day_log and "calorie_goal" in day_log.payload:
+        payload["calorie_goal"] = day_log.payload["calorie_goal"]
+    if day_log and "protein_goal" in day_log.payload:
+        payload["protein_goal"] = day_log.payload["protein_goal"]
+
+    if not day_log:
+        day_log = RawActivityLog(
+            user=request.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            occurred_at=occurred_at,
+        )
+    day_log.payload = payload
+    day_log.save()
+
+    xp_awarded = process_log(day_log)
+
+    draft.status = FoodSnapDraft.Status.LOGGED
+    draft.extracted_items = items
+    draft.save(update_fields=["status", "extracted_items"])
+
+    return JsonResponse({
+        "success": True,
+        "logged_items_count": len(items),
+        "xp_awarded": xp_awarded,
+        "draft_id": draft.id,
+    })
+
+
+@login_required
+@require_POST
+def nutrition_snap_delete(request, draft_id):
+    """POST /api/v1/nutrition/snaps/<int:draft_id>/delete/ - Delete a draft."""
+    draft = FoodSnapDraft.objects.filter(user=request.user, id=draft_id).first()
+    if not draft:
+        return _json_error("Draft not found", 404)
+    draft.delete()
+    return JsonResponse({"success": True, "deleted_id": draft_id})
 
 
 @login_required

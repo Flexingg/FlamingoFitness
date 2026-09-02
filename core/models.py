@@ -1182,3 +1182,46 @@ class BountyParticipant(models.Model):
     def __str__(self):
         return f"{self.user.username} in {self.bounty.title}: {self.current_value}/{self.bounty.target_value}"
 
+
+class FoodSnapDraft(models.Model):
+    """Stores queued/pending food photos with notes for asynchronous or smart logging."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ANALYZED = "analyzed", "Analyzed / Ready for Review"
+        LOGGED = "logged", "Logged"
+        DISCARDED = "discarded", "Discarded"
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="food_snap_drafts"
+    )
+    image = models.ImageField(upload_to="food_snaps/%Y/%m/", blank=True, null=True)
+    image_base64 = models.TextField(
+        blank=True,
+        default="",
+        help_text="Base64 encoded photo for offline sync or direct client uploads.",
+    )
+    note = models.TextField(
+        blank=True,
+        default="",
+        help_text="User-provided notes, e.g. 'Chipotle bowl with double chicken and brown rice'",
+    )
+    meal_type = models.CharField(max_length=50, default="Lunch")
+    entry_date = models.DateField(default=timezone.localdate)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING
+    )
+    extracted_items = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of matched or estimated items: [{name, calories, protein, carbs, fat, quantity, unit, food_id, match_source, confidence}]",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"FoodSnapDraft #{self.id} for {self.user.username} ({self.status}) - {self.note[:30]}"
+

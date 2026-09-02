@@ -27,4 +27,5 @@ Mobile App/.dart_tool/
 Mobile App/.flutter-plugins*
 *.apk
 *.pid
+.hermes/
 

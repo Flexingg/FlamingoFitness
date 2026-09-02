@@ -400,7 +400,11 @@ def _handle_hydration(raw_log):
     """
     payload = raw_log.payload or {}
     entries = payload.get("water_intake_entries") or []
-    water_goal = payload.get("water_goal")
+    water_goal = (
+        payload.get("water_goal")
+        or payload.get("water_goal_oz")
+        or (payload.get("goals") or {}).get("water")
+    )
 
     if entries:
         total_water = sum(float(item.get("amount", 0) or 0) for item in entries)
@@ -411,7 +415,7 @@ def _handle_hydration(raw_log):
         total_water = float(direct_w or 0)
 
     if water_goal is None:
-        return []
+        water_goal = 80.0
 
     xp = hydration_xp(total_water, water_goal)
     if xp <= 0:
@@ -423,6 +427,7 @@ def _handle_hydration(raw_log):
 
     perfect = float(total_water) >= float(water_goal)
     desc_prefix = "Perfect hydration" if perfect else "Hydration progress"
+    src_label = "Health Connect" if raw_log.source == Provider.HEALTH_CONNECT else ("HealthKit" if raw_log.source == Provider.HEALTHKIT else "SparkyFitness")
     return [
         XPLedger(
             user=raw_log.user,
@@ -430,21 +435,25 @@ def _handle_hydration(raw_log):
             amount=xp,
             description=(
                 f"{desc_prefix}: {int(total_water)} oz "
-                f"goal {int(water_goal)} oz - SparkyFitness"
+                f"goal {int(water_goal)} oz - {src_label}"
             ),
         )
     ]
 
 
 def summarize_hydration(raw_log):
-    """Build a UI-ready hydration summary for one RawActivityLog (SparkyFitness).
+    """Build a UI-ready hydration summary for one RawActivityLog (SparkyFitness / Health Connect).
 
     Returns water intake vs goal, percentage, status badges,
     and the XP / tokens that the rulebook grants for it.
     """
     payload = raw_log.payload or {}
     entries = payload.get("water_intake_entries") or []
-    water_goal = payload.get("water_goal") or (payload.get("goals") or {}).get("water")
+    water_goal = (
+        payload.get("water_goal")
+        or payload.get("water_goal_oz")
+        or (payload.get("goals") or {}).get("water")
+    )
 
     if entries:
         total_water = sum(float(e.get("amount", 0) or 0) for e in entries)

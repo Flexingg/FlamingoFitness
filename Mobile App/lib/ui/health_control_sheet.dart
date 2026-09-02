@@ -107,23 +107,47 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
 
   Future<void> _logWater(double oz) async {
     HapticFeedback.mediumImpact();
-    if (!_isAuthorized) {
-      final ok = await _healthService.requestPermissions();
-      if (mounted) setState(() => _isAuthorized = ok);
-      if (!ok) return;
+    setState(() {
+      _isSyncing = true;
+      _syncMessage = null;
+      _syncSuccess = null;
+    });
+
+    bool wrote = false;
+    try {
+      wrote = await _healthService.writeWater(oz);
+    } catch (e) {
+      debugPrint('Health write error: $e');
     }
-    setState(() => _isSyncing = true);
-    final wrote = await _healthService.writeWater(oz);
-    final metrics = await _healthService.fetchTodayMetrics();
-    final result = await _apiService.syncHealthData(metrics);
+
+    HealthMetrics? metrics;
+    try {
+      metrics = await _healthService.fetchTodayMetrics();
+    } catch (e) {
+      debugPrint('Error fetching metrics after water write: $e');
+    }
+
+    // If Health Connect write was skipped or unavailable, optimistically increment local water
+    if (!wrote) {
+      final currentWaterMl = _latestMetrics?.waterMl ?? 0.0;
+      final addedMl = oz * 29.5735;
+      metrics = (_latestMetrics ?? HealthMetrics.empty()).copyWith(
+        waterMl: currentWaterMl + addedMl,
+      );
+    }
+
+    final result = await _apiService.syncHealthData(metrics ?? _latestMetrics ?? HealthMetrics.empty());
+
     if (mounted) {
       setState(() {
         _isSyncing = false;
-        _latestMetrics = metrics;
-        _syncSuccess = wrote;
-        _syncMessage = wrote
-            ? '💧 Logged ${oz.toStringAsFixed(0)} oz → Health Connect'
-            : '⚠️ Could not write water to Health Connect';
+        _latestMetrics = metrics ?? _latestMetrics;
+        _syncSuccess = true;
+        if (wrote) {
+          _syncMessage = '💧 Logged ${oz.toStringAsFixed(0)} oz → Health Connect & Flamingo (+${result.totalXpAwarded} XP)';
+        } else {
+          _syncMessage = '💧 Logged ${oz.toStringAsFixed(0)} oz to Flamingo (+${result.totalXpAwarded} XP). Grant Health Connect access to sync on device.';
+        }
       });
       if (result.success) widget.onRefreshWebView();
     }
@@ -379,62 +403,214 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
 
             // Quick Log Water (native Health Connect / HealthKit write)
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: cardBg,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blueAccent.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(Icons.water_drop, color: Colors.blueAccent, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        '💧 Quick Log Water',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      const Row(
+                        children: [
+                          Icon(Icons.water_drop, color: Colors.blueAccent, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'Quick Log Water',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.blueAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bolt, color: Colors.blueAccent, size: 13),
+                            SizedBox(width: 4),
+                            Text(
+                              'Health Connect',
+                              style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [8.0, 16.0, 24.0, 32.0].map(_waterQuickBtn).toList(),
+                  const SizedBox(height: 14),
+                  // Preset Water Cards Grid
+                  Row(
+                    children: [
+                      _waterPresetCard(8.0, 'Glass', '🥛', Colors.lightBlueAccent),
+                      const SizedBox(width: 8),
+                      _waterPresetCard(16.0, 'Bottle', '🥤', Colors.blueAccent),
+                      const SizedBox(width: 8),
+                      _waterPresetCard(24.0, 'Shaker', '🍶', const Color(0xFF00F0FF)),
+                      const SizedBox(width: 8),
+                      _waterPresetCard(32.0, 'Flask', '🧊', const Color(0xFF80D8FF)),
+                    ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 14),
+                  // Quick Stepper & Custom Input Row
                   Row(
                     children: [
                       Expanded(
                         child: TextField(
                           controller: _waterController,
                           keyboardType: TextInputType.number,
-                          style: const TextStyle(color: Colors.white),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           decoration: InputDecoration(
-                            labelText: 'Amount (oz)',
+                            labelText: 'Custom Amount',
+                            suffixText: 'oz',
+                            suffixStyle: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
                             labelStyle: const TextStyle(color: Colors.white60),
                             filled: true,
                             fillColor: const Color(0xFF121226),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.blueAccent),
+                            ),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      ElevatedButton(
+                      _waterStepperBtn(-4, '-4'),
+                      const SizedBox(width: 4),
+                      _waterStepperBtn(4, '+4'),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
                         onPressed: _isSyncing
                             ? null
                             : () {
                                 final v = double.tryParse(_waterController.text) ?? 0;
                                 if (v > 0) _logWater(v);
                               },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Quick Meal & Snap Section
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.4)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.purpleAccent.withValues(alpha: 0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.purpleAccent.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.restaurant, color: Colors.purpleAccent, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Quick Nutrition & Snaps',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            Text(
+                              'Sparky Fitness database & recent foods',
+                              style: TextStyle(fontSize: 11, color: Colors.white60),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            widget.onRefreshWebView();
+                          },
+                          icon: const Icon(Icons.camera_alt, size: 18),
+                          label: const Text('Snap Meal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFA855F7),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            widget.onRefreshWebView();
+                          },
+                          icon: const Icon(Icons.search, size: 18),
+                          label: const Text('Search DB', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.purpleAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -513,6 +689,75 @@ class _HealthControlSheetState extends State<HealthControlSheet> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _waterPresetCard(double oz, String label, String emoji, Color accentColor) {
+    return Expanded(
+      child: Material(
+        color: const Color(0xFF16162E),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: _isSyncing ? null : () => _logWater(oz),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+            ),
+            child: Column(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 20)),
+                const SizedBox(height: 4),
+                Text(
+                  '+${oz.toStringAsFixed(0)} oz',
+                  style: TextStyle(
+                    color: accentColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _waterStepperBtn(double delta, String label) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        final current = double.tryParse(_waterController.text) ?? 8;
+        final next = (current + delta).clamp(1.0, 128.0);
+        _waterController.text = next.toStringAsFixed(0);
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2A2A50),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
         ),
       ),
     );

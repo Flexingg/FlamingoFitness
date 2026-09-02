@@ -58,10 +58,16 @@ class HealthService {
     }
   }
 
+  List<HealthDataAccess> get permissions => supportedTypes
+      .map((type) => type == HealthDataType.WATER
+          ? HealthDataAccess.READ_WRITE
+          : HealthDataAccess.READ)
+      .toList();
+
   Future<bool> checkPermissions() async {
     try {
       await configure();
-      final hasPerm = await _health.hasPermissions(supportedTypes);
+      final hasPerm = await _health.hasPermissions(supportedTypes, permissions: permissions);
       _isAuthorized = hasPerm ?? false;
       return _isAuthorized;
     } catch (e) {
@@ -70,17 +76,52 @@ class HealthService {
     }
   }
 
+  Future<bool> hasWaterWritePermission() async {
+    try {
+      await configure();
+      final hasPerm = await _health.hasPermissions(
+        [HealthDataType.WATER],
+        permissions: [HealthDataAccess.READ_WRITE],
+      );
+      return hasPerm ?? false;
+    } catch (e) {
+      debugPrint('Error checking water permission: $e');
+      return false;
+    }
+  }
+
+  Future<bool> requestWaterPermission() async {
+    try {
+      await configure();
+      final ok = await _health.requestAuthorization(
+        [HealthDataType.WATER],
+        permissions: [HealthDataAccess.READ_WRITE],
+      );
+      return ok;
+    } catch (e) {
+      debugPrint('Error requesting water permission: $e');
+      return false;
+    }
+  }
+
+  Future<bool> isHealthConnectAvailable() async {
+    if (!Platform.isAndroid) return true;
+    try {
+      return await _health.isHealthConnectAvailable();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> installHealthConnect() async {
+    if (Platform.isAndroid) {
+      await _health.installHealthConnect();
+    }
+  }
+
   Future<bool> requestPermissions() async {
     try {
       await configure();
-      // Request READ for most types, but READ_WRITE for water so we can
-      // log water natively into Health Connect / HealthKit.
-      final permissions = supportedTypes
-          .map((type) => type == HealthDataType.WATER
-              ? HealthDataAccess.READ_WRITE
-              : HealthDataAccess.READ)
-          .toList();
-
       final authorized = await _health.requestAuthorization(
         supportedTypes,
         permissions: permissions,
@@ -99,15 +140,32 @@ class HealthService {
   /// Returns true on success.
   Future<bool> writeWater(double oz, {DateTime? time}) async {
     try {
+      await configure();
       final now = time ?? DateTime.now();
       final liters = oz / 33.814; // 1 US fl oz = 0.0295735 L
-      return await _health.writeHealthData(
+      final startTime = now.subtract(const Duration(seconds: 1));
+      var success = await _health.writeHealthData(
         value: liters,
         type: HealthDataType.WATER,
-        startTime: now,
+        startTime: startTime,
         endTime: now,
         recordingMethod: RecordingMethod.manual,
       );
+      if (!success) {
+        // If write failed, request water write permission specifically and retry
+        debugPrint('Health Connect write returned false, requesting WATER write permission...');
+        final granted = await requestWaterPermission();
+        if (granted) {
+          success = await _health.writeHealthData(
+            value: liters,
+            type: HealthDataType.WATER,
+            startTime: startTime,
+            endTime: now,
+            recordingMethod: RecordingMethod.manual,
+          );
+        }
+      }
+      return success;
     } catch (e) {
       debugPrint('Error writing water: $e');
       return false;
@@ -151,7 +209,7 @@ class HealthService {
 
         switch (point.type) {
           case HealthDataType.ACTIVE_ENERGY_BURNED:
-            if (dateFrom.isAfter(startOfDay)) {
+            if (!dateFrom.isBefore(startOfDay)) {
               if (val is NumericHealthValue) {
                 activeCalories += val.numericValue.toDouble();
               }
@@ -160,7 +218,7 @@ class HealthService {
 
           case HealthDataType.DISTANCE_DELTA:
           case HealthDataType.DISTANCE_WALKING_RUNNING:
-            if (dateFrom.isAfter(startOfDay)) {
+            if (!dateFrom.isBefore(startOfDay)) {
               if (val is NumericHealthValue) {
                 distanceMeters += val.numericValue.toDouble();
               }
@@ -182,7 +240,7 @@ class HealthService {
             break;
 
           case HealthDataType.WATER:
-            if (dateFrom.isAfter(startOfDay)) {
+            if (!dateFrom.isBefore(startOfDay)) {
               if (val is NumericHealthValue) {
                 // Usually in Liters or Milliliters
                 final numVal = val.numericValue.toDouble();
