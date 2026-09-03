@@ -1033,6 +1033,7 @@
                     alert('Error saving custom food.');
                     btnSaveOnly.disabled = false;
                     btnSaveOnly.innerHTML = 'Save to DB Only';
+                });
             };
         }
     };
