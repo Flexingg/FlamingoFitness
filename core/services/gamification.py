@@ -751,13 +751,28 @@ def summarize_nutrition(raw_log):
         "tokens": tokens,
         "food_entries": [
             {
-                # The API returns "food_name" (GAS: entry.food_name).
-                # Fall back to "name" for any older payload shape.
-                "name": e.get("food_name") or e.get("name", "") or "",
+                "id": str(e.get("id") or e.get("sparky_id") or f"entry-{idx}"),
+                "sparky_id": e.get("sparky_id") or (e.get("id") if (isinstance(e.get("id"), str) and len(e.get("id")) > 20) else None),
+                "name": e.get("food_name") or e.get("name", "") or "Food",
+                "food_name": e.get("food_name") or e.get("name", "") or "Food",
                 "protein": round(float(e.get("protein", 0) or 0), 1),
                 "calories": int(round(float(e.get("calories", 0) or 0))),
+                "carbs": round(float(e.get("carbs", 0) or 0), 1),
+                "fat": round(float(e.get("fat", 0) or 0), 1),
+                "quantity": float(e.get("quantity", 1.0) or 1.0),
+                "unit": str(e.get("unit") or e.get("serving") or "serving"),
+                "serving": str(e.get("serving") or e.get("unit") or "serving"),
+                "meal_type": str(e.get("meal_type") or "Lunch").capitalize(),
+                "brand": str(e.get("brand_name") or e.get("brand") or ""),
+                "brand_name": str(e.get("brand_name") or e.get("brand") or ""),
+                "food_id": e.get("food_id"),
+                "variant_id": e.get("variant_id"),
+                "base_calories": float(e.get("base_calories") or e.get("calories") or 0),
+                "base_protein": float(e.get("base_protein") or e.get("protein") or 0),
+                "base_carbs": float(e.get("base_carbs") or e.get("carbs") or 0),
+                "base_fat": float(e.get("base_fat") or e.get("fat") or 0),
             }
-            for e in entries
+            for idx, e in enumerate(entries)
         ],
     }
 

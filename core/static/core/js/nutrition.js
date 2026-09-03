@@ -281,6 +281,334 @@
         updatePortionDisplay();
     };
 
+    // Open Edit Food Entry Modal (Edit, Move, Copy, Delete)
+    window.openEditFoodEntryModal = function (entry, optDate) {
+        if (window.closeModal) window.closeModal();
+
+        var modalTitle = document.getElementById('modal-title');
+        var modalDesc = document.getElementById('modal-desc');
+        var modalAction = document.getElementById('modal-action');
+        var modalIcon = document.querySelector('.modal-icon i');
+
+        var foodName = entry.name || entry.food_name || 'Food Entry';
+        if (modalTitle) modalTitle.textContent = 'Edit Food Entry';
+        if (modalIcon) modalIcon.className = 'fa-solid fa-pen-to-square';
+        if (modalAction) {
+            modalAction.textContent = 'Cancel';
+            modalAction.onclick = function () {
+                if (window.closeModal) window.closeModal();
+            };
+        }
+
+        var activeDateVal = optDate || window._activeNutritionDate || new Date().toISOString().split('T')[0];
+        var todayStr = window._todayDateStr || new Date().toISOString().split('T')[0];
+        var isToday = (activeDateVal === todayStr);
+
+        var curQty = parseFloat(entry.quantity) || 1.0;
+        var curCal = parseFloat(entry.calories) || 0;
+        var curPro = parseFloat(entry.protein) || 0;
+        var curCarb = parseFloat(entry.carbs) || 0;
+        var curFat = parseFloat(entry.fat) || 0;
+
+        var baseCal = parseFloat(entry.base_calories) || (curQty > 0 ? (curCal / curQty) : curCal);
+        var basePro = parseFloat(entry.base_protein) || (curQty > 0 ? (curPro / curQty) : curPro);
+        var baseCarb = parseFloat(entry.base_carbs) || (curQty > 0 ? (curCarb / curQty) : curCarb);
+        var baseFat = parseFloat(entry.base_fat) || (curQty > 0 ? (curFat / curQty) : curFat);
+        var mealType = (entry.meal_type || 'Lunch').toLowerCase();
+
+        var html = '<div style="text-align: left; padding: 4px 0;">';
+
+        // Food Name Input
+        html += '<div style="margin-bottom: 12px;">';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Food Name</label>';
+        html += '<input type="text" id="edit-food-name" value="' + (foodName.replace(/"/g, '&quot;')) + '" style="width: 100%; padding: 10px 12px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700; font-size: 0.92rem;" />';
+        html += '</div>';
+
+        // Servings Stepper & Quick Multipliers
+        html += '<div style="margin-bottom: 14px;">';
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">';
+        html += '<label style="font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase;">Servings / Multiplier</label>';
+        html += '<span style="font-size: 0.75rem; color: #94a3b8;">' + (entry.unit || entry.serving || 'serving') + '</span>';
+        html += '</div>';
+        html += '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">';
+        html += '<button type="button" id="edit-btn-minus" style="width: 44px; height: 44px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">-</button>';
+        html += '<input type="number" id="edit-qty-input" value="' + curQty + '" step="0.25" min="0.1" max="50" style="flex: 1; text-align: center; font-size: 1.25rem; font-weight: 900; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 12px; color: #a855f7; height: 44px;" />';
+        html += '<button type="button" id="edit-btn-plus" style="width: 44px; height: 44px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">+</button>';
+        html += '</div>';
+        html += '<div style="display: flex; gap: 6px;">';
+        [0.5, 1.0, 1.5, 2.0].forEach(function(val) {
+            html += '<button type="button" class="btn-edit-preset" data-val="' + val + '" style="flex: 1; padding: 6px 0; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #cbd5e1; font-weight: 700; font-size: 0.78rem; cursor: pointer;">' + val + 'x</button>';
+        });
+        html += '</div>';
+        html += '</div>';
+
+        // Meal Slot & Date Grid (Move Slot or Date right here!)
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Meal Slot (Move)</label>';
+        html += '<select id="edit-meal-type" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700;">';
+        ['Breakfast', 'Lunch', 'Dinner', 'Snack'].forEach(function(s) {
+            var sel = (s.toLowerCase() === mealType || (s === 'Snack' && mealType === 'snacks')) ? ' selected' : '';
+            html += '<option value="' + s + '"' + sel + '>' + s + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;"><i class="fa-regular fa-calendar text-purple-400 mr-1"></i> Date (Move)</label>';
+        html += '<input type="date" id="edit-food-date" value="' + activeDateVal + '" style="width: 100%; padding: 9px 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700; font-size: 0.85rem;" />';
+        html += '</div>';
+        html += '</div>';
+
+        // Macros Breakdown Summary
+        html += '<div id="edit-macro-summary" style="background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 16px;">';
+        html += '<div style="font-size: 0.72rem; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">Calculated Nutrition</div>';
+        html += '<div id="edit-macros-line" style="font-size: 1.05rem; font-weight: 900; color: #fff;">';
+        html += '<span id="edit-val-cal" style="color: #4ade80;">' + Math.round(curCal) + ' cal</span> • <span id="edit-val-pro" style="color: #c084fc;">' + (Math.round(curPro * 10) / 10) + 'g P</span> • <span id="edit-val-carb" style="color: #38bdf8;">' + (Math.round(curCarb * 10) / 10) + 'g C</span> • <span id="edit-val-fat" style="color: #fbbf24;">' + (Math.round(curFat * 10) / 10) + 'g F</span>';
+        html += '</div>';
+        html += '</div>';
+
+        // Save Button
+        html += '<button type="button" id="btn-edit-save" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35); margin-bottom: 12px;"><i class="fa-solid fa-check"></i> Save Changes</button>';
+
+        // Quick Actions Row (Copy to Today, Copy to Date, Delete)
+        html += '<div style="display: flex; gap: 8px; align-items: center;">';
+        html += '<button type="button" id="btn-edit-copy-today" style="flex: 1; padding: 10px 8px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 10px; color: #93c5fd; font-weight: 800; font-size: 0.78rem; cursor: pointer;"><i class="fa-regular fa-copy mr-1"></i> ' + (isToday ? 'Duplicate' : 'Copy to Today') + '</button>';
+        html += '<button type="button" id="btn-edit-copy-picker" style="flex: 1; padding: 10px 8px; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 10px; color: #d8b4fe; font-weight: 800; font-size: 0.78rem; cursor: pointer;"><i class="fa-regular fa-calendar-plus mr-1"></i> Copy to Date...</button>';
+        html += '<button type="button" id="btn-edit-delete" style="padding: 10px 14px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; color: #fca5a5; font-weight: 800; font-size: 0.78rem; cursor: pointer;" title="Delete entry"><i class="fa-solid fa-trash"></i></button>';
+        html += '</div>';
+
+        html += '</div>';
+
+        if (modalDesc) modalDesc.innerHTML = html;
+        if (window.openModal) window.openModal();
+
+        var qtyInput = document.getElementById('edit-qty-input');
+        var nameInput = document.getElementById('edit-food-name');
+        var mealSelect = document.getElementById('edit-meal-type');
+        var dateInput = document.getElementById('edit-food-date');
+
+        var valCal = document.getElementById('edit-val-cal');
+        var valPro = document.getElementById('edit-val-pro');
+        var valCarb = document.getElementById('edit-val-carb');
+        var valFat = document.getElementById('edit-val-fat');
+
+        function updateEditTotals() {
+            var q = parseFloat(qtyInput.value) || 1.0;
+            if (q < 0.1) q = 0.1;
+            var c = Math.round(baseCal * q);
+            var p = Math.round(basePro * q * 10) / 10;
+            var carb = Math.round(baseCarb * q * 10) / 10;
+            var f = Math.round(baseFat * q * 10) / 10;
+
+            if (valCal) valCal.textContent = c + ' cal';
+            if (valPro) valPro.textContent = p + 'g P';
+            if (valCarb) valCarb.textContent = carb + 'g C';
+            if (valFat) valFat.textContent = f + 'g F';
+        }
+
+        var btnMinus = document.getElementById('edit-btn-minus');
+        if (btnMinus) {
+            btnMinus.onclick = function () {
+                var cur = parseFloat(qtyInput.value) || 1.0;
+                if (cur > 0.25) {
+                    qtyInput.value = (cur - 0.25).toFixed(2).replace(/\.?0+$/, '');
+                    updateEditTotals();
+                }
+            };
+        }
+
+        var btnPlus = document.getElementById('edit-btn-plus');
+        if (btnPlus) {
+            btnPlus.onclick = function () {
+                var cur = parseFloat(qtyInput.value) || 1.0;
+                qtyInput.value = (cur + 0.25).toFixed(2).replace(/\.?0+$/, '');
+                updateEditTotals();
+            };
+        }
+
+        if (qtyInput) {
+            qtyInput.oninput = updateEditTotals;
+        }
+
+        var presetBtns = document.querySelectorAll('.btn-edit-preset');
+        presetBtns.forEach(function (pb) {
+            pb.onclick = function () {
+                var pVal = parseFloat(pb.getAttribute('data-val'));
+                if (qtyInput) {
+                    qtyInput.value = pVal;
+                    updateEditTotals();
+                }
+            };
+        });
+
+        // 1. Save Changes
+        var btnSave = document.getElementById('btn-edit-save');
+        if (btnSave) {
+            btnSave.onclick = function () {
+                var newName = (nameInput && nameInput.value.trim()) || foodName;
+                var newQty = parseFloat(qtyInput && qtyInput.value) || 1.0;
+                var newMeal = (mealSelect && mealSelect.value) || 'Lunch';
+                var newDate = (dateInput && dateInput.value) || activeDateVal;
+
+                btnSave.disabled = true;
+                btnSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+                fetch('/api/v1/nutrition/entries/update/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken') || ''
+                    },
+                    body: JSON.stringify({
+                        entry_id: entry.id,
+                        date: activeDateVal,
+                        new_date: newDate,
+                        food_name: newName,
+                        quantity: newQty,
+                        meal_type: newMeal,
+                        base_calories: baseCal,
+                        base_protein: basePro,
+                        base_carbs: baseCarb,
+                        base_fat: baseFat
+                    })
+                })
+                .then(function (res) { return res.json(); })
+                .then(function (resData) {
+                    if (resData.success) {
+                        if (window.closeModal) window.closeModal();
+                        if (window.showToast) {
+                            var moveNote = (newDate !== activeDateVal) ? (' (Moved to ' + newDate + ')') : '';
+                            window.showToast('Updated ' + newName + moveNote);
+                        }
+                        if (window.loadNutrition) {
+                            window.loadNutrition(resData.date || newDate || activeDateVal);
+                        }
+                    } else {
+                        alert(resData.error || 'Failed to update food entry');
+                        btnSave.disabled = false;
+                        btnSave.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+                    }
+                })
+                .catch(function (err) {
+                    console.error('Update error:', err);
+                    alert('Error saving changes.');
+                    btnSave.disabled = false;
+                    btnSave.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+                });
+            };
+        }
+
+        // 2. Quick Copy to Today
+        var btnCopyToday = document.getElementById('btn-edit-copy-today');
+        if (btnCopyToday) {
+            btnCopyToday.onclick = function () {
+                if (window.closeModal) window.closeModal();
+                window.quickCopyFoodEntry(entry, activeDateVal, todayStr);
+            };
+        }
+
+        // 3. Copy to Date Picker
+        var btnCopyPicker = document.getElementById('btn-edit-copy-picker');
+        if (btnCopyPicker) {
+            btnCopyPicker.onclick = function () {
+                var targetDate = prompt('Enter the date (YYYY-MM-DD) to copy this meal to:', activeDateVal);
+                if (targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate.trim())) {
+                    if (window.closeModal) window.closeModal();
+                    window.quickCopyFoodEntry(entry, activeDateVal, targetDate.trim());
+                } else if (targetDate) {
+                    alert('Please enter a valid date in YYYY-MM-DD format.');
+                }
+            };
+        }
+
+        // 4. Delete Entry
+        var btnDelete = document.getElementById('btn-edit-delete');
+        if (btnDelete) {
+            btnDelete.onclick = function () {
+                if (window.closeModal) window.closeModal();
+                window.quickDeleteFoodEntry(entry, activeDateVal);
+            };
+        }
+    };
+
+    // Quick Copy Helper
+    window.quickCopyFoodEntry = function (entry, sourceDate, optTargetDate) {
+        var todayStr = window._todayDateStr || new Date().toISOString().split('T')[0];
+        var targetDate = optTargetDate || todayStr;
+        var foodName = entry.name || entry.food_name || 'food';
+
+        if (window.showToast) window.showToast('Copying ' + foodName + ' to ' + targetDate + '...');
+
+        fetch('/api/v1/nutrition/entries/copy/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({
+                entry_id: entry.id,
+                source_date: sourceDate,
+                target_date: targetDate,
+                target_meal_type: entry.meal_type || 'Lunch'
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (resData) {
+            if (resData.success) {
+                if (window.showToast) {
+                    window.showToast('Copied "' + foodName + '" to ' + targetDate + '!');
+                }
+                if (window.loadNutrition) {
+                    window.loadNutrition(sourceDate);
+                }
+            } else {
+                alert(resData.error || 'Failed to copy food entry');
+            }
+        })
+        .catch(function (err) {
+            console.error('Copy error:', err);
+            alert('Error copying food entry.');
+        });
+    };
+
+    // Quick Delete Helper
+    window.quickDeleteFoodEntry = function (entry, dateStr) {
+        var foodName = entry.name || entry.food_name || 'this food';
+        if (!confirm('Are you sure you want to delete "' + foodName + '"?')) {
+            return;
+        }
+
+        fetch('/api/v1/nutrition/entries/delete/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify({
+                entry_id: entry.id,
+                date: dateStr,
+                food_name: foodName
+            })
+        })
+        .then(function (res) { return res.json(); })
+        .then(function (resData) {
+            if (resData.success) {
+                if (window.showToast) {
+                    window.showToast('Deleted "' + foodName + '"');
+                }
+                if (window.loadNutrition) {
+                    window.loadNutrition(dateStr);
+                }
+            } else {
+                alert(resData.error || 'Failed to delete food entry');
+            }
+        })
+        .catch(function (err) {
+            console.error('Delete error:', err);
+            alert('Error deleting food entry.');
+        });
+    };
+
     // Open Snap & Note Modal
     window.openSnapMealModal = function () {
         if (window.closeModal) window.closeModal();
@@ -1731,12 +2059,65 @@
             today.food_entries.forEach(function (f) {
                 var item = document.createElement('div');
                 item.className = 'today-intake-item';
+                item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; margin-bottom: 6px; border-radius: 12px; background: rgba(15, 23, 42, 0.55); border: 1px solid rgba(255, 255, 255, 0.07); cursor: pointer; transition: background 0.15s ease;';
+                item.onmouseover = function () { item.style.background = 'rgba(30, 41, 59, 0.7)'; };
+                item.onmouseout = function () { item.style.background = 'rgba(15, 23, 42, 0.55)'; };
+
                 var nameStr = f.name || f.food_name || 'Food';
-                item.innerHTML = '<span style="color: #f1f5f9;">' + nameStr + '</span>' +
-                    '<span style="display: flex; gap: 8px;">' +
-                    '<span style="color: #c084fc;">' + Math.round(f.protein || 0) + 'g P</span>' +
-                    '<span style="color: #94a3b8;">' + Math.round(f.calories || 0) + ' cal</span>' +
-                    '</span>';
+                var mealSlot = f.meal_type || 'Meal';
+                var qtyStr = (f.quantity && f.quantity !== 1) ? (f.quantity + 'x • ') : '';
+
+                var leftDiv = document.createElement('div');
+                leftDiv.style.cssText = 'flex: 1; min-width: 0; padding-right: 8px;';
+                leftDiv.innerHTML = '<div style="display: flex; align-items: center; gap: 6px;">' +
+                    '<span style="font-weight: 800; color: #f8fafc; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + nameStr + '</span>' +
+                    '<span style="background: rgba(168, 85, 247, 0.18); color: #d8b4fe; font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 6px; text-transform: uppercase;">' + mealSlot + '</span>' +
+                    '</div>' +
+                    '<div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">' + qtyStr + (f.serving || f.unit || 'serving') + (f.brand ? ' • ' + f.brand : '') + '</div>';
+
+                var rightDiv = document.createElement('div');
+                rightDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; flex-shrink: 0;';
+                rightDiv.innerHTML = '<div style="text-align: right;">' +
+                    '<div style="color: #c084fc; font-weight: 800; font-size: 0.88rem;">' + Math.round(f.protein || 0) + 'g P</div>' +
+                    '<div style="color: #94a3b8; font-size: 0.72rem;">' + Math.round(f.calories || 0) + ' cal</div>' +
+                    '</div>' +
+                    '<div style="display: flex; gap: 4px;" onclick="event.stopPropagation();">' +
+                    '<button type="button" class="btn-quick-copy" title="Quick Copy to Today" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(30, 41, 59, 0.8); color: #93c5fd; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-regular fa-copy"></i></button>' +
+                    '<button type="button" class="btn-quick-edit" title="Edit Entry" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(30, 41, 59, 0.8); color: #d8b4fe; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-pen"></i></button>' +
+                    '<button type="button" class="btn-quick-del" title="Delete Entry" style="width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(30, 41, 59, 0.8); color: #fca5a5; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem;"><i class="fa-solid fa-trash-can"></i></button>' +
+                    '</div>';
+
+                item.appendChild(leftDiv);
+                item.appendChild(rightDiv);
+
+                item.onclick = function () {
+                    window.openEditFoodEntryModal(f, activeDateStr);
+                };
+
+                var copyBtn = rightDiv.querySelector('.btn-quick-copy');
+                if (copyBtn) {
+                    copyBtn.onclick = function (e) {
+                        e.stopPropagation();
+                        window.quickCopyFoodEntry(f, activeDateStr);
+                    };
+                }
+
+                var editBtn = rightDiv.querySelector('.btn-quick-edit');
+                if (editBtn) {
+                    editBtn.onclick = function (e) {
+                        e.stopPropagation();
+                        window.openEditFoodEntryModal(f, activeDateStr);
+                    };
+                }
+
+                var delBtn = rightDiv.querySelector('.btn-quick-del');
+                if (delBtn) {
+                    delBtn.onclick = function (e) {
+                        e.stopPropagation();
+                        window.quickDeleteFoodEntry(f, activeDateStr);
+                    };
+                }
+
                 timeline.appendChild(item);
             });
         } else {

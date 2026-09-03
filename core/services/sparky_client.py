@@ -608,6 +608,16 @@ class SparkyFitnessClient(MockAPIClient):
         """Send a food entry to SparkyFitness API."""
         if not entry_date:
             entry_date = timezone.localdate().isoformat()
+        mt_lower = str(meal_type or "lunch").lower().strip()
+        if mt_lower in ("snack", "snacks"):
+            normalized_meal_type = "snacks"
+        elif mt_lower == "breakfast":
+            normalized_meal_type = "breakfast"
+        elif mt_lower == "dinner":
+            normalized_meal_type = "dinner"
+        else:
+            normalized_meal_type = "lunch"
+
         payload = {
             "food_name": str(food_name),
             "calories": float(calories),
@@ -615,7 +625,7 @@ class SparkyFitnessClient(MockAPIClient):
             "carbs": float(carbs or 0),
             "fat": float(fat or 0),
             "entry_date": entry_date,
-            "meal_type": meal_type,
+            "meal_type": normalized_meal_type,
             "quantity": float(quantity or 1),
             "unit": str(unit or "serving"),
             "source": "flamingo_sync",
@@ -630,6 +640,20 @@ class SparkyFitnessClient(MockAPIClient):
         if api_key:
             return self._post(api_key, "/food-entries", json_data=payload)
         return {"status": "mock_recorded", **payload}
+
+    def delete_food_entry(self, api_key, entry_id):
+        """Delete a food entry in SparkyFitness by ID."""
+        if not api_key or not entry_id:
+            return False
+        try:
+            resp = requests.delete(
+                f"{self.BASE_URL}/food-entries/{entry_id}",
+                headers=self._headers(api_key),
+                timeout=self.timeout,
+            )
+            return resp.status_code in (200, 204)
+        except requests.RequestException:
+            return False
 
     # -- payload normalizers (defensive about unknown shapes) --------------
     

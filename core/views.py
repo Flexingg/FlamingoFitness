@@ -27,6 +27,7 @@ Architecture & Endpoint Taxonomy:
 
 import json
 import datetime
+import uuid
 from datetime import timedelta
 
 from django.contrib import messages
@@ -2576,8 +2577,12 @@ def nutrition_quick_log(request):
         occurred_at=occurred_at,
     ).first()
 
-    current_entries = (day_log.payload.get("food_entries") if day_log else []) or []
+    sparky_entry_id = sparky_res.get("id") if (isinstance(sparky_res, dict) and sparky_res.get("id")) else None
+    entry_uuid = sparky_entry_id or f"fe-{uuid.uuid4().hex[:10]}"
+
     current_entries.append({
+        "id": entry_uuid,
+        "sparky_id": sparky_entry_id,
         "name": food_name,
         "food_name": food_name,
         "calories": calories,
@@ -2586,7 +2591,16 @@ def nutrition_quick_log(request):
         "fat": fat,
         "quantity": quantity,
         "unit": unit,
-        "meal_type": meal_type,
+        "serving": unit,
+        "meal_type": str(meal_type).capitalize(),
+        "brand_name": brand_name,
+        "brand": brand_name,
+        "food_id": food_id,
+        "variant_id": variant_id,
+        "base_calories": serving_cal,
+        "base_protein": serving_pro,
+        "base_carbs": serving_carb,
+        "base_fat": serving_fat,
     })
 
     tot_cal = sum(float(e.get("calories", 0)) for e in current_entries)
@@ -2633,6 +2647,415 @@ def nutrition_quick_log(request):
         "entry_date": entry_date,
         "xp_awarded": xp_amount,
         "sparky_response": sparky_res,
+        "entry_id": entry_uuid,
+    })
+
+
+def _recalc_and_save_day_log(day_log, entries, date_str, api_key, client):
+    from .services.gamification import process_log
+
+    tot_cal = sum(float(e.get("calories", 0) or 0) for e in entries)
+    tot_pro = sum(float(e.get("protein", 0) or 0) for e in entries)
+    tot_carb = sum(float(e.get("carbs", 0) or 0) for e in entries)
+    tot_fat = sum(float(e.get("fat", 0) or 0) for e in entries)
+
+    sparky_goals = client.get_goals_by_date(api_key, date_str) if api_key else {}
+    cal_goal = sparky_goals.get("calories") or (day_log.payload.get("calorie_goal") if day_log and day_log.payload else 2000.0)
+    pro_goal = sparky_goals.get("protein") or (day_log.payload.get("protein_goal") if day_log and day_log.payload else 150.0)
+
+    payload = {
+        "date": date_str,
+        "entry_date": date_str,
+        "calories": tot_cal,
+        "protein": tot_pro,
+        "carbs": tot_carb,
+        "fat": tot_fat,
+        "food_entries": entries,
+        "calorie_goal": float(cal_goal),
+        "protein_goal": float(pro_goal),
+        "goals": {"calories": float(cal_goal), "protein": float(pro_goal)},
+    }
+    day_log.payload = payload
+    day_log.save()
+    process_log(day_log)
+
+
+@login_required
+@require_POST
+def nutrition_entry_update(request):
+    """POST /api/v1/nutrition/entries/update/
+    Update or move a food entry in the user's day log and SparkyFitness.
+    """
+    try:
+        data = json.loads(request.body or b"{}")
+    except Exception:
+        data = {}
+
+    entry_id = str(data.get("entry_id") or "").strip()
+    date_str = str(data.get("date") or data.get("entry_date") or "").strip()
+    new_date_str = str(data.get("new_date") or date_str).strip()
+
+    if not date_str:
+        date_str = timezone.localdate().isoformat()
+    if not new_date_str:
+        new_date_str = date_str
+
+    try:
+        target_date = datetime.date.fromisoformat(date_str)
+    except Exception:
+        target_date = timezone.localdate()
+        date_str = target_date.isoformat()
+
+    try:
+        new_target_date = datetime.date.fromisoformat(new_date_str)
+    except Exception:
+        new_target_date = target_date
+        new_date_str = new_target_date.isoformat()
+
+    occurred_at = timezone.make_aware(
+        timezone.datetime.combine(target_date, timezone.datetime.min.time())
+    )
+    day_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=occurred_at,
+    ).first()
+
+    if not day_log or not day_log.payload:
+        return JsonResponse({"error": "No activity log found for this date"}, status=404)
+
+    entries = day_log.payload.get("food_entries") or []
+    match_idx = -1
+    for idx, e in enumerate(entries):
+        e_id = str(e.get("id") or e.get("sparky_id") or f"entry-{idx}")
+        if e_id == entry_id or (entry_id.isdigit() and int(entry_id) == idx):
+            match_idx = idx
+            break
+
+    if match_idx == -1 and entries:
+        fname = data.get("food_name") or data.get("name")
+        for idx, e in enumerate(entries):
+            if e.get("food_name") == fname or e.get("name") == fname:
+                match_idx = idx
+                break
+
+    if match_idx == -1:
+        return JsonResponse({"error": "Food entry not found in day log"}, status=404)
+
+    old_entry = entries[match_idx]
+    sparky_id = old_entry.get("sparky_id") or (old_entry.get("id") if (isinstance(old_entry.get("id"), str) and len(old_entry.get("id")) > 20) else None)
+
+    # Calculate updated numbers
+    quantity = float(data.get("quantity") or old_entry.get("quantity") or 1.0)
+    food_name = str(data.get("food_name") or data.get("name") or old_entry.get("food_name") or old_entry.get("name") or "Food")
+    meal_type = str(data.get("meal_type") or old_entry.get("meal_type") or "Lunch").capitalize()
+    unit = str(data.get("unit") or data.get("serving") or old_entry.get("unit") or old_entry.get("serving") or "serving")
+
+    old_qty = max(float(old_entry.get("quantity") or 1), 0.01)
+    base_cal = float(data.get("base_calories") if data.get("base_calories") is not None else (old_entry.get("base_calories") if old_entry.get("base_calories") is not None else (float(old_entry.get("calories") or 0) / old_qty)))
+    base_pro = float(data.get("base_protein") if data.get("base_protein") is not None else (old_entry.get("base_protein") if old_entry.get("base_protein") is not None else (float(old_entry.get("protein") or 0) / old_qty)))
+    base_carb = float(data.get("base_carbs") if data.get("base_carbs") is not None else (old_entry.get("base_carbs") if old_entry.get("base_carbs") is not None else (float(old_entry.get("carbs") or 0) / old_qty)))
+    base_fat = float(data.get("base_fat") if data.get("base_fat") is not None else (old_entry.get("base_fat") if old_entry.get("base_fat") is not None else (float(old_entry.get("fat") or 0) / old_qty)))
+
+    if "calories" in data and "base_calories" not in data:
+        calories = float(data["calories"])
+    else:
+        calories = round(base_cal * quantity, 1)
+
+    if "protein" in data and "base_protein" not in data:
+        protein = float(data["protein"])
+    else:
+        protein = round(base_pro * quantity, 1)
+
+    if "carbs" in data and "base_carbs" not in data:
+        carbs = float(data["carbs"])
+    else:
+        carbs = round(base_carb * quantity, 1)
+
+    if "fat" in data and "base_fat" not in data:
+        fat = float(data["fat"])
+    else:
+        fat = round(base_fat * quantity, 1)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+    client = SparkyFitnessClient()
+
+    new_sparky_id = sparky_id
+    if api_key:
+        if sparky_id:
+            try:
+                client.delete_food_entry(api_key, sparky_id)
+            except Exception:
+                pass
+        post_res = client.post_food_entry(
+            api_key=api_key,
+            food_name=food_name,
+            calories=calories,
+            protein=protein,
+            carbs=carbs,
+            fat=fat,
+            entry_date=new_date_str,
+            meal_type=meal_type,
+            quantity=quantity,
+            unit=unit,
+            food_id=old_entry.get("food_id"),
+            variant_id=old_entry.get("variant_id"),
+            brand_name=old_entry.get("brand_name") or old_entry.get("brand") or "",
+        )
+        if isinstance(post_res, dict) and post_res.get("id"):
+            new_sparky_id = post_res["id"]
+
+    updated_entry = {
+        "id": new_sparky_id or old_entry.get("id") or f"fe-{uuid.uuid4().hex[:10]}",
+        "sparky_id": new_sparky_id,
+        "name": food_name,
+        "food_name": food_name,
+        "calories": calories,
+        "protein": protein,
+        "carbs": carbs,
+        "fat": fat,
+        "quantity": quantity,
+        "unit": unit,
+        "serving": unit,
+        "meal_type": meal_type,
+        "brand_name": old_entry.get("brand_name") or old_entry.get("brand") or "",
+        "brand": old_entry.get("brand_name") or old_entry.get("brand") or "",
+        "food_id": old_entry.get("food_id"),
+        "variant_id": old_entry.get("variant_id"),
+        "base_calories": base_cal,
+        "base_protein": base_pro,
+        "base_carbs": base_carb,
+        "base_fat": base_fat,
+    }
+
+    if new_date_str != date_str:
+        entries.pop(match_idx)
+        _recalc_and_save_day_log(day_log, entries, date_str, api_key, client)
+
+        new_occurred_at = timezone.make_aware(
+            timezone.datetime.combine(new_target_date, timezone.datetime.min.time())
+        )
+        new_day_log = RawActivityLog.objects.filter(
+            user=request.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            occurred_at=new_occurred_at,
+        ).first()
+        if not new_day_log:
+            new_day_log = RawActivityLog(
+                user=request.user,
+                source=Provider.SPARKYFITNESS,
+                event_type="nutrition",
+                occurred_at=new_occurred_at,
+            )
+        new_entries = (new_day_log.payload.get("food_entries") if new_day_log.payload else []) or []
+        new_entries.append(updated_entry)
+        _recalc_and_save_day_log(new_day_log, new_entries, new_date_str, api_key, client)
+    else:
+        entries[match_idx] = updated_entry
+        _recalc_and_save_day_log(day_log, entries, date_str, api_key, client)
+
+    return JsonResponse({
+        "success": True,
+        "message": "Food entry updated successfully",
+        "entry": updated_entry,
+        "date": new_date_str,
+    })
+
+
+@login_required
+@require_POST
+def nutrition_entry_delete(request):
+    """POST /api/v1/nutrition/entries/delete/ - Delete an entry from a day's log."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except Exception:
+        data = {}
+
+    entry_id = str(data.get("entry_id") or "").strip()
+    date_str = str(data.get("date") or data.get("entry_date") or "").strip()
+    if not date_str:
+        date_str = timezone.localdate().isoformat()
+
+    try:
+        target_date = datetime.date.fromisoformat(date_str)
+    except Exception:
+        target_date = timezone.localdate()
+        date_str = target_date.isoformat()
+
+    occurred_at = timezone.make_aware(
+        timezone.datetime.combine(target_date, timezone.datetime.min.time())
+    )
+    day_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=occurred_at,
+    ).first()
+
+    if not day_log or not day_log.payload:
+        return JsonResponse({"error": "No activity log found for this date"}, status=404)
+
+    entries = day_log.payload.get("food_entries") or []
+    match_idx = -1
+    for idx, e in enumerate(entries):
+        e_id = str(e.get("id") or e.get("sparky_id") or f"entry-{idx}")
+        if e_id == entry_id or (entry_id.isdigit() and int(entry_id) == idx):
+            match_idx = idx
+            break
+
+    if match_idx == -1 and entries:
+        fname = data.get("food_name") or data.get("name")
+        for idx, e in enumerate(entries):
+            if e.get("food_name") == fname or e.get("name") == fname:
+                match_idx = idx
+                break
+
+    if match_idx == -1:
+        return JsonResponse({"error": "Food entry not found in day log"}, status=404)
+
+    deleted_entry = entries.pop(match_idx)
+    sparky_id = deleted_entry.get("sparky_id") or (deleted_entry.get("id") if (isinstance(deleted_entry.get("id"), str) and len(deleted_entry.get("id")) > 20) else None)
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+    client = SparkyFitnessClient()
+    if api_key and sparky_id:
+        try:
+            client.delete_food_entry(api_key, sparky_id)
+        except Exception:
+            pass
+
+    _recalc_and_save_day_log(day_log, entries, date_str, api_key, client)
+
+    return JsonResponse({
+        "success": True,
+        "message": "Food entry deleted successfully",
+        "date": date_str,
+    })
+
+
+@login_required
+@require_POST
+def nutrition_entry_copy(request):
+    """POST /api/v1/nutrition/entries/copy/ - Copy an entry to another date/meal slot."""
+    try:
+        data = json.loads(request.body or b"{}")
+    except Exception:
+        data = {}
+
+    entry_id = str(data.get("entry_id") or "").strip()
+    source_date_str = str(data.get("source_date") or data.get("date") or "").strip()
+    target_date_str = str(data.get("target_date") or timezone.localdate().isoformat()).strip()
+    target_meal_type = data.get("target_meal_type")
+
+    try:
+        src_date = datetime.date.fromisoformat(source_date_str)
+    except Exception:
+        src_date = timezone.localdate()
+        source_date_str = src_date.isoformat()
+
+    try:
+        tgt_date = datetime.date.fromisoformat(target_date_str)
+    except Exception:
+        tgt_date = timezone.localdate()
+        target_date_str = tgt_date.isoformat()
+
+    src_occurred = timezone.make_aware(
+        timezone.datetime.combine(src_date, timezone.datetime.min.time())
+    )
+    src_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=src_occurred,
+    ).first()
+
+    if not src_log or not src_log.payload:
+        return JsonResponse({"error": "Source log not found"}, status=404)
+
+    entries = src_log.payload.get("food_entries") or []
+    target_item = None
+    for idx, e in enumerate(entries):
+        e_id = str(e.get("id") or e.get("sparky_id") or f"entry-{idx}")
+        if e_id == entry_id or (entry_id.isdigit() and int(entry_id) == idx):
+            target_item = e
+            break
+
+    if not target_item:
+        return JsonResponse({"error": "Source food entry not found"}, status=404)
+
+    meal_type = str(target_meal_type or target_item.get("meal_type") or "Lunch").capitalize()
+
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    api_key = (sparky.credentials.get("api_key") if sparky else None) or ""
+
+    from .services.sparky_client import SparkyFitnessClient
+    client = SparkyFitnessClient()
+
+    new_sparky_id = None
+    if api_key:
+        post_res = client.post_food_entry(
+            api_key=api_key,
+            food_name=target_item.get("food_name") or target_item.get("name") or "Food",
+            calories=float(target_item.get("calories") or 0),
+            protein=float(target_item.get("protein") or 0),
+            carbs=float(target_item.get("carbs") or 0),
+            fat=float(target_item.get("fat") or 0),
+            entry_date=target_date_str,
+            meal_type=meal_type,
+            quantity=float(target_item.get("quantity") or 1),
+            unit=target_item.get("unit") or target_item.get("serving") or "serving",
+            food_id=target_item.get("food_id"),
+            variant_id=target_item.get("variant_id"),
+            brand_name=target_item.get("brand_name") or target_item.get("brand") or "",
+        )
+        if isinstance(post_res, dict) and post_res.get("id"):
+            new_sparky_id = post_res["id"]
+
+    new_entry = dict(target_item)
+    new_entry["id"] = new_sparky_id or f"fe-{uuid.uuid4().hex[:10]}"
+    new_entry["sparky_id"] = new_sparky_id
+    new_entry["meal_type"] = meal_type
+
+    tgt_occurred = timezone.make_aware(
+        timezone.datetime.combine(tgt_date, timezone.datetime.min.time())
+    )
+    tgt_log = RawActivityLog.objects.filter(
+        user=request.user,
+        source=Provider.SPARKYFITNESS,
+        event_type="nutrition",
+        occurred_at=tgt_occurred,
+    ).first()
+    if not tgt_log:
+        tgt_log = RawActivityLog(
+            user=request.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            occurred_at=tgt_occurred,
+        )
+
+    tgt_entries = (tgt_log.payload.get("food_entries") if tgt_log.payload else []) or []
+    tgt_entries.append(new_entry)
+    _recalc_and_save_day_log(tgt_log, tgt_entries, target_date_str, api_key, client)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Copied to {target_date_str} ({meal_type})",
+        "target_date": target_date_str,
+        "entry": new_entry,
     })
 
 
@@ -2768,7 +3191,7 @@ def nutrition_snap_commit(request, draft_id):
             except Exception:
                 pass
 
-        client.post_food_entry(
+        s_res = client.post_food_entry(
             api_key=api_key,
             food_name=item.get("name") or "Logged Food",
             calories=float(item.get("calories") or 0),
@@ -2783,6 +3206,8 @@ def nutrition_snap_commit(request, draft_id):
             variant_id=v_id,
             brand_name=item.get("brand") or "",
         )
+        s_id = s_res.get("id") if (isinstance(s_res, dict) and s_res.get("id")) else None
+        item["_sparky_id"] = s_id
 
     # Record in Flamingo activity log
     occurred_at = timezone.make_aware(
@@ -2797,16 +3222,29 @@ def nutrition_snap_commit(request, draft_id):
 
     current_entries = (day_log.payload.get("food_entries") if day_log else []) or []
     for item in items:
+        qty = float(item.get("quantity") or 1)
+        s_id = item.get("_sparky_id")
         current_entries.append({
+            "id": s_id or f"fe-{uuid.uuid4().hex[:10]}",
+            "sparky_id": s_id,
             "name": item.get("name"),
             "food_name": item.get("name"),
-            "calories": item.get("calories", 0),
-            "protein": item.get("protein", 0),
-            "carbs": item.get("carbs", 0),
-            "fat": item.get("fat", 0),
-            "quantity": item.get("quantity", 1),
+            "calories": float(item.get("calories", 0) or 0),
+            "protein": float(item.get("protein", 0) or 0),
+            "carbs": float(item.get("carbs", 0) or 0),
+            "fat": float(item.get("fat", 0) or 0),
+            "quantity": qty,
             "unit": item.get("unit", "serving"),
-            "meal_type": meal_type,
+            "serving": item.get("unit", "serving"),
+            "meal_type": str(meal_type).capitalize(),
+            "food_id": item.get("food_id"),
+            "variant_id": item.get("variant_id"),
+            "brand": item.get("brand") or "",
+            "brand_name": item.get("brand") or "",
+            "base_calories": float(item.get("calories", 0) or 0) / max(qty, 0.01),
+            "base_protein": float(item.get("protein", 0) or 0) / max(qty, 0.01),
+            "base_carbs": float(item.get("carbs", 0) or 0) / max(qty, 0.01),
+            "base_fat": float(item.get("fat", 0) or 0) / max(qty, 0.01),
         })
 
     tot_cal = sum(float(e.get("calories", 0)) for e in current_entries)
