@@ -39,7 +39,8 @@
         'pvp-view': 'pvp',
         'badges-view': 'badges',
         'leagues-view': 'leagues',
-        'bounties-view': 'bounties'
+        'bounties-view': 'bounties',
+        'timeline-view': 'timeline'
     };
 
     /**
@@ -60,7 +61,8 @@
         'pvp': 'loadPvP',
         'badges': 'loadBadges',
         'leagues': 'loadLeagues',
-        'bounties': 'loadBounties'
+        'bounties': 'loadBounties',
+        'timeline': 'loadTimeline'
     };
 
     /**
@@ -70,6 +72,7 @@
      */
     var NAV_BY_PANEL = {
         'skill-tree': 'nav-path',
+        'timeline-view': 'nav-timeline',
         'nutrition-view': 'nav-path',
         'hydration-view': 'nav-path',
         'endurance-view': 'nav-path',

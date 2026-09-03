@@ -35,13 +35,14 @@
     var PANEL_IDS = ['skill-tree', 'nutrition-view', 'hydration-view',
         'endurance-view', 'strength-view', 'boss-view', 'recovery-view',
         'shop-view', 'loadout-view', 'battle-view', 'pvp-view',
-        'badges-view', 'leagues-view', 'bounties-view'];
+        'badges-view', 'leagues-view', 'bounties-view', 'timeline-view'];
 
     /**
      * Maps each panel view to its corresponding bottom-nav highlight tab ID.
      */
     var PANEL_NAV = {
         'skill-tree': 'nav-path',
+        'timeline-view': 'nav-timeline',
         'nutrition-view': 'nav-path', 'hydration-view': 'nav-path',
         'endurance-view': 'nav-path', 'strength-view': 'nav-path',
         'boss-view': 'nav-path', 'recovery-view': 'nav-path',
@@ -68,7 +69,7 @@
 
     /**
      * Synchronizes active tab highlights on the bottom navigation bar.
-     * Maps views to Command, Arena, Shop, Leagues, or Badges.
+     * Maps views to Command, Timeline, Arena, Shop, or Social (Leagues).
      * @param {string} id - Target navigation tab element ID (e.g. 'nav-path', 'nav-shop')
      */
     window.setActiveNav = function (id) {
@@ -76,6 +77,7 @@
             'nav-loadout': 'nav-shop',
             'nav-pvp': 'nav-battle',
             'nav-bounties': 'nav-battle',
+            'nav-badges': 'nav-leagues',
             'nav-game': 'nav-battle'
         };
         var target = remap[id] || id;
@@ -1005,7 +1007,7 @@
     // scripts finish loading. The mapping comes from LAZY_SCRIPT_URLS in
     // the template and loadScript() from utils.js.
     // ------------------------------------------------------------------
-    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues', 'bounties'];
+    var LAZY_KEYS = ['shop', 'loadout', 'battle', 'pvp', 'badges', 'leagues', 'bounties', 'timeline'];
     LAZY_KEYS.forEach(function (key) {
         var fnName = 'load' + key.charAt(0).toUpperCase() + key.slice(1);
         if (key === 'loadout') fnName = 'loadLoadout';

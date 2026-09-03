@@ -349,6 +349,7 @@ _VALID_PANELS = {
     "leagues",
     "badges",
     "bounties",
+    "timeline",
 }
 
 
@@ -576,6 +577,293 @@ def hydration_state(request):
             },
         }
     )
+
+
+@login_required
+def timeline_state(request):
+    """GET /api/v1/timeline/
+    Returns chronological activity events grouped by date with daily rollups.
+    Query params:
+        days: int (default 14, max 90)
+        category: 'all' | 'workout' | 'nutrition' | 'hydration' | 'sleep'
+    """
+    from .services import (
+        summarize_endurance,
+        summarize_hydration,
+        summarize_nutrition,
+        summarize_sleep,
+        summarize_strength,
+    )
+    from .models import RawActivityLog, Provider
+
+    try:
+        days_param = int(request.GET.get("days", 14))
+    except (ValueError, TypeError):
+        days_param = 14
+    days_param = max(1, min(90, days_param))
+
+    category_filter = request.GET.get("category", "all").strip().lower()
+
+    category_to_types = {
+        "workout": ["strength", "cardio"],
+        "nutrition": ["nutrition", "macro", "food"],
+        "hydration": ["hydration", "water"],
+        "sleep": ["sleep", "body_battery", "recovery"],
+    }
+
+    start_date = timezone.now() - timedelta(days=days_param)
+    qs = (
+        RawActivityLog.objects.filter(
+            user=request.user,
+            occurred_at__gte=start_date,
+        )
+        .prefetch_related("xp_entries")
+        .order_by("-occurred_at")
+    )
+
+    if category_filter in category_to_types:
+        qs = qs.filter(event_type__in=category_to_types[category_filter])
+
+    grouped_days = {}
+
+    for log in qs:
+        local_dt = timezone.localtime(log.occurred_at)
+        date_str = local_dt.date().isoformat()
+
+        if date_str not in grouped_days:
+            grouped_days[date_str] = {
+                "date": date_str,
+                "local_date": local_dt.date(),
+                "events": [],
+                "totals": {
+                    "workout_count": 0,
+                    "workout_volume_lbs": 0.0,
+                    "workout_minutes": 0.0,
+                    "calories": 0.0,
+                    "protein": 0.0,
+                    "carbs": 0.0,
+                    "fat": 0.0,
+                    "water_oz": 0.0,
+                    "sleep_hours": 0.0,
+                    "sleep_score": None,
+                    "total_xp": 0,
+                },
+            }
+
+        day_dict = grouped_days[date_str]
+
+        log_xp = sum(xp.amount for xp in log.xp_entries.all())
+        day_dict["totals"]["total_xp"] += log_xp
+
+        time_formatted = local_dt.strftime("%I:%M %p").lstrip("0")
+        payload = log.payload or {}
+        event_type = log.event_type.lower()
+        source = log.source
+        source_label = dict(Provider.choices).get(source, source.title())
+
+        event_item = {
+            "id": log.id,
+            "occurred_at": local_dt.isoformat(),
+            "time_str": time_formatted,
+            "event_type": event_type,
+            "category": "other",
+            "source": source,
+            "source_label": source_label,
+            "title": "",
+            "subtitle": "",
+            "xp": log_xp,
+            "chips": [],
+            "metrics": {},
+            "details": {},
+        }
+
+        if event_type in ("strength", "workout"):
+            summary = summarize_strength(log)
+            event_item["category"] = "workout"
+            event_item["title"] = summary.get("program") or "Strength Workout"
+            if summary.get("day_name"):
+                event_item["subtitle"] = summary["day_name"]
+            vol = float(summary.get("total_volume_lbs", 0) or 0)
+            dur = float(summary.get("duration_minutes", 0) or 0)
+            ex_count = int(summary.get("exercise_count", 0) or 0)
+
+            day_dict["totals"]["workout_count"] += 1
+            day_dict["totals"]["workout_volume_lbs"] += vol
+            day_dict["totals"]["workout_minutes"] += dur
+
+            chips = []
+            if vol > 0:
+                chips.append({"label": f"{int(vol):,} lbs", "icon": "fa-dumbbell", "color": "pink"})
+            if dur > 0:
+                chips.append({"label": f"{int(dur)} min", "icon": "fa-clock", "color": "slate"})
+            if ex_count > 0:
+                chips.append({"label": f"{ex_count} exercises", "icon": "fa-list-check", "color": "slate"})
+            if summary.get("pr"):
+                chips.append({"label": "PR Set!", "icon": "fa-trophy", "color": "amber"})
+
+            event_item["chips"] = chips
+            event_item["metrics"] = {
+                "volume_lbs": round(vol, 1),
+                "duration_minutes": round(dur, 1),
+                "total_sets": summary.get("total_sets", 0),
+            }
+            event_item["details"] = {
+                "exercises": summary.get("exercises", []),
+                "completed": summary.get("completed", True),
+                "notes": payload.get("notes", ""),
+            }
+
+        elif event_type in ("cardio", "endurance"):
+            summary = summarize_endurance(log)
+            event_item["category"] = "workout"
+            event_item["title"] = payload.get("workout_title") or payload.get("title") or "Cardio Session"
+            dur = float(summary.get("total_duration_minutes", 0) or 0)
+            cals = float(summary.get("total_calories_burned", 0) or 0)
+            day_dict["totals"]["workout_count"] += 1
+            day_dict["totals"]["workout_minutes"] += dur
+
+            chips = []
+            if dur > 0:
+                chips.append({"label": f"{int(dur)} min", "icon": "fa-clock", "color": "blue"})
+            if cals > 0:
+                chips.append({"label": f"{int(cals)} cal", "icon": "fa-fire", "color": "orange"})
+
+            event_item["chips"] = chips
+            event_item["metrics"] = {"duration_minutes": round(dur, 1), "calories_burned": round(cals, 1)}
+            event_item["details"] = {"exercises": summary.get("exercise_entries", [])}
+
+        elif event_type in ("nutrition", "macro", "food"):
+            summary = summarize_nutrition(log)
+            event_item["category"] = "nutrition"
+            cals = float(summary.get("calories", 0) or 0)
+            pro = float(summary.get("protein", 0) or 0)
+            carbs = float(summary.get("carbs", 0) or 0)
+            fat = float(summary.get("fat", 0) or 0)
+
+            day_dict["totals"]["calories"] = max(day_dict["totals"]["calories"], cals)
+            day_dict["totals"]["protein"] = max(day_dict["totals"]["protein"], pro)
+            day_dict["totals"]["carbs"] = max(day_dict["totals"]["carbs"], carbs)
+            day_dict["totals"]["fat"] = max(day_dict["totals"]["fat"], fat)
+
+            event_item["title"] = payload.get("meal_name") or payload.get("title") or "Nutrition Log"
+            chips = [
+                {"label": f"{int(cals)} kcal", "icon": "fa-fire", "color": "emerald"},
+                {"label": f"{int(pro)}g P", "color": "emerald"},
+                {"label": f"{int(carbs)}g C", "color": "cyan"},
+                {"label": f"{int(fat)}g F", "color": "amber"},
+            ]
+            if summary.get("perfect"):
+                chips.append({"label": "Goals Met!", "icon": "fa-check", "color": "emerald"})
+
+            event_item["chips"] = chips
+            event_item["metrics"] = {
+                "calories": round(cals, 1),
+                "protein": round(pro, 1),
+                "carbs": round(carbs, 1),
+                "fat": round(fat, 1),
+                "calorie_goal": summary.get("calorie_goal"),
+                "protein_goal": summary.get("protein_goal"),
+            }
+            event_item["details"] = {
+                "food_entries": summary.get("food_entries", []),
+                "status_label": summary.get("status_label", ""),
+            }
+
+        elif event_type in ("hydration", "water"):
+            summary = summarize_hydration(log)
+            event_item["category"] = "hydration"
+            water_oz = float(summary.get("water", 0) or 0)
+            day_dict["totals"]["water_oz"] = max(day_dict["totals"]["water_oz"], water_oz)
+
+            event_item["title"] = "Hydration Intake"
+            chips = [
+                {"label": f"{water_oz:.1f} oz", "icon": "fa-glass-water", "color": "cyan"},
+            ]
+            if summary.get("water_goal"):
+                chips.append({"label": f"Goal: {int(summary['water_goal'])} oz ({summary.get('water_pct', 0)}%)", "color": "slate"})
+            if summary.get("perfect"):
+                chips.append({"label": "Hydrated!", "icon": "fa-check", "color": "cyan"})
+
+            event_item["chips"] = chips
+            event_item["metrics"] = {
+                "water_oz": round(water_oz, 1),
+                "water_goal": summary.get("water_goal"),
+                "water_pct": summary.get("water_pct"),
+            }
+            event_item["details"] = {
+                "water_entries": summary.get("water_intake_entries", []),
+            }
+
+        elif event_type in ("sleep", "recovery", "body_battery"):
+            summary = summarize_sleep(log)
+            event_item["category"] = "sleep"
+            hours = float(summary.get("sleep_hours", 0) or 0)
+            score = payload.get("sleep_score") or payload.get("score")
+
+            day_dict["totals"]["sleep_hours"] = max(day_dict["totals"]["sleep_hours"], hours)
+            if score:
+                day_dict["totals"]["sleep_score"] = score
+
+            event_item["title"] = "Sleep & Recovery"
+            chips = []
+            if hours > 0:
+                chips.append({"label": f"{hours} hrs", "icon": "fa-moon", "color": "purple"})
+            if score:
+                chips.append({"label": f"Score: {score}", "icon": "fa-star", "color": "purple"})
+
+            charge = payload.get("charge") or payload.get("body_battery")
+            if charge:
+                chips.append({"label": f"+{charge} Battery", "icon": "fa-bolt", "color": "emerald"})
+
+            event_item["chips"] = chips
+            event_item["metrics"] = {
+                "sleep_hours": round(hours, 1),
+                "sleep_score": score,
+                "charge": charge,
+            }
+            event_item["details"] = {
+                "deep_pct": summary.get("deep_pct") or payload.get("deep_pct"),
+                "rem_pct": summary.get("rem_pct") or payload.get("rem_pct"),
+                "status_label": summary.get("status_label", ""),
+            }
+
+        day_dict["events"].append(event_item)
+
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+
+    result_days = []
+    for date_str, data in sorted(grouped_days.items(), reverse=True):
+        d_obj = data["local_date"]
+        if d_obj == today:
+            display_title = "Today"
+        elif d_obj == yesterday:
+            display_title = "Yesterday"
+        else:
+            display_title = d_obj.strftime("%A, %b %d")
+
+        data["totals"]["workout_volume_lbs"] = round(data["totals"]["workout_volume_lbs"], 1)
+        data["totals"]["calories"] = round(data["totals"]["calories"], 1)
+        data["totals"]["protein"] = round(data["totals"]["protein"], 1)
+        data["totals"]["carbs"] = round(data["totals"]["carbs"], 1)
+        data["totals"]["fat"] = round(data["totals"]["fat"], 1)
+        data["totals"]["water_oz"] = round(data["totals"]["water_oz"], 1)
+        data["totals"]["sleep_hours"] = round(data["totals"]["sleep_hours"], 1)
+
+        result_days.append({
+            "date": date_str,
+            "display_title": display_title,
+            "formatted_date": d_obj.strftime("%B %d, %Y"),
+            "totals": data["totals"],
+            "events": data["events"],
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "days": result_days,
+        "active_filter": category_filter,
+        "days_count": days_param,
+    })
 
 
 @login_required

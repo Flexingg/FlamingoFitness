@@ -132,6 +132,7 @@
             badges: "{% static 'core/js/badges.js' %}",
             leagues: "{% static 'core/js/leagues.js' %}",
             bounties: "{% static 'core/js/bounties.js' %}",
+            timeline: "{% static 'core/js/timeline.js' %}",
             stat_info: "{% static 'core/js/stat_info.js' %}"
         };
     </script>
@@ -255,6 +256,23 @@
                             <span class="text-xs font-black tracking-wide">Raid Boss</span>
                         </button>
                     </div>
+                </div>
+
+                <!-- Activity Timeline Quick Launcher -->
+                <div onclick="loadTimeline()" class="cursor-pointer group flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-800/90 via-slate-800/80 to-cyan-950/40 border border-slate-700/70 hover:border-cyan-500/50 active:scale-[0.99] transition-all shadow-sm">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-base shadow-[0_0_10px_rgba(6,182,212,0.25)]">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-black text-white group-hover:text-cyan-300 transition-colors">Activity Timeline</span>
+                                <span class="text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Feed</span>
+                            </div>
+                            <p class="text-[11px] font-semibold text-slate-400 mt-0.5">Chronological workouts, meals, water &amp; sleep</p>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1 transition-all text-xs mr-1"></i>
                 </div>
 
                 <!-- 3. Daily Fitness Disciplines Grid -->
@@ -430,6 +448,11 @@
                     <div class="nav-icon-wrap"><i class="fa-solid fa-gauge-high"></i></div>
                     <span class="nav-label">Command</span>
                 </a>
+                <!-- Timeline / Feed -->
+                <a href="#/timeline" class="nav-item" id="nav-timeline" onclick="loadTimeline(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <span class="nav-label">Timeline</span>
+                </a>
                 <!-- Arena / Battles -->
                 <a href="#/battle" class="nav-item" id="nav-battle" onclick="loadBattle(); return false;">
                     <div class="nav-icon-wrap"><i class="fa-solid fa-dragon"></i></div>
@@ -440,15 +463,10 @@
                     <div class="nav-icon-wrap"><i class="fa-solid fa-store"></i></div>
                     <span class="nav-label">Shop</span>
                 </a>
-                <!-- Leagues -->
+                <!-- Social / Leagues -->
                 <a href="#/leagues" class="nav-item" id="nav-leagues" onclick="loadLeagues(); return false;">
                     <div class="nav-icon-wrap"><i class="fa-solid fa-shield-halved"></i></div>
-                    <span class="nav-label">Leagues</span>
-                </a>
-                <!-- Badges -->
-                <a href="#/badges" class="nav-item" id="nav-badges" onclick="loadBadges(); return false;">
-                    <div class="nav-icon-wrap"><i class="fa-solid fa-medal"></i></div>
-                    <span class="nav-label">Badges</span>
+                    <span class="nav-label">Social</span>
                 </a>
             </div>
         </nav>

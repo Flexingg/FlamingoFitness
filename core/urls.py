@@ -45,7 +45,8 @@ urlpatterns = [
     path("strength/", views.strength_state, name="strength_state"),
     path("boss/", views.boss_state, name="boss_state"),
     path("recovery/", views.recovery_state, name="recovery_state"),
-        path("leaderboard/weekly", views.leaderboard_weekly, name="leaderboard_weekly"),
+    path("timeline/", views.timeline_state, name="timeline_state"),
+    path("leaderboard/weekly", views.leaderboard_weekly, name="leaderboard_weekly"),
     # Achievement badges (Roadmap idea #5)
     path("badges/", views.badges_state, name="badges_state"),
     # Phase 8: Leagues, Challenges & Flocks (docs/13)

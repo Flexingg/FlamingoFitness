@@ -4300,3 +4300,127 @@ class WaterLoggingTests(TestCase):
         data = self._state()
         self.assertIn("bottles", data)
         self.assertTrue(all("id" in b and "capacity_oz" in b for b in data["bottles"]))
+
+
+class TimelineTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="timeline_user", password="secretpassword")
+        self.client.login(username="timeline_user", password="secretpassword")
+        now = timezone.now()
+
+        # Seed sample workout log
+        self.workout_log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.LIFTOSAUR,
+            event_type="strength",
+            occurred_at=now - timedelta(hours=2),
+            payload={
+                "program": "Push Hypertrophy",
+                "day_name": "Chest & Triceps",
+                "total_volume_lbs": 12500,
+                "duration_minutes": 48,
+                "exercises": [
+                    {"name": "Bench Press", "sets": 4, "reps": 8, "weight": 225, "unit": "lb", "volume_lbs": 7200, "est_1rm": 278},
+                    {"name": "Incline DB Press", "sets": 3, "reps": 10, "weight": 80, "unit": "lb", "volume_lbs": 2400, "est_1rm": 105},
+                ],
+            },
+        )
+        XPLedger.objects.create(
+            user=self.user,
+            raw_log=self.workout_log,
+            modality=Modality.STRENGTH,
+            amount=120,
+            description="Push Hypertrophy: 12,500 lbs",
+        )
+
+        # Seed sample nutrition log
+        self.nutrition_log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.SPARKYFITNESS,
+            event_type="nutrition",
+            occurred_at=now - timedelta(hours=4),
+            payload={
+                "meal_name": "Lunch Bowl",
+                "calories": 780,
+                "protein": 54,
+                "carbs": 68,
+                "fat": 22,
+                "food_entries": [
+                    {"name": "Grilled Chicken", "calories": 350, "protein": 45, "carbs": 0, "fat": 8},
+                    {"name": "Brown Rice & Avocado", "calories": 430, "protein": 9, "carbs": 68, "fat": 14},
+                ],
+            },
+        )
+        XPLedger.objects.create(
+            user=self.user,
+            raw_log=self.nutrition_log,
+            modality=Modality.NUTRITION,
+            amount=40,
+            description="Nutrition log: 780 kcal",
+        )
+
+        # Seed sample hydration log
+        self.hydration_log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.MANUAL,
+            event_type="hydration",
+            occurred_at=now - timedelta(hours=6),
+            payload={
+                "water_oz": 24,
+                "water_goal": 80,
+            },
+        )
+
+        # Seed sample sleep log
+        self.sleep_log = RawActivityLog.objects.create(
+            user=self.user,
+            source=Provider.GARMIN,
+            event_type="sleep",
+            occurred_at=now - timedelta(hours=10),
+            payload={
+                "sleep_hours": 7.8,
+                "sleep_score": 88,
+                "deep_pct": 24,
+                "rem_pct": 20,
+                "charge": 65,
+            },
+        )
+
+    def test_timeline_requires_auth(self):
+        self.client.logout()
+        resp = self.client.get("/api/v1/timeline/")
+        self.assertEqual(resp.status_code, 302)
+
+    def test_timeline_state_returns_grouped_days_and_events(self):
+        resp = self.client.get("/api/v1/timeline/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertGreaterEqual(len(data["days"]), 1)
+
+        today_group = data["days"][0]
+        self.assertEqual(today_group["display_title"], "Today")
+        self.assertGreaterEqual(len(today_group["events"]), 4)
+
+        # Totals verify
+        totals = today_group["totals"]
+        self.assertGreaterEqual(totals["workout_volume_lbs"], 12000)
+        self.assertGreaterEqual(totals["calories"], 700)
+        self.assertGreaterEqual(totals["protein"], 50)
+        self.assertGreaterEqual(totals["water_oz"], 20)
+        self.assertGreaterEqual(totals["sleep_hours"], 7.0)
+        self.assertGreaterEqual(totals["total_xp"], 160)
+
+    def test_timeline_category_filter(self):
+        resp = self.client.get("/api/v1/timeline/?category=workout")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        events = data["days"][0]["events"]
+        self.assertTrue(all(ev["category"] == "workout" for ev in events))
+        self.assertTrue(any("Push Hypertrophy" in ev["title"] for ev in events))
+
+    def test_timeline_panel_view(self):
+        resp = self.client.get("/panel/timeline/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "id=\"timeline-view\"")
+        self.assertContains(resp, "Activity Timeline")

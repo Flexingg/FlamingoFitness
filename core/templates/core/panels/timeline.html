@@ -1,0 +1,128 @@
+<section class="hidden p-4 min-h-full bg-slate-900 pb-28" id="timeline-view">
+    <!-- Header -->
+    <div class="flex items-center justify-between gap-3 mb-4 sticky top-0 bg-slate-900/95 backdrop-blur-md py-3 z-30 border-b border-slate-800">
+        <div class="flex items-center gap-3">
+            <button class="w-11 h-11 rounded-2xl bg-slate-800/90 border border-slate-700 text-slate-200 flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-all shadow-sm" id="timeline-back" onclick="showPath()">
+                <i class="fa-solid fa-arrow-left text-lg"></i>
+            </button>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i> Activity Timeline
+                </h2>
+                <p class="text-[11px] font-semibold text-slate-400">Your visual training &amp; life feed</p>
+            </div>
+        </div>
+        <!-- Days Range Selector -->
+        <div class="relative">
+            <select id="timeline-days-select" onchange="window.onTimelineDaysChange(this.value)" class="bg-slate-800/90 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer">
+                <option value="7">Past 7 Days</option>
+                <option value="14" selected>Past 14 Days</option>
+                <option value="30">Past 30 Days</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Category Filter Pills -->
+    <div class="flex items-center gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none -mx-1 px-1">
+        <button class="timeline-filter-pill active" data-filter="all" onclick="window.filterTimeline('all')">
+            <i class="fa-solid fa-layer-group"></i> All Activity
+        </button>
+        <button class="timeline-filter-pill" data-filter="workout" onclick="window.filterTimeline('workout')">
+            <i class="fa-solid fa-dumbbell text-flamingo"></i> Workouts
+        </button>
+        <button class="timeline-filter-pill" data-filter="nutrition" onclick="window.filterTimeline('nutrition')">
+            <i class="fa-solid fa-bowl-food text-emerald-400"></i> Food &amp; Macros
+        </button>
+        <button class="timeline-filter-pill" data-filter="hydration" onclick="window.filterTimeline('hydration')">
+            <i class="fa-solid fa-glass-water text-cyan-400"></i> Water
+        </button>
+        <button class="timeline-filter-pill" data-filter="sleep" onclick="window.filterTimeline('sleep')">
+            <i class="fa-solid fa-moon text-purple-400"></i> Sleep &amp; Rest
+        </button>
+    </div>
+
+    <!-- Loading Skeleton -->
+    <div id="timeline-loading" class="space-y-4 py-2">
+        <div class="skeleton-card p-4 rounded-2xl bg-slate-800/50 border border-slate-800 animate-pulse">
+            <div class="h-4 bg-slate-700 rounded w-1/3 mb-3"></div>
+            <div class="h-16 bg-slate-700/60 rounded-xl mb-3"></div>
+            <div class="h-16 bg-slate-700/60 rounded-xl"></div>
+        </div>
+        <div class="skeleton-card p-4 rounded-2xl bg-slate-800/50 border border-slate-800 animate-pulse">
+            <div class="h-4 bg-slate-700 rounded w-1/4 mb-3"></div>
+            <div class="h-16 bg-slate-700/60 rounded-xl"></div>
+        </div>
+    </div>
+
+    <!-- Vertical Timeline Stream Container -->
+    <div id="timeline-stream" class="space-y-6 hidden"></div>
+
+    <!-- Empty State -->
+    <div id="timeline-empty" class="hidden text-center py-12 px-4 bg-slate-800/40 border border-slate-700/60 rounded-3xl mt-4">
+        <div class="w-16 h-16 rounded-2xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center text-3xl mx-auto mb-4">
+            <i class="fa-solid fa-calendar-xmark"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-1">No Activity Found</h3>
+        <p class="text-sm text-slate-400 max-w-xs mx-auto mb-6">No logs match this filter. Start logging workouts, meals, water, or sleep to build your timeline!</p>
+        <button onclick="window.filterTimeline('all')" class="px-5 py-2.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold text-xs hover:bg-cyan-500/30 transition-all">
+            View All Activity
+        </button>
+    </div>
+
+    <!-- Itemized Detail Drilldown Modal -->
+    <div id="timeline-detail-modal" class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm hidden opacity-0 transition-opacity duration-200">
+        <div class="w-full sm:max-w-lg bg-slate-900 border-t sm:border border-slate-700 rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[85vh] flex flex-col transform translate-y-full sm:translate-y-0 transition-transform duration-300">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-slate-800 flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div id="td-modal-icon-wrap" class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl bg-slate-800 border border-slate-700">
+                        <i id="td-modal-icon" class="fa-solid fa-dumbbell text-flamingo"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="td-modal-title" class="text-lg font-black text-white">Workout Details</h3>
+                            <span id="td-modal-source" class="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 uppercase">Liftosaur</span>
+                        </div>
+                        <p id="td-modal-datetime" class="text-xs text-slate-400 font-semibold mt-0.5">Today at 4:30 PM</p>
+                    </div>
+                </div>
+                <button onclick="window.closeTimelineDetail()" class="w-9 h-9 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="p-5 overflow-y-auto space-y-4 flex-1" id="td-modal-body">
+                <!-- Metrics Bar -->
+                <div id="td-modal-metrics" class="grid grid-cols-3 gap-2"></div>
+
+                <!-- Itemized Breakdown Table / List -->
+                <div class="bg-slate-800/60 rounded-2xl p-4 border border-slate-700/60">
+                    <h4 id="td-modal-section-title" class="text-xs font-black uppercase tracking-wider text-slate-400 mb-3">Breakdown</h4>
+                    <div id="td-modal-items" class="space-y-2"></div>
+                </div>
+
+                <!-- Notes (if any) -->
+                <div id="td-modal-notes-wrap" class="hidden bg-slate-800/40 rounded-2xl p-3 border border-slate-800 text-xs text-slate-300 italic">
+                    <span class="font-bold not-italic text-slate-400">Notes: </span><span id="td-modal-notes"></span>
+                </div>
+            </div>
+
+            <!-- Modal Footer / Gamification Reward -->
+            <div class="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between rounded-b-3xl">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-sm font-black">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wide">Reward Granted</div>
+                        <div id="td-modal-xp" class="text-sm font-black text-amber-300">+120 XP</div>
+                    </div>
+                </div>
+                <button onclick="window.closeTimelineDetail()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition-colors">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</section>

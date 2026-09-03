@@ -3430,6 +3430,201 @@ html.light .command-hero-card {
 }
 
 html.light .modality-cyber-card {
+}
+
+.recent-food-macros {
+    display: flex;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+
+.recent-food-pro {
+    color: #c084fc;
+}
+
+.recent-food-add-btn {
+    align-self: flex-end;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #d8b4fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 900;
+    transition: all 0.15s ease;
+}
+
+.recent-food-card:hover .recent-food-add-btn {
+    background: #a855f7;
+    color: #fff;
+}
+
+/* Food Search Modal / Drawer */
+.food-search-panel {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 18px;
+    margin-top: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.food-search-input-wrap {
+    display: flex;
+    align-items: center;
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 8px 14px;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.food-search-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    width: 100%;
+}
+
+.food-search-results {
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.food-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 10px 12px;
+    transition: all 0.15s ease;
+}
+
+.food-result-item:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+/* Snap Review Modal */
+.snap-review-card {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    padding: 18px;
+    color: #fff;
+}
+
+.snap-review-item-row {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.snap-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.snap-badge.recent {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.snap-badge.db {
+    background: rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.snap-badge.ai {
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+}
+
+/* ============================================================
+   Cyber-Fitness Command Center (Concept 2 Redesign)
+   High glanceability, dark glassmorphism, flat neon accents
+   ============================================================ */
+
+.command-center-wrap {
+    animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 1. Hero Readiness & Modality Summary Card */
+.command-hero-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(255, 94, 154, 0.15) !important;
+    backdrop-filter: blur(16px);
+}
+
+/* 2. Modality Cyber Cards */
+.modality-cyber-card {
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.25rem;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.modality-cyber-card:hover {
+    background: rgba(40, 53, 75, 0.85);
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.modality-cyber-card:active {
+    transform: scale(0.985);
+}
+
+.modality-cyber-card.active-completed {
+    border-color: rgba(52, 211, 153, 0.3);
+}
+
+.modality-cyber-card.needs-focus {
+    border-color: rgba(255, 94, 154, 0.5);
+    box-shadow: 0 0 20px rgba(255, 94, 154, 0.2);
+}
+
+/* Light theme overrides for Command Center */
+html.light .command-hero-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.9) 100%) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .modality-cyber-card {
     background: rgba(255, 255, 255, 0.85);
     border-color: rgba(0, 0, 0, 0.08);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
@@ -3438,4 +3633,66 @@ html.light .modality-cyber-card {
 html.light .modality-cyber-card:hover {
     background: rgba(255, 255, 255, 0.95);
     border-color: rgba(0, 0, 0, 0.15);
+}
+
+/* ------------------------------------------------------------------ */
+/* Activity Timeline Component Styles                                */
+/* ------------------------------------------------------------------ */
+.timeline-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    white-space: nowrap;
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border: 1px solid rgba(51, 65, 85, 0.8);
+    background: rgba(30, 41, 59, 0.6);
+    color: #94a3b8;
+}
+
+.timeline-filter-pill:hover {
+    background: rgba(51, 65, 85, 0.85);
+    color: #f8fafc;
+    border-color: rgba(100, 116, 139, 0.8);
+}
+
+.timeline-filter-pill.active {
+    background: rgba(6, 182, 212, 0.15);
+    color: #22d3ee;
+    border-color: rgba(6, 182, 212, 0.5);
+    box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+}
+
+.timeline-event-card {
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.timeline-event-card:hover {
+    transform: translateY(-1px);
+    box- கட்டடக்கலை: 0 6px 20px -4px rgba(0, 0, 0, 0.5);
+}
+
+.timeline-event-card:active {
+    transform: scale(0.99);
+}
+
+html.light .timeline-event-card {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+html.light .timeline-filter-pill {
+    background: rgba(241, 245, 249, 0.9);
+    border-color: rgba(203, 213, 225, 0.9);
+    color: #475569;
+}
+
+html.light .timeline-filter-pill.active {
+    background: rgba(6, 182, 212, 0.12);
+    color: #0891b2;
+    border-color: rgba(6, 182, 212, 0.5);
 }
