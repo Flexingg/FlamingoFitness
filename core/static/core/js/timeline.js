@@ -64,7 +64,7 @@
 
     window._timelineState = {
         filter: 'all',
-        days: 14,
+        days: 1,
         data: null,
         eventsById: {},
         points: [],
@@ -102,7 +102,7 @@
     };
 
     window.onTimelineDaysChange = function (days) {
-        window._timelineState.days = parseInt(days, 10) || 14;
+        window._timelineState.days = parseInt(days, 10) || 1;
         fetchTimelineData(window._timelineState.filter, window._timelineState.days);
     };
 
@@ -116,7 +116,7 @@
         if (emptyEl) emptyEl.classList.add('hidden');
 
         var url = '/api/v1/timeline/?category=' + encodeURIComponent(category || 'all') +
-                  '&days=' + encodeURIComponent(days || 14);
+                  '&days=' + encodeURIComponent(days || 1);
 
         fetch(url, { credentials: 'same-origin' })
             .then(function (res) {
@@ -165,9 +165,21 @@
             clockEl.textContent = timeObj.full12;
         }
 
-        // 2. Extract Events for Today (or top day in feed) for the BioStream Canvas
-        var topDay = days[0];
-        var streamEvents = topDay ? (topDay.events || []) : [];
+        // 2. Extract Events for the BioStream Canvas
+        var streamEvents = [];
+        if (data && data.stream_events && data.stream_events.length > 0) {
+            streamEvents = data.stream_events.slice();
+        } else if (window._timelineState.days <= 1) {
+            // In 24h view, gather ALL events from all returned days in the window
+            days.forEach(function (d) {
+                if (d.events && d.events.length) {
+                    streamEvents = streamEvents.concat(d.events);
+                }
+            });
+        } else {
+            var todayGroup = days.find(function (d) { return d.display_title === 'Today'; }) || days[0];
+            streamEvents = todayGroup ? (todayGroup.events || []) : [];
+        }
 
         // Synthesize realistic biological metabolic dips if user has long gaps
         var enrichedEvents = enrichBiologicalDips(streamEvents, nowMin);
@@ -208,6 +220,7 @@
         var avgScoreEl = document.getElementById('pulse-avg-score');
         var posEl = document.getElementById('pulse-vitality-count');
         var negEl = document.getElementById('pulse-deficit-count');
+        var eqLabel = document.getElementById('equilibrium-date-label');
 
         if (avgScoreEl) {
             avgScoreEl.textContent = (avgScore >= 0 ? '+' : '') + avgScore;
@@ -215,6 +228,9 @@
         }
         if (posEl) posEl.textContent = posCount;
         if (negEl) negEl.textContent = negCount;
+        if (eqLabel) {
+            eqLabel.textContent = window._timelineState.days <= 1 ? "Past 24 Hours Pulse" : "Pulse Stream";
+        }
     }
 
     // ------------------------------------------------------------------
@@ -226,10 +242,12 @@
         // If no events overnight, insert natural overnight wake deficit
         var hasEarlyWater = list.some(function (e) { return (e.time_min || 0) < 480 && e.category === 'water'; });
         if (!hasEarlyWater && nowMin >= 420) {
+            var synthMinutesAgo = Math.max(0, nowMin - 390);
             list.push({
                 id: 'synth-dehyd-1',
                 synthetic: true,
                 time_min: 390,
+                minutes_ago: synthMinutesAgo,
                 time_str: '6:30 AM',
                 category: 'water',
                 value: -40,
@@ -239,7 +257,11 @@
             });
         }
 
-        return list.sort(function (a, b) { return (a.time_min || 0) - (b.time_min || 0); });
+        return list.sort(function (a, b) {
+            var agoA = (typeof a.minutes_ago === 'number') ? a.minutes_ago : 0;
+            var agoB = (typeof b.minutes_ago === 'number') ? b.minutes_ago : 0;
+            return agoA - agoB;
+        });
     }
 
     // ------------------------------------------------------------------
@@ -253,20 +275,40 @@
         var svgHeight = 640;
         var centerX = svgWidth / 2;
         var maxDeviation = centerX - 45;
+        var is24h = window._timelineState.days <= 1;
 
-        function timeToY(timeMin) {
-            var topY = 24;
-            var bottomY = svgHeight - 24;
-            var ratio = (currentNow - timeMin) / (currentNow || 1);
-            return topY + ratio * (bottomY - topY);
+        function eventMinutesAgo(ev) {
+            if (typeof ev.minutes_ago === 'number') return Math.max(0, ev.minutes_ago);
+            var d = currentNow - (ev.time_min || 0);
+            return d >= 0 ? d : (d + 1440);
         }
 
-        function yToTime(y) {
+        function timeToY(evt) {
+            var topY = 24;
+            var bottomY = svgHeight - 24;
+            if (is24h) {
+                var ago = typeof evt === 'object' ? eventMinutesAgo(evt) : Math.max(0, currentNow - evt);
+                var ratio = Math.max(0, Math.min(1440, ago)) / 1440;
+                return topY + ratio * (bottomY - topY);
+            } else {
+                var timeMin = typeof evt === 'object' ? (evt.time_min || 0) : evt;
+                var r = (currentNow - timeMin) / (currentNow || 1);
+                return topY + Math.max(0, Math.min(1, r)) * (bottomY - topY);
+            }
+        }
+
+        function yToMinutesAgo(y) {
             var topY = 24;
             var bottomY = svgHeight - 24;
             var clampedY = Math.max(topY, Math.min(bottomY, y));
             var ratio = (clampedY - topY) / (bottomY - topY);
-            return Math.round(currentNow - ratio * currentNow);
+            return Math.round(ratio * (is24h ? 1440 : currentNow));
+        }
+
+        function minutesAgoToTimeObj(minutesAgo) {
+            var targetMin = currentNow - (minutesAgo % 1440);
+            if (targetMin < 0) targetMin += 1440;
+            return formatTime(targetMin);
         }
 
         // Filter events
@@ -274,26 +316,26 @@
             ? events
             : events.filter(function (e) { return e.category === filterCategory; });
 
-        // Sample points along time domain [0, currentNow]
+        // Sample points along time domain
         var samples = 48;
-        var step = currentNow / samples;
+        var maxDomain = is24h ? 1440 : currentNow;
         var points = [];
 
         for (var i = 0; i <= samples; i++) {
-            var t = Math.min(i * step, currentNow);
+            var tAgo = (i / samples) * maxDomain;
             var composite = 0;
             var totalWeight = 0;
 
             filteredEvents.forEach(function (evt) {
-                var evtTime = evt.time_min || 0;
-                var delta = t - evtTime;
+                var evtAgo = eventMinutesAgo(evt);
+                var elapsed = evtAgo - tAgo;
                 var evtVal = typeof evt.value === 'number' ? evt.value : 60;
 
-                if (delta >= 0 && delta < 240) { // impact lingers for 4 hours
-                    var decay = Math.exp(-delta / 60);
+                if (elapsed >= 0 && elapsed < 240) { // impact lingers for 4 hours
+                    var decay = Math.exp(-elapsed / 60);
                     composite += evtVal * decay;
                     totalWeight += decay;
-                } else if (Math.abs(delta) < 20) {
+                } else if (Math.abs(elapsed) < 20) {
                     composite += evtVal;
                     totalWeight += 1;
                 }
@@ -303,18 +345,20 @@
             var normalizedScore = totalWeight > 0 ? (composite / Math.max(1, totalWeight * 0.8)) : -15;
             var clampedScore = Math.max(-100, Math.min(100, normalizedScore));
 
-            var y = timeToY(t);
+            var topY = 24;
+            var bottomY = svgHeight - 24;
+            var y = topY + (i / samples) * (bottomY - topY);
             var x = centerX + (clampedScore / 100) * maxDeviation;
 
             points.push({
-                timeMin: t,
+                minutesAgo: tAgo,
+                timeMin: Math.max(0, currentNow - (tAgo % 1440)),
                 score: clampedScore,
                 x: x,
                 y: y
             });
         }
 
-        // Sort descending from top (currentNow) to bottom (0)
         points.sort(function (a, b) { return a.y - b.y; });
         window._timelineState.points = points;
 
@@ -357,17 +401,28 @@
         var rungsGroup = document.getElementById('biostream-rungs');
         if (rungsGroup) {
             rungsGroup.innerHTML = '';
-            var ratios = [0.25, 0.5, 0.75];
-            ratios.forEach(function (ratio) {
-                var yVal = 24 + ratio * (svgHeight - 48);
-                var tVal = yToTime(yVal);
-                var tObj = formatTime(tVal);
+            var rungsConfig = is24h
+                ? [
+                    { ratio: 0.25, badge: '-6h' },
+                    { ratio: 0.50, badge: '-12h' },
+                    { ratio: 0.75, badge: '-18h' }
+                ]
+                : [
+                    { ratio: 0.25, badge: '' },
+                    { ratio: 0.50, badge: '' },
+                    { ratio: 0.75, badge: '' }
+                ];
+
+            rungsConfig.forEach(function (rung) {
+                var yVal = 24 + rung.ratio * (svgHeight - 48);
+                var ago = yToMinutesAgo(yVal);
+                var tObj = minutesAgoToTimeObj(ago);
 
                 var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 line.setAttribute('x1', '20');
-                line.setAttribute('y1', yVal);
+                line.setAttribute('y1', yVal.toFixed(1));
                 line.setAttribute('x2', String(svgWidth - 20));
-                line.setAttribute('y2', yVal);
+                line.setAttribute('y2', yVal.toFixed(1));
                 line.setAttribute('stroke', '#334155');
                 line.setAttribute('stroke-width', '0.75');
                 line.setAttribute('stroke-dasharray', '2 6');
@@ -376,11 +431,11 @@
 
                 var txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 txt.setAttribute('x', '24');
-                txt.setAttribute('y', String(yVal - 6));
+                txt.setAttribute('y', String((yVal - 6).toFixed(1)));
                 txt.setAttribute('fill', '#64748B');
                 txt.setAttribute('font-size', '10');
                 txt.setAttribute('font-family', 'monospace');
-                txt.textContent = tObj.full12;
+                txt.textContent = tObj.full12 + (rung.badge ? ' (' + rung.badge + ')' : '');
                 rungsGroup.appendChild(txt);
             });
         }
@@ -390,13 +445,12 @@
         if (nodesGroup) {
             nodesGroup.innerHTML = '';
             filteredEvents.forEach(function (evt) {
-                var evtTime = evt.time_min || 0;
                 var evtVal = typeof evt.value === 'number' ? evt.value : 60;
-                var yPos = timeToY(evtTime);
+                var yPos = timeToY(evt);
                 var xPos = centerX + (evtVal / 100) * maxDeviation;
 
                 var cat = CATEGORIES[evt.category] || CATEGORIES.strength;
-                var color = cat.color;
+                var color = cat ? cat.color : '#06B6D4';
 
                 var g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('class', 'cursor-pointer');
@@ -405,9 +459,9 @@
                 // Polarity connector to center
                 var conn = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                 conn.setAttribute('x1', String(centerX));
-                conn.setAttribute('y1', String(yPos));
-                conn.setAttribute('x2', String(xPos));
-                conn.setAttribute('y2', String(yPos));
+                conn.setAttribute('y1', yPos.toFixed(1));
+                conn.setAttribute('x2', xPos.toFixed(1));
+                conn.setAttribute('y2', yPos.toFixed(1));
                 conn.setAttribute('stroke', color);
                 conn.setAttribute('stroke-width', '1');
                 conn.setAttribute('stroke-dasharray', '2 2');
@@ -416,8 +470,8 @@
 
                 // Glow ripple
                 var ripple = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                ripple.setAttribute('cx', String(xPos));
-                ripple.setAttribute('cy', String(yPos));
+                ripple.setAttribute('cx', xPos.toFixed(1));
+                ripple.setAttribute('cy', yPos.toFixed(1));
                 ripple.setAttribute('r', '13');
                 ripple.setAttribute('fill', color);
                 ripple.setAttribute('fill-opacity', '0.22');
@@ -425,8 +479,8 @@
 
                 // Outer Node Circle
                 var outer = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                outer.setAttribute('cx', String(xPos));
-                outer.setAttribute('cy', String(yPos));
+                outer.setAttribute('cx', xPos.toFixed(1));
+                outer.setAttribute('cy', yPos.toFixed(1));
                 outer.setAttribute('r', '8');
                 outer.setAttribute('fill', '#0F172A');
                 outer.setAttribute('stroke', color);
@@ -435,8 +489,8 @@
 
                 // Core Dot
                 var core = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                core.setAttribute('cx', String(xPos));
-                core.setAttribute('cy', String(yPos));
+                core.setAttribute('cx', xPos.toFixed(1));
+                core.setAttribute('cy', yPos.toFixed(1));
                 core.setAttribute('r', '3');
                 core.setAttribute('fill', color);
                 g.appendChild(core);
@@ -456,10 +510,10 @@
         }
 
         // Attach Interactive Scrubber Listeners
-        setupScrubberListeners(svg, svgWidth, svgHeight, currentNow, events);
+        setupScrubberListeners(svg, svgWidth, svgHeight, currentNow, filteredEvents, is24h, eventMinutesAgo, minutesAgoToTimeObj);
     }
 
-    function setupScrubberListeners(svg, svgWidth, svgHeight, currentNow, events) {
+    function setupScrubberListeners(svg, svgWidth, svgHeight, currentNow, events, is24h, eventMinutesAgo, minutesAgoToTimeObj) {
         var scrubber = document.getElementById('biostream-scrubber');
         var scrubberLine = document.getElementById('scrubber-line');
         var scrubberDot = document.getElementById('scrubber-dot');
@@ -491,18 +545,19 @@
 
             // Find closest event
             var nearbyEvent = events.find(function (ev) {
-                return Math.abs((ev.time_min || 0) - closest.timeMin) < 30;
+                var evAgo = eventMinutesAgo(ev);
+                return Math.abs(evAgo - closest.minutesAgo) < 45;
             });
 
             // Position Scrubber
             if (scrubber) scrubber.classList.remove('hidden');
             if (scrubberLine) {
-                scrubberLine.setAttribute('y1', String(closest.y));
-                scrubberLine.setAttribute('y2', String(closest.y));
+                scrubberLine.setAttribute('y1', String(closest.y.toFixed(1)));
+                scrubberLine.setAttribute('y2', String(closest.y.toFixed(1)));
             }
             if (scrubberDot) {
-                scrubberDot.setAttribute('cx', String(closest.x));
-                scrubberDot.setAttribute('cy', String(closest.y));
+                scrubberDot.setAttribute('cx', String(closest.x.toFixed(1)));
+                scrubberDot.setAttribute('cy', String(closest.y.toFixed(1)));
             }
 
             // Position Tooltip HUD
@@ -510,11 +565,13 @@
                 tooltip.classList.remove('hidden');
                 var leftPct = (closest.x / svgWidth) * 100;
                 var topPct = (closest.y / svgHeight) * 100;
-                tooltip.style.left = leftPct + '%';
-                tooltip.style.top = topPct + '%';
+                tooltip.style.left = leftPct.toFixed(1) + '%';
+                tooltip.style.top = topPct.toFixed(1) + '%';
 
-                var tObj = formatTime(closest.timeMin);
-                if (timeEl) timeEl.textContent = tObj.full12;
+                var tObj = minutesAgoToTimeObj(closest.minutesAgo);
+                var hoursAgo = Math.round(closest.minutesAgo / 60);
+                var agoLabel = closest.minutesAgo < 30 ? 'Now' : (hoursAgo > 0 ? hoursAgo + 'h ago' : closest.minutesAgo + 'm ago');
+                if (timeEl) timeEl.textContent = tObj.full12 + ' (' + agoLabel + ')';
 
                 var score = Math.round(closest.score);
                 if (scoreEl) {
@@ -524,7 +581,7 @@
 
                 if (nearbyEvent) {
                     var cat = CATEGORIES[nearbyEvent.category] || CATEGORIES.strength;
-                    if (dotEl) dotEl.style.backgroundColor = cat.color;
+                    if (dotEl) dotEl.style.backgroundColor = cat ? cat.color : '#06B6D4';
                     if (labelEl) labelEl.textContent = nearbyEvent.title || nearbyEvent.label || 'Activity Event';
                 } else {
                     if (dotEl) dotEl.style.backgroundColor = '#06B6D4';

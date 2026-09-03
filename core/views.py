@@ -597,9 +597,9 @@ def timeline_state(request):
     from .models import RawActivityLog, Provider
 
     try:
-        days_param = int(request.GET.get("days", 14))
+        days_param = int(request.GET.get("days", 1))
     except (ValueError, TypeError):
-        days_param = 14
+        days_param = 1
     days_param = max(1, min(90, days_param))
 
     category_filter = request.GET.get("category", "all").strip().lower()
@@ -615,11 +615,17 @@ def timeline_state(request):
         "sleep": ["sleep", "body_battery", "recovery"],
     }
 
-    start_date = timezone.now() - timedelta(days=days_param)
+    now = timezone.now()
+    if days_param <= 1:
+        start_date = now - timedelta(hours=24)
+    else:
+        start_date = now - timedelta(days=days_param)
+
     qs = (
         RawActivityLog.objects.filter(
             user=request.user,
             occurred_at__gte=start_date,
+            occurred_at__lte=now + timedelta(minutes=15),
         )
         .prefetch_related("xp_entries")
         .order_by("-occurred_at")
@@ -629,6 +635,7 @@ def timeline_state(request):
         qs = qs.filter(event_type__in=category_to_types[category_filter])
 
     grouped_days = {}
+    stream_events = []
 
     for log in qs:
         local_dt = timezone.localtime(log.occurred_at)
@@ -849,7 +856,27 @@ def timeline_state(request):
                 "status_label": summary.get("status_label", ""),
             }
 
+        elif event_type in ("scale", "weight", "body"):
+            event_item["category"] = "scale"
+            w_lbs = payload.get("weight_lbs") or payload.get("weight")
+            if not w_lbs and payload.get("weight_kg"):
+                w_lbs = float(payload["weight_kg"]) * 2.20462
+            event_item["title"] = "Weight Check-In"
+            event_item["subtitle"] = f"{round(float(w_lbs), 1)} lbs" if w_lbs else source_label
+            if w_lbs:
+                event_item["chips"] = [{"label": f"{round(float(w_lbs), 1)} lbs", "icon": "fa-scale-balanced", "color": "purple"}]
+            event_item["value"] = 55
+
+        if not event_item["title"]:
+            event_item["title"] = event_type.replace("_", " ").title()
+            event_item["subtitle"] = source_label
+            event_item["value"] = 50
+
+        minutes_ago = max(0, int((now - log.occurred_at).total_seconds() / 60))
+        event_item["minutes_ago"] = minutes_ago
+
         day_dict["events"].append(event_item)
+        stream_events.append(event_item)
 
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
@@ -885,6 +912,7 @@ def timeline_state(request):
     return JsonResponse({
         "ok": True,
         "days": result_days,
+        "stream_events": stream_events,
         "active_filter": category_filter,
         "days_count": days_param,
         "current_now_min": current_now_min,

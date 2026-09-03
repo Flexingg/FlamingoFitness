@@ -24,8 +24,8 @@
         <!-- Range Selector -->
         <div class="flex items-center gap-1.5 flex-shrink-0">
             <select id="timeline-days-select" onchange="window.onTimelineDaysChange(this.value)" class="bg-slate-900 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer shadow-sm">
+                <option value="1" selected>Past 24 Hours</option>
                 <option value="7">Past 7 Days</option>
-                <option value="14" selected>Past 14 Days</option>
                 <option value="30">Past 30 Days</option>
             </select>
         </div>

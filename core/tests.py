@@ -4396,7 +4396,9 @@ class TimelineTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["ok"])
+        self.assertEqual(data["days_count"], 1)
         self.assertIn("current_now_min", data)
+        self.assertIn("stream_events", data)
         self.assertGreater(data["current_now_min"], 0)
         self.assertGreaterEqual(len(data["days"]), 1)
 
@@ -4416,6 +4418,7 @@ class TimelineTests(TestCase):
         # Coordinate BioStream fields
         for ev in today_group["events"]:
             self.assertIn("time_min", ev)
+            self.assertIn("minutes_ago", ev)
             self.assertIn("value", ev)
             self.assertGreaterEqual(ev["value"], -100)
             self.assertLessEqual(ev["value"], 100)
