@@ -294,25 +294,33 @@
             var tierBadge = document.getElementById('readiness-tier-badge');
             if (statusBadge) {
                 if (score >= 80) {
-                    statusBadge.textContent = 'Prime Status';
-                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide';
+                    statusBadge.textContent = 'GIGACHAD STATUS 🔱';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase tracking-wider shadow-[0_0_10px_rgba(52,211,153,0.3)]';
                 } else if (score >= 60) {
-                    statusBadge.textContent = 'Active Recovery';
-                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-flamingo/20 text-flamingo border border-flamingo/30 uppercase tracking-wide';
+                    statusBadge.textContent = 'COMBAT READY ⚡';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-flamingo/20 text-flamingo border border-flamingo/40 uppercase tracking-wider shadow-[0_0_10px_rgba(255,94,154,0.3)]';
                 } else {
-                    statusBadge.textContent = 'Rest Mandate';
-                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wide';
+                    statusBadge.textContent = 'ANABOLIC REBUILD 🛡️';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider shadow-[0_0_10px_rgba(245,158,11,0.3)]';
                 }
             }
 
             var headingEl = document.getElementById('readiness-heading');
             if (headingEl) {
-                headingEl.textContent = (score >= 80) ? 'High Readiness Primed' : ((score >= 60) ? 'Command Center Ready' : 'Rest Day Protocol');
+                headingEl.textContent = (score >= 80) ? 'APEX TITAN PRIMED 🔱' : ((score >= 60) ? 'WAR MACHINE ONLINE ⚡' : 'ANABOLIC REBUILD PROTOCOL 🛡️');
             }
 
             var msgEl = document.getElementById('readiness-message');
-            if (msgEl && data.readiness.message) {
-                msgEl.textContent = data.readiness.message;
+            if (msgEl) {
+                if (data.readiness.message) {
+                    msgEl.textContent = data.readiness.message;
+                } else if (score >= 80) {
+                    msgEl.textContent = 'Cellular recovery peaked. Today mountains will move. Crush your PRs.';
+                } else if (score >= 60) {
+                    msgEl.textContent = 'Weapons hot. Execute the training protocol, hit your macros, stack your XP.';
+                } else {
+                    msgEl.textContent = 'Deep tissue repair mandated. Sleep heavy, hydrate, and prepare for tomorrow.';
+                }
             }
         }
 
@@ -424,6 +432,36 @@
     }
 
     // ------------------------------------------------------------------
+    // Iron Directives / Based Wisdom Ticker
+    // ------------------------------------------------------------------
+    var BASED_DIRECTIVES = [
+        "\"We're all gonna make it, brah. Reject weakness, cultivate mass.\" — Zyzz",
+        "\"The iron never lies to you. 315 lbs will always be 315 lbs.\" — Henry Rollins",
+        "\"The last three or four reps is what makes the muscle grow.\" — Arnold Schwarzenegger",
+        "\"Don't stop when you're tired, stop when you're done.\" — David Goggins",
+        "\"Hydrate or evaporate. Feed the engine, conquer the arena.\"",
+        "\"Discipline is choosing between what you want now and what you want most.\"",
+        "\"Turn suffering into aesthetics. Today we move mountains.\"",
+        "\"Heavy compound lifts solve all existential questions.\"",
+        "\"Anabolic sleep is where legends are built. Rest hard, strike harder.\""
+    ];
+    var currentDirectiveIdx = 0;
+
+    window.nextBasedDirective = function () {
+        currentDirectiveIdx = (currentDirectiveIdx + 1) % BASED_DIRECTIVES.length;
+        var el = document.getElementById('based-directive-text');
+        if (el) {
+            el.style.opacity = '0';
+            setTimeout(function () {
+                el.textContent = BASED_DIRECTIVES[currentDirectiveIdx];
+                el.style.opacity = '1';
+            }, 120);
+        }
+        if (typeof window.playButtonTap === 'function') window.playButtonTap();
+        if (typeof window.haptic === 'function') window.haptic(20);
+    };
+
+    // ------------------------------------------------------------------
     // Fast 1-Tap Quick Logging Dock & Milestone Toast
     // ------------------------------------------------------------------
     window.quickLogWater = function (amountOz) {
@@ -432,7 +470,7 @@
         var origHtml = btn ? btn.innerHTML : '';
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-cyan-400"></i><span class="text-xs font-black">Logging...</span>';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-cyan-400"></i><span class="text-xs font-black">Guzzling...</span>';
         }
         var csrf = window.csrfToken ? window.csrfToken() : '';
         if (!csrf) {
@@ -454,15 +492,16 @@
         })
         .then(function () {
             if (window.showMilestoneToast) {
-                window.showMilestoneToast('+' + amountOz + ' oz Logged! \uD83D\uDCA7');
+                window.showMilestoneToast('+' + amountOz + ' oz Guzzled! Anabolic Hydration Locked 💧');
             }
-            if (window.haptic) window.haptic(30);
+            if (typeof window.playXpChime === 'function') window.playXpChime();
+            if (typeof window.haptic === 'function') window.haptic(50);
             if (window.refreshDashboardState) window.refreshDashboardState();
         })
         .catch(function (err) {
             window.ffWarn && window.ffWarn('[quickLogWater] failed:', err);
             if (window.showMilestoneToast) {
-                window.showMilestoneToast('Could not log water');
+                window.showMilestoneToast('Hydration log failed');
             }
         })
         .finally(function () {

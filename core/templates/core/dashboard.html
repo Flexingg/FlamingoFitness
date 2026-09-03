@@ -181,7 +181,20 @@
             <div class="hidden mx-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-bold text-center" id="error-hint"></div>
 
             <!-- Command Center (Concept 2: Cyber-Fitness Command Center) -->
-            <section class="command-center-wrap p-4 flex flex-col gap-4 pb-6 hidden" id="skill-tree">
+            <section class="command-center-wrap p-4 flex flex-col gap-3 pb-6 hidden" id="skill-tree">
+
+                <!-- 0. Iron Directive / Daily Based Ticker -->
+                <div class="based-directive-bar cursor-pointer group p-2.5 px-3 rounded-2xl bg-gradient-to-r from-slate-800/90 via-purple-950/30 to-slate-800/90 border border-slate-700/60 hover:border-amber-400/50 active:scale-[0.99] transition-all shadow-sm" onclick="window.nextBasedDirective && window.nextBasedDirective()" title="Tap to cycle Iron Directives">
+                    <div class="flex items-center gap-2.5">
+                        <span class="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
+                            <i class="fa-solid fa-fire-flame-curved text-amber-400 animate-pulse"></i> Directive
+                        </span>
+                        <p class="text-xs font-bold text-slate-200 truncate group-hover:text-white transition-colors flex-1" id="based-directive-text">
+                            "We're all gonna make it, brah. Reject weakness, cultivate mass." — Zyzz
+                        </p>
+                        <i class="fa-solid fa-arrows-rotate text-slate-500 group-hover:text-amber-400 text-[10px] ml-auto transition-colors flex-shrink-0"></i>
+                    </div>
+                </div>
 
                 <!-- 1. Hero Readiness & Modality Status Card -->
                 <div class="command-hero-card relative overflow-hidden rounded-[1.75rem] p-4.5 bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/80 shadow-2xl backdrop-blur-xl">

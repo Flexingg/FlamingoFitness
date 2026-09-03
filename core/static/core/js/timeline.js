@@ -181,6 +181,23 @@
                 '</span>';
         }
 
+        // Based discipline badges
+        if (t.workout_volume_lbs >= 10000) {
+            vitalsHtml += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-pink-950/40 border border-pink-500/40 text-pink-300 font-black text-[10px] uppercase shadow-[0_0_8px_rgba(255,94,154,0.2)]">' +
+                '🔱 Titan Volume' +
+                '</span>';
+        }
+        if (t.protein >= 140) {
+            vitalsHtml += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 font-black text-[10px] uppercase shadow-[0_0_8px_rgba(52,211,153,0.2)]">' +
+                '🥩 Synthesis Maxed' +
+                '</span>';
+        }
+        if (t.water_oz >= 80) {
+            vitalsHtml += '<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/40 text-cyan-300 font-black text-[10px] uppercase shadow-[0_0_8px_rgba(34,211,238,0.2)]">' +
+                '💧 Hydro Chad' +
+                '</span>';
+        }
+
         vitalsStrip.innerHTML = vitalsHtml;
 
         header.appendChild(titleRow);
@@ -220,6 +237,8 @@
         var card = document.createElement('div');
         card.className = 'timeline-event-card p-4 rounded-2xl bg-slate-800/70 border border-slate-700/70 hover:border-slate-500 hover:bg-slate-800 active:scale-[0.99] transition-all cursor-pointer shadow-sm';
         card.onclick = function () {
+            if (typeof window.playButtonTap === 'function') window.playButtonTap();
+            if (typeof window.haptic === 'function') window.haptic(25);
             window.showTimelineDetail(ev.id);
         };
 
