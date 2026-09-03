@@ -26,6 +26,7 @@ Architecture & Endpoint Taxonomy:
 """
 
 import json
+import datetime
 from datetime import timedelta
 
 from django.contrib import messages
@@ -386,7 +387,14 @@ def nutrition_state(request):
             _item["raw_payload"] = _log.payload
         history.append(_item)
 
+    req_date = request.GET.get("date", "").strip()
+    try:
+        selected_date = datetime.date.fromisoformat(req_date) if req_date else timezone.localdate()
+    except Exception:
+        selected_date = timezone.localdate()
+    selected_date_str = selected_date.isoformat()
     today_str = timezone.localdate().isoformat()
+
     sparky = UserIntegration.objects.filter(
         user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
     ).first()
@@ -398,25 +406,39 @@ def nutrition_state(request):
     if api_key:
         from .services.sparky_client import SparkyFitnessClient
         client = SparkyFitnessClient()
-        s_goals = client.get_goals_by_date(api_key, today_str)
+        s_goals = client.get_goals_by_date(api_key, selected_date_str)
         if s_goals:
             sparky_cal_goal = s_goals.get("calories")
             sparky_pro_goal = s_goals.get("protein")
 
-    today = next((h for h in history if h["date"] == today_str), None)
-    if today:
-        if sparky_cal_goal is not None:
-            today["calorie_goal"] = float(sparky_cal_goal)
-            today["calorie_pct"] = int(round((today["calories"] / float(sparky_cal_goal)) * 100)) if float(sparky_cal_goal) else 0
-        if sparky_pro_goal is not None:
-            today["protein_goal"] = float(sparky_pro_goal)
-            today["protein_pct"] = int(round((today["protein"] / float(sparky_pro_goal)) * 100)) if float(sparky_pro_goal) else 0
+    active_occurred_at = timezone.make_aware(
+        timezone.datetime.combine(selected_date, timezone.datetime.min.time())
+    )
+    direct_log = RawActivityLog.objects.filter(
+        user=request.user,
+        event_type="nutrition",
+        occurred_at=active_occurred_at,
+    ).first()
+    if direct_log:
+        active_day = summarize_nutrition(direct_log)
+        if _raw:
+            active_day["raw_payload"] = direct_log.payload
     else:
-        # Construct fresh today state with Sparky goals
+        active_day = next((h for h in history if h["date"] == selected_date_str), None)
+
+    if active_day:
+        if sparky_cal_goal is not None:
+            active_day["calorie_goal"] = float(sparky_cal_goal)
+            active_day["calorie_pct"] = int(round((active_day["calories"] / float(sparky_cal_goal)) * 100)) if float(sparky_cal_goal) else 0
+        if sparky_pro_goal is not None:
+            active_day["protein_goal"] = float(sparky_pro_goal)
+            active_day["protein_pct"] = int(round((active_day["protein"] / float(sparky_pro_goal)) * 100)) if float(sparky_pro_goal) else 0
+    else:
+        # Construct fresh day state with Sparky goals
         c_goal = float(sparky_cal_goal) if sparky_cal_goal is not None else 2000.0
         p_goal = float(sparky_pro_goal) if sparky_pro_goal is not None else 150.0
-        today = {
-            "date": today_str,
+        active_day = {
+            "date": selected_date_str,
             "calories": 0.0,
             "protein": 0.0,
             "carbs": 0.0,
@@ -448,7 +470,11 @@ def nutrition_state(request):
         {
             "linked": sparky is not None,
             "demo": sparky is not None and not has_key,
-            "today": today,
+            "today": active_day,
+            "active_day": active_day,
+            "selected_date": selected_date_str,
+            "today_date": today_str,
+            "is_today": (selected_date_str == today_str),
             "history": history,
             "pending_snaps_count": pending_snaps_count,
             "skill_tree": {
@@ -2484,7 +2510,12 @@ def nutrition_quick_log(request):
     food_id = data.get("food_id")
     variant_id = data.get("variant_id")
     brand_name = data.get("brand_name") or ""
-    entry_date = data.get("entry_date") or timezone.localdate().isoformat()
+    entry_date = data.get("entry_date") or data.get("date") or timezone.localdate().isoformat()
+    try:
+        target_date = datetime.date.fromisoformat(entry_date)
+    except Exception:
+        target_date = timezone.localdate()
+        entry_date = target_date.isoformat()
 
     sparky = UserIntegration.objects.filter(
         user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
@@ -2536,7 +2567,7 @@ def nutrition_quick_log(request):
     from .services.gamification import process_log
 
     occurred_at = timezone.make_aware(
-        timezone.datetime.combine(timezone.localdate(), timezone.datetime.min.time())
+        timezone.datetime.combine(target_date, timezone.datetime.min.time())
     )
     day_log = RawActivityLog.objects.filter(
         user=request.user,
@@ -2592,13 +2623,15 @@ def nutrition_quick_log(request):
     day_log.save()
 
     xp_awarded = process_log(day_log)
+    xp_amount = sum(getattr(x, "amount", 0) for x in xp_awarded) if isinstance(xp_awarded, list) else int(xp_awarded or 0)
 
     return JsonResponse({
         "success": True,
         "food_name": food_name,
         "calories": calories,
         "protein": protein,
-        "xp_awarded": xp_awarded,
+        "entry_date": entry_date,
+        "xp_awarded": xp_amount,
         "sparky_response": sparky_res,
     })
 
@@ -2695,7 +2728,12 @@ def nutrition_snap_commit(request, draft_id):
 
     items = data.get("items") or draft.extracted_items or []
     meal_type = data.get("meal_type") or draft.meal_type or "Lunch"
-    entry_date = data.get("entry_date") or draft.entry_date.isoformat()
+    entry_date = data.get("entry_date") or data.get("date") or (draft.entry_date.isoformat() if getattr(draft, "entry_date", None) else timezone.localdate().isoformat())
+    try:
+        target_date = datetime.date.fromisoformat(entry_date)
+    except Exception:
+        target_date = timezone.localdate()
+        entry_date = target_date.isoformat()
 
     sparky = UserIntegration.objects.filter(
         user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
@@ -2748,7 +2786,7 @@ def nutrition_snap_commit(request, draft_id):
 
     # Record in Flamingo activity log
     occurred_at = timezone.make_aware(
-        timezone.datetime.combine(timezone.localdate(), timezone.datetime.min.time())
+        timezone.datetime.combine(target_date, timezone.datetime.min.time())
     )
     day_log = RawActivityLog.objects.filter(
         user=request.user,
@@ -2805,6 +2843,7 @@ def nutrition_snap_commit(request, draft_id):
     day_log.save()
 
     xp_awarded = process_log(day_log)
+    xp_amount = sum(getattr(x, "amount", 0) for x in xp_awarded) if isinstance(xp_awarded, list) else int(xp_awarded or 0)
 
     draft.status = FoodSnapDraft.Status.LOGGED
     draft.extracted_items = items
@@ -2813,7 +2852,8 @@ def nutrition_snap_commit(request, draft_id):
     return JsonResponse({
         "success": True,
         "logged_items_count": len(items),
-        "xp_awarded": xp_awarded,
+        "entry_date": entry_date,
+        "xp_awarded": xp_amount,
         "draft_id": draft.id,
     })
 

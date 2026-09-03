@@ -76,7 +76,7 @@
     }
 
     // 1-Tap Quick Log food helper
-    window.quickLogFood = function (food, qtyMultiplier) {
+    window.quickLogFood = function (food, qtyMultiplier, optDate) {
         var mult = (qtyMultiplier !== undefined && qtyMultiplier !== null) ? Number(qtyMultiplier) : (Number(food.quantity) || 1.0);
         if (isNaN(mult) || mult <= 0) mult = 1.0;
 
@@ -84,6 +84,8 @@
         var basePro = food.base_protein !== undefined ? Number(food.base_protein) : Number(food.protein || 0);
         var baseCarb = food.base_carbs !== undefined ? Number(food.base_carbs) : Number(food.carbs || 0);
         var baseFat = food.base_fat !== undefined ? Number(food.base_fat) : Number(food.fat || 0);
+
+        var targetDate = optDate || food.entry_date || food.date || window._activeNutritionDate || new Date().toISOString().split('T')[0];
 
         var payload = {
             food_name: food.food_name || food.name,
@@ -101,6 +103,7 @@
             quantity: mult,
             unit: food.serving || food.unit || 'serving',
             meal_type: food.meal_type || 'Lunch',
+            entry_date: targetDate,
             create_custom: Boolean(food.create_custom),
             source: food.source || (food.create_custom ? 'sparky_ai' : undefined),
         };
@@ -119,7 +122,8 @@
                 if (window.showToast) {
                     window.showToast('Logged ' + payload.food_name + ' (+' + (data.xp_awarded || 0) + ' XP)');
                 }
-                if (window.loadNutrition) window.loadNutrition();
+                var refreshDate = data.entry_date || targetDate;
+                if (window.loadNutrition) window.loadNutrition(refreshDate);
             } else {
                 alert('Could not log food: ' + (data.error || 'Server error'));
             }
@@ -169,15 +173,23 @@
         html += '</div>';
         html += '</div>';
 
-        html += '<div style="margin-bottom: 14px;">';
+        var activeDateVal = window._activeNutritionDate || new Date().toISOString().split('T')[0];
+
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">';
+        html += '<div>';
         html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Meal Slot</label>';
         html += '<select id="portion-meal-type" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700;">';
         html += '<option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option>';
         html += '</select>';
         html += '</div>';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;"><i class="fa-regular fa-calendar text-purple-400 mr-1"></i> Date</label>';
+        html += '<input type="date" id="portion-log-date" value="' + activeDateVal + '" style="width: 100%; padding: 9px 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700; font-size: 0.85rem;" />';
+        html += '</div>';
+        html += '</div>';
 
         html += '<div id="portion-total-card" style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 16px;">';
-        html += '<div style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Total Being Logged Today:</div>';
+        html += '<div style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Total Being Logged:</div>';
         html += '<div id="portion-total-summary" style="font-size: 1.15rem; font-weight: 900; color: #fff;">';
         html += '<span style="color: #4ade80;">' + Math.round(baseCal) + ' cal</span> • <span style="color: #c084fc;">' + Math.round(basePro) + 'g P</span> • <span style="color: #38bdf8;">' + Math.round(baseCarb) + 'g C</span> • <span style="color: #fbbf24;">' + Math.round(baseFat) + 'g F</span>';
         html += '</div>';
@@ -242,6 +254,8 @@
             btnConfirm.onclick = function () {
                 var q = parseFloat(qtyInput.value) || 1.0;
                 var meal = mealSelect ? mealSelect.value : 'Lunch';
+                var dateInp = document.getElementById('portion-log-date');
+                var chosenDate = (dateInp && dateInp.value) ? dateInp.value : activeDateVal;
                 btnConfirm.disabled = true;
                 btnConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging to Sparky...';
 
@@ -255,11 +269,12 @@
                     carbs: Math.round(baseCarb * q * 10) / 10,
                     fat: Math.round(baseFat * q * 10) / 10,
                     quantity: q,
-                    meal_type: meal
+                    meal_type: meal,
+                    entry_date: chosenDate
                 });
 
                 if (window.closeModal) window.closeModal();
-                window.quickLogFood(logPayload, q);
+                window.quickLogFood(logPayload, q, chosenDate);
             };
         }
 
@@ -508,6 +523,13 @@
 
         html += '</div>';
 
+        var activeDateVal = window._activeNutritionDate || new Date().toISOString().split('T')[0];
+
+        html += '<div style="display: flex; align-items: center; justify-content: space-between; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px;">';
+        html += '<label style="font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase;"><i class="fa-regular fa-calendar text-purple-400 mr-1.5"></i> Log Date</label>';
+        html += '<input type="date" id="snap-commit-date" value="' + activeDateVal + '" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; color: #fff; padding: 6px 10px; font-weight: 700; font-size: 0.85rem;" />';
+        html += '</div>';
+
         html += '<div style="display: flex; gap: 10px;">';
         html += '<button id="btn-snap-commit" style="flex: 1; padding: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 14px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);"><i class="fa-solid fa-cloud-arrow-up"></i> Commit Meal to Sparky (+XP)</button>';
         html += '</div>';
@@ -613,6 +635,9 @@
                 btnCommit.disabled = true;
                 btnCommit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging ' + selectedItems.length + ' item(s) to Sparky...';
 
+                var dateInp = document.getElementById('snap-commit-date');
+                var commitDate = (dateInp && dateInp.value) ? dateInp.value : activeDateVal;
+
                 fetch('/api/v1/nutrition/snaps/' + draft.id + '/commit/', {
                     method: 'POST',
                     headers: {
@@ -621,7 +646,8 @@
                     },
                     body: JSON.stringify({
                         items: selectedItems,
-                        meal_type: draft.meal_type || 'Lunch'
+                        meal_type: draft.meal_type || 'Lunch',
+                        entry_date: commitDate
                     })
                 })
                 .then(function (res) { return res.json(); })
@@ -631,7 +657,8 @@
                         if (window.showToast) {
                             window.showToast('Logged ' + selectedItems.length + ' item(s) to SparkyFitness! (+' + (resData.xp_awarded || 0) + ' XP)');
                         }
-                        if (window.loadNutrition) window.loadNutrition();
+                        var refreshDate = resData.entry_date || commitDate;
+                        if (window.loadNutrition) window.loadNutrition(refreshDate);
                     } else {
                         alert('Commit error: ' + (resData.error || 'Server error'));
                         btnCommit.disabled = false;
@@ -778,18 +805,24 @@
         html += '</div>';
         html += '</div>';
 
+        var activeDateVal = window._activeNutritionDate || new Date().toISOString().split('T')[0];
+
         html += '<div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 10px; margin-bottom: 12px;">';
         html += '<div style="font-size: 0.72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px;"><i class="fa-solid fa-calculator"></i> Base Profile (Per 1 Serving)</div>';
-        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">';
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px;">';
         html += '<div>';
-        html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;">Serving Description</label>';
-        html += '<input type="text" id="ai-food-serving" value="1 serving" placeholder="e.g. 1 bar, 100g" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-size: 0.85rem;" />';
+        html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;">Serving Desc</label>';
+        html += '<input type="text" id="ai-food-serving" value="1 serving" placeholder="e.g. 1 bar, 100g" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-size: 0.82rem;" />';
         html += '</div>';
         html += '<div>';
         html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;">Meal Slot</label>';
-        html += '<select id="ai-food-meal-type" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.85rem;">';
+        html += '<select id="ai-food-meal-type" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.82rem;">';
         html += '<option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option>';
         html += '</select>';
+        html += '</div>';
+        html += '<div>';
+        html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;"><i class="fa-regular fa-calendar text-purple-400 mr-1"></i> Date</label>';
+        html += '<input type="date" id="ai-food-date" value="' + activeDateVal + '" style="width: 100%; padding: 7px 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.8rem;" />';
         html += '</div>';
         html += '</div>';
 
@@ -965,6 +998,9 @@
                     return;
                 }
 
+                var dateInp = document.getElementById('ai-food-date');
+                var chosenDate = (dateInp && dateInp.value) ? dateInp.value : activeDateVal;
+
                 btnSaveLog.disabled = true;
                 btnSaveLog.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving & Logging...';
 
@@ -983,8 +1019,9 @@
                     unit: servingVal,
                     brand: 'Sparky AI',
                     create_custom: true,
-                    meal_type: mealVal
-                }, qVal);
+                    meal_type: mealVal,
+                    entry_date: chosenDate
+                }, qVal, chosenDate);
 
                 if (window.closeModal) window.closeModal();
             };
@@ -1348,7 +1385,18 @@
         html += '<div><label style="font-size: 0.78rem; font-weight: 800; color: #fb7185; text-transform: uppercase;">Calories</label><input type="number" id="custom-food-cal" placeholder="350" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: #fff; font-weight: 700; margin-top: 4px;" /></div>';
         html += '</div>';
 
-        html += '<div style="margin-bottom: 16px;"><label style="font-size: 0.78rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase;">Meal Slot</label><select id="custom-meal-slot" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: #fff; font-weight: 700; margin-top: 4px;"><option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option></select></div>';
+        var activeDateVal = window._activeNutritionDate || new Date().toISOString().split('T')[0];
+
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">';
+        html += '<div>';
+        html += '<label style="font-size: 0.78rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase;">Meal Slot</label>';
+        html += '<select id="custom-meal-slot" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: #fff; font-weight: 700; margin-top: 4px;"><option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option></select>';
+        html += '</div>';
+        html += '<div>';
+        html += '<label style="font-size: 0.78rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase;"><i class="fa-regular fa-calendar text-purple-400 mr-1"></i> Date</label>';
+        html += '<input type="date" id="custom-food-date" value="' + activeDateVal + '" style="width: 100%; padding: 9px 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; color: #fff; font-weight: 700; margin-top: 4px; font-size: 0.85rem;" />';
+        html += '</div>';
+        html += '</div>';
 
         html += '<button id="btn-custom-log" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); border: none; border-radius: 14px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer;"><i class="fa-solid fa-plus"></i> Log to SparkyFitness</button>';
         html += '</div>';
@@ -1363,6 +1411,7 @@
                 var proVal = parseFloat(document.getElementById('custom-food-pro').value) || 0;
                 var calVal = parseFloat(document.getElementById('custom-food-cal').value) || 0;
                 var slotVal = document.getElementById('custom-meal-slot').value;
+                var dateVal = (document.getElementById('custom-food-date') && document.getElementById('custom-food-date').value) || activeDateVal;
 
                 if (!nameVal) {
                     alert('Please enter a meal name.');
@@ -1374,8 +1423,9 @@
                     protein: proVal,
                     calories: calVal,
                     meal_type: slotVal,
-                    serving: '1 serving'
-                }, 1.0);
+                    serving: '1 serving',
+                    entry_date: dateVal
+                }, 1.0, dateVal);
             };
         }
     };
@@ -1409,6 +1459,131 @@
             hero.appendChild(banner);
         }
 
+        var activeDateStr = data.selected_date || (data.today && data.today.date) || new Date().toISOString().split('T')[0];
+        window._activeNutritionDate = activeDateStr;
+        var todayStr = data.today_date || new Date().toISOString().split('T')[0];
+        var isToday = Boolean(data.is_today !== undefined ? data.is_today : (activeDateStr === todayStr));
+
+        function getRelativeDateLabel(dateStr, tStr) {
+            if (dateStr === tStr) return 'Today';
+            var d = new Date(dateStr + 'T12:00:00');
+            var t = new Date(tStr + 'T12:00:00');
+            var diffDays = Math.round((d - t) / (1000 * 60 * 60 * 24));
+            if (diffDays === -1) return 'Yesterday';
+            if (diffDays === 1) return 'Tomorrow';
+            if (diffDays < 0) return Math.abs(diffDays) + ' days ago';
+            return 'in ' + diffDays + ' days';
+        }
+
+        function formatDatePretty(dateStr) {
+            try {
+                var parts = dateStr.split('-');
+                var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function shiftDate(dateStr, days) {
+            var parts = dateStr.split('-');
+            var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            d.setDate(d.getDate() + days);
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var day = String(d.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + day;
+        }
+
+        // 1.5 Interactive Date Navigator Bar
+        var dateNav = document.createElement('div');
+        dateNav.className = 'nutrition-date-nav';
+        dateNav.style.cssText = 'display: flex; align-items: center; justify-content: space-between; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; padding: 6px 10px; margin-bottom: 14px;';
+
+        var prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.id = 'btn-nut-prev-day';
+        prevBtn.title = 'Previous Day';
+        prevBtn.style.cssText = 'background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #cbd5e1; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem;';
+        prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+        prevBtn.onclick = function () {
+            var pDate = shiftDate(activeDateStr, -1);
+            if (window.loadNutrition) window.loadNutrition(pDate);
+        };
+        dateNav.appendChild(prevBtn);
+
+        var centerWrap = document.createElement('div');
+        centerWrap.style.cssText = 'display: flex; align-items: center; gap: 8px; cursor: pointer; position: relative; padding: 2px 10px;';
+        centerWrap.title = 'Tap to pick any date';
+
+        var calIcon = document.createElement('i');
+        calIcon.className = 'fa-regular fa-calendar text-purple-400';
+        calIcon.style.fontSize = '1.1rem';
+        centerWrap.appendChild(calIcon);
+
+        var textCol = document.createElement('div');
+        textCol.style.textAlign = 'center';
+        var mainDateText = document.createElement('div');
+        mainDateText.style.cssText = 'font-weight: 800; font-size: 0.95rem; color: #fff; line-height: 1.2;';
+        mainDateText.textContent = formatDatePretty(activeDateStr);
+        textCol.appendChild(mainDateText);
+
+        var subDateText = document.createElement('div');
+        subDateText.style.cssText = 'font-size: 0.72rem; font-weight: 700; color: ' + (isToday ? '#4ade80' : '#c084fc') + ';';
+        subDateText.textContent = getRelativeDateLabel(activeDateStr, todayStr);
+        textCol.appendChild(subDateText);
+        centerWrap.appendChild(textCol);
+
+        var hiddenPicker = document.createElement('input');
+        hiddenPicker.type = 'date';
+        hiddenPicker.value = activeDateStr;
+        hiddenPicker.style.cssText = 'position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;';
+        hiddenPicker.onchange = function (e) {
+            var chosen = e.target.value;
+            if (chosen && window.loadNutrition) {
+                window.loadNutrition(chosen);
+            }
+        };
+        centerWrap.appendChild(hiddenPicker);
+
+        centerWrap.onclick = function () {
+            if (hiddenPicker.showPicker) {
+                hiddenPicker.showPicker();
+            } else {
+                hiddenPicker.click();
+            }
+        };
+        dateNav.appendChild(centerWrap);
+
+        var rightSide = document.createElement('div');
+        rightSide.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+
+        if (!isToday) {
+            var todayBtn = document.createElement('button');
+            todayBtn.type = 'button';
+            todayBtn.style.cssText = 'background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 8px; color: #e9d5ff; font-weight: 800; font-size: 0.72rem; padding: 6px 10px; cursor: pointer;';
+            todayBtn.textContent = 'Today';
+            todayBtn.onclick = function () {
+                if (window.loadNutrition) window.loadNutrition(todayStr);
+            };
+            rightSide.appendChild(todayBtn);
+        }
+
+        var nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.id = 'btn-nut-next-day';
+        nextBtn.title = 'Next Day';
+        nextBtn.style.cssText = 'background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #cbd5e1; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.9rem;';
+        nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+        nextBtn.onclick = function () {
+            var nDate = shiftDate(activeDateStr, 1);
+            if (window.loadNutrition) window.loadNutrition(nDate);
+        };
+        rightSide.appendChild(nextBtn);
+        dateNav.appendChild(rightSide);
+
+        hero.appendChild(dateNav);
+
         // 2. Header with Date & Status Badge
         var today = data.today || {};
         var head = document.createElement('div');
@@ -1419,9 +1594,9 @@
 
         var title = document.createElement('div');
         title.style.fontWeight = '900';
-        title.style.fontSize = '1.1rem';
+        title.style.fontSize = '1.05rem';
         title.style.color = '#fff';
-        title.innerHTML = '<i class="fa-solid fa-utensils text-purple-400 mr-2"></i> Today\'s Macros';
+        title.innerHTML = '<i class="fa-solid fa-utensils text-purple-400 mr-2"></i> ' + (isToday ? "Today's Macros" : (getRelativeDateLabel(activeDateStr, todayStr) + "'s Macros"));
         head.appendChild(title);
 
         var badgeInfo = getStatusBadge(today);
@@ -1542,15 +1717,17 @@
                 });
             });
 
-        // 7. Today's Meals Timeline
-        if (today.food_entries && today.food_entries.length) {
-            var timeline = document.createElement('div');
-            timeline.className = 'today-intake-timeline';
-            var tlHeader = document.createElement('div');
-            tlHeader.className = 'today-intake-header';
-            tlHeader.innerHTML = '<span><i class="fa-solid fa-list-check mr-1.5"></i> Today\'s Logged Meals</span><span>' + today.food_entries.length + ' items</span>';
-            timeline.appendChild(tlHeader);
+        // 7. Meals Timeline
+        var timeline = document.createElement('div');
+        timeline.className = 'today-intake-timeline';
+        var tlHeader = document.createElement('div');
+        tlHeader.className = 'today-intake-header';
+        var dayTitle = isToday ? "Today's Logged Meals" : (formatDatePretty(activeDateStr) + "'s Meals");
+        var entriesCount = (today.food_entries && today.food_entries.length) || 0;
+        tlHeader.innerHTML = '<span><i class="fa-solid fa-list-check mr-1.5"></i> ' + dayTitle + '</span><span>' + entriesCount + ' items</span>';
+        timeline.appendChild(tlHeader);
 
+        if (today.food_entries && today.food_entries.length) {
             today.food_entries.forEach(function (f) {
                 var item = document.createElement('div');
                 item.className = 'today-intake-item';
@@ -1562,8 +1739,13 @@
                     '</span>';
                 timeline.appendChild(item);
             });
-            hero.appendChild(timeline);
+        } else {
+            var emptyItem = document.createElement('div');
+            emptyItem.style.cssText = 'padding: 16px; text-align: center; color: #94a3b8; font-size: 0.85rem;';
+            emptyItem.innerHTML = 'No meals logged for this day yet.<div style="font-size: 0.74rem; color: #64748b; margin-top: 4px;">Use Quick Log, Search DB, Barcode, or Snap to log food for ' + formatDatePretty(activeDateStr) + '.</div>';
+            timeline.appendChild(emptyItem);
         }
+        hero.appendChild(timeline);
 
         content.appendChild(hero);
     }
@@ -1664,7 +1846,11 @@
                     li.className = 'history-item' + (day.perfect ? ' perfect' : '');
                     li.style.cursor = 'pointer';
                     li.addEventListener('click', function () {
-                        window.showDayDetailModal(day);
+                        if (window.loadNutrition) {
+                            window.loadNutrition(day.date);
+                        } else {
+                            window.showDayDetailModal(day);
+                        }
                     });
                     var left = document.createElement('span');
                     left.className = 'hist-macros';

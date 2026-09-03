@@ -49,8 +49,8 @@
 
         // 2. Load handler
         var loadFnName = 'load' + capName;
-        window[loadFnName] = function () {
-            window.ffLog('[' + name + '] ' + loadFnName + ' start');
+        window[loadFnName] = function (optDate) {
+            window.ffLog('[' + name + '] ' + loadFnName + ' start', optDate);
             if (window.closeModal) window.closeModal();
 
             var runFetch = function () {
@@ -64,8 +64,13 @@
                     window.renderSkeleton(content, 2);
                 }
 
-                window.ffLog('[' + name + '] fetching', apiUrl);
-                return fetch(apiUrl, { credentials: 'same-origin' })
+                var targetUrl = apiUrl;
+                if (optDate && typeof optDate === 'string') {
+                    targetUrl += (apiUrl.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(optDate);
+                }
+
+                window.ffLog('[' + name + '] fetching', targetUrl);
+                return fetch(targetUrl, { credentials: 'same-origin' })
                     .then(function (res) {
                         window.ffLog('[' + name + '] fetch response status:', res.status);
                         if (res.status === 401 || res.status === 403) {
