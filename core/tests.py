@@ -4396,6 +4396,8 @@ class TimelineTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["ok"])
+        self.assertIn("current_now_min", data)
+        self.assertGreater(data["current_now_min"], 0)
         self.assertGreaterEqual(len(data["days"]), 1)
 
         today_group = data["days"][0]
@@ -4411,16 +4413,23 @@ class TimelineTests(TestCase):
         self.assertGreaterEqual(totals["sleep_hours"], 7.0)
         self.assertGreaterEqual(totals["total_xp"], 160)
 
+        # Coordinate BioStream fields
+        for ev in today_group["events"]:
+            self.assertIn("time_min", ev)
+            self.assertIn("value", ev)
+            self.assertGreaterEqual(ev["value"], -100)
+            self.assertLessEqual(ev["value"], 100)
+
     def test_timeline_category_filter(self):
-        resp = self.client.get("/api/v1/timeline/?category=workout")
+        resp = self.client.get("/api/v1/timeline/?category=strength")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         events = data["days"][0]["events"]
-        self.assertTrue(all(ev["category"] == "workout" for ev in events))
+        self.assertTrue(all(ev["category"] == "strength" for ev in events))
         self.assertTrue(any("Push Hypertrophy" in ev["title"] for ev in events))
 
     def test_timeline_panel_view(self):
         resp = self.client.get("/panel/timeline/")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "id=\"timeline-view\"")
-        self.assertContains(resp, "Activity Timeline")
+        self.assertContains(resp, "BioStream Pulse")

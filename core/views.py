@@ -605,9 +605,13 @@ def timeline_state(request):
     category_filter = request.GET.get("category", "all").strip().lower()
 
     category_to_types = {
-        "workout": ["strength", "cardio"],
+        "workout": ["strength", "cardio", "endurance"],
+        "strength": ["strength"],
+        "cardio": ["cardio", "endurance"],
         "nutrition": ["nutrition", "macro", "food"],
+        "food": ["nutrition", "macro", "food"],
         "hydration": ["hydration", "water"],
+        "water": ["hydration", "water"],
         "sleep": ["sleep", "body_battery", "recovery"],
     }
 
@@ -629,6 +633,7 @@ def timeline_state(request):
     for log in qs:
         local_dt = timezone.localtime(log.occurred_at)
         date_str = local_dt.date().isoformat()
+        time_min = local_dt.hour * 60 + local_dt.minute
 
         if date_str not in grouped_days:
             grouped_days[date_str] = {
@@ -665,6 +670,8 @@ def timeline_state(request):
             "id": log.id,
             "occurred_at": local_dt.isoformat(),
             "time_str": time_formatted,
+            "time_min": time_min,
+            "value": 60,
             "event_type": event_type,
             "category": "other",
             "source": source,
@@ -679,7 +686,7 @@ def timeline_state(request):
 
         if event_type in ("strength", "workout"):
             summary = summarize_strength(log)
-            event_item["category"] = "workout"
+            event_item["category"] = "strength"
             event_item["title"] = summary.get("program") or "Strength Workout"
             if summary.get("day_name"):
                 event_item["subtitle"] = summary["day_name"]
@@ -690,6 +697,9 @@ def timeline_state(request):
             day_dict["totals"]["workout_count"] += 1
             day_dict["totals"]["workout_volume_lbs"] += vol
             day_dict["totals"]["workout_minutes"] += dur
+
+            val = min(100, max(60, int(75 + min(25, vol / 600.0))))
+            event_item["value"] = val
 
             chips = []
             if vol > 0:
@@ -715,12 +725,15 @@ def timeline_state(request):
 
         elif event_type in ("cardio", "endurance"):
             summary = summarize_endurance(log)
-            event_item["category"] = "workout"
+            event_item["category"] = "cardio"
             event_item["title"] = payload.get("workout_title") or payload.get("title") or "Cardio Session"
             dur = float(summary.get("total_duration_minutes", 0) or 0)
             cals = float(summary.get("total_calories_burned", 0) or 0)
             day_dict["totals"]["workout_count"] += 1
             day_dict["totals"]["workout_minutes"] += dur
+
+            val = min(100, max(50, int(65 + min(25, cals / 25.0))))
+            event_item["value"] = val
 
             chips = []
             if dur > 0:
@@ -734,16 +747,19 @@ def timeline_state(request):
 
         elif event_type in ("nutrition", "macro", "food"):
             summary = summarize_nutrition(log)
-            event_item["category"] = "nutrition"
-            cals = float(summary.get("calories", 0) or 0)
-            pro = float(summary.get("protein", 0) or 0)
-            carbs = float(summary.get("carbs", 0) or 0)
-            fat = float(summary.get("fat", 0) or 0)
+            event_item["category"] = "food"
+            cals = float(summary.get("calories", 0) or payload.get("calories", 0) or 0)
+            pro = float(summary.get("protein", 0) or payload.get("protein", 0) or 0)
+            carbs = float(summary.get("carbs", 0) or payload.get("carbs", 0) or 0)
+            fat = float(summary.get("fat", 0) or payload.get("fat", 0) or 0)
 
             day_dict["totals"]["calories"] = max(day_dict["totals"]["calories"], cals)
             day_dict["totals"]["protein"] = max(day_dict["totals"]["protein"], pro)
             day_dict["totals"]["carbs"] = max(day_dict["totals"]["carbs"], carbs)
             day_dict["totals"]["fat"] = max(day_dict["totals"]["fat"], fat)
+
+            val = min(100, max(50, int(65 + min(25, pro / 3.0))))
+            event_item["value"] = val
 
             event_item["title"] = payload.get("meal_name") or payload.get("title") or "Nutrition Log"
             chips = [
@@ -771,9 +787,12 @@ def timeline_state(request):
 
         elif event_type in ("hydration", "water"):
             summary = summarize_hydration(log)
-            event_item["category"] = "hydration"
-            water_oz = float(summary.get("water", 0) or 0)
+            event_item["category"] = "water"
+            water_oz = float(summary.get("water", 0) or payload.get("amount_oz", 0) or 0)
             day_dict["totals"]["water_oz"] = max(day_dict["totals"]["water_oz"], water_oz)
+
+            val = min(100, max(45, int(50 + min(35, water_oz * 1.5))))
+            event_item["value"] = val
 
             event_item["title"] = "Hydration Intake"
             chips = [
@@ -804,6 +823,9 @@ def timeline_state(request):
             if score:
                 day_dict["totals"]["sleep_score"] = score
 
+            val = min(100, max(50, int(60 + min(30, hours * 4.0))))
+            event_item["value"] = val
+
             event_item["title"] = "Sleep & Recovery"
             chips = []
             if hours > 0:
@@ -831,6 +853,8 @@ def timeline_state(request):
 
     today = timezone.localdate()
     yesterday = today - timedelta(days=1)
+    now_dt = timezone.localtime(timezone.now())
+    current_now_min = now_dt.hour * 60 + now_dt.minute
 
     result_days = []
     for date_str, data in sorted(grouped_days.items(), reverse=True):
@@ -863,6 +887,8 @@ def timeline_state(request):
         "days": result_days,
         "active_filter": category_filter,
         "days_count": days_param,
+        "current_now_min": current_now_min,
+        "current_now_label": now_dt.strftime("%I:%M %p").lstrip("0"),
     })
 
 

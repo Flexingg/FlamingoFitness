@@ -3696,3 +3696,16 @@ html.light .timeline-filter-pill.active {
     color: #0891b2;
     border-color: rgba(6, 182, 212, 0.5);
 }
+
+/* BioStream Pulse Canvas & Interactive Scrubber */
+#biostream-svg {
+    touch-action: none;
+}
+
+#biostream-tooltip {
+    transition: left 0.05s ease-out, top 0.05s ease-out;
+}
+
+#biostream-curve {
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
