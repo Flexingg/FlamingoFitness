@@ -179,136 +179,266 @@
             </div>
             <div class="hidden mx-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-bold text-center" id="error-hint"></div>
 
-            <!-- Skill Tree -->
-            <section class="relative py-8 px-4 flex flex-col gap-8 min-h-[560px] hidden" id="skill-tree">
-                <!-- S-Curve connector SVG -->
-                <svg class="skill-tree-path-svg absolute inset-0 w-full h-full pointer-events-none z-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 620" preserveAspectRatio="none">
-                    <path class="skill-path-bg" d="M 300 50 C 200 80, 200 130, 200 150 C 200 170, 100 220, 100 250 C 100 280, 200 330, 200 350 C 200 370, 300 420, 300 450 C 300 480, 200 530, 200 560" />
-                    <path class="skill-path-fg" id="skill-path-fg" d="M 300 50 C 200 80, 200 130, 200 150 C 200 170, 100 220, 100 250 C 100 280, 200 330, 200 350 C 200 370, 300 420, 300 450 C 300 480, 200 530, 200 560" />
-                </svg>
+            <!-- Command Center (Concept 2: Cyber-Fitness Command Center) -->
+            <section class="command-center-wrap p-4 flex flex-col gap-4 pb-6 hidden" id="skill-tree">
 
-                <!-- Row: Nutrition (Right) -->
-                <div class="relative z-10 w-full flex justify-end pr-8">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-nutrition" onclick="loadNutrition()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-nutrition" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-green, #22c55e);" />
+                <!-- 1. Hero Readiness & Modality Status Card -->
+                <div class="command-hero-card relative overflow-hidden rounded-[1.75rem] p-4.5 bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/80 shadow-2xl backdrop-blur-xl">
+                    <!-- Subtle ambient lighting -->
+                    <div class="absolute -top-10 -right-10 w-36 h-36 bg-flamingo/15 rounded-full blur-3xl pointer-events-none"></div>
+                    <div class="absolute -bottom-10 -left-10 w-36 h-36 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                    <div class="relative z-10 flex items-center justify-between gap-4">
+                        <!-- Left: Circular Readiness Gauge -->
+                        <div class="relative flex items-center justify-center flex-shrink-0">
+                            <svg class="w-22 h-22 -rotate-90 pointer-events-none" viewBox="0 0 100 100" style="width: 88px; height: 88px;">
+                                <circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" class="text-slate-700/50 fill-none" />
+                                <circle id="readiness-gauge-ring" cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" stroke-linecap="round"
+                                        stroke-dasharray="251.32" stroke-dashoffset="60"
+                                        class="text-flamingo fill-none transition-all duration-1000 ease-out" />
                             </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-green-500 border-b-[6px] border-green-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-apple-whole drop-shadow-md"></i>
+                            <div class="absolute flex flex-col items-center justify-center text-center">
+                                <span class="text-2xl font-black text-white tracking-tight" id="readiness-score-num">--</span>
+                                <span class="text-[8px] font-black uppercase tracking-wider text-slate-400">Ready</span>
                             </div>
-                            <span class="node-badge-level" id="node-lvl-nutrition">Lv 1</span>
-                            <span class="node-badge-complete hidden" id="node-check-nutrition"><i class="fa-solid fa-check"></i></span>
                         </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Nutrition</span>
-                    </button>
+
+                        <!-- Right: Status, Advice & Modality Dots -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-flamingo/20 text-flamingo border border-flamingo/30 uppercase tracking-wide" id="readiness-tier-badge">
+                                    <i class="fa-solid fa-bolt text-[9px]"></i> <span id="readiness-status-text">Synchronizing</span>
+                                </span>
+                                <button type="button" class="help-trigger text-slate-400 hover:text-slate-200 transition-colors ml-auto text-xs" data-help="Your Readiness Score aggregates sleep recovery, fatigue, and habit consistency. High readiness primes your attack power in raids!" aria-label="About Readiness">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </button>
+                            </div>
+                            <h3 class="text-sm font-black text-white tracking-tight leading-snug truncate" id="readiness-heading">
+                                Command Center
+                            </h3>
+                            <p class="text-xs text-slate-300 font-medium leading-relaxed line-clamp-2 mt-0.5" id="readiness-message">
+                                Analyzing biometrics and daily activity logs...
+                            </p>
+                            <!-- 5 Modalities Mini-Status Dots -->
+                            <div class="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-700/60" id="readiness-discipline-dots">
+                                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 mr-0.5">Today:</span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-strength" title="Strength"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-endurance" title="Endurance"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-nutrition" title="Nutrition"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-hydration" title="Hydration"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-recovery" title="Recovery"></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Row: Hydration (Center) -->
-                <div class="relative z-10 w-full flex justify-center">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-hydration" onclick="loadHydration()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-hydration" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-cyan, #06b6d4);" />
-                            </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-cyan-500 border-b-[6px] border-cyan-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-glass-water drop-shadow-md"></i>
-                            </div>
-                            <span class="node-badge-level" id="node-lvl-hydration">Lv 1</span>
-                            <span class="node-badge-complete hidden" id="node-check-hydration"><i class="fa-solid fa-check"></i></span>
-                        </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Hydration</span>
-                    </button>
+                <!-- 2. Quick Action Dock (1-Tap Fast Logging) -->
+                <div class="flex flex-col gap-1.5">
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Quick Actions</span>
+                        <span class="text-[10px] font-bold text-slate-500">Fast 1-Tap Log</span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <!-- Quick Water Button -->
+                        <button type="button" id="btn-quick-water" onclick="quickLogWater(24)" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/50 active:scale-95 transition-all shadow-sm">
+                            <i class="fa-solid fa-droplet text-cyan-400 group-hover:scale-125 transition-transform"></i>
+                            <span class="text-xs font-black tracking-wide">+24 oz</span>
+                        </button>
+                        <!-- Quick Workout Modal / Strength -->
+                        <button type="button" onclick="loadStrength()" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-pink-950/40 border border-pink-500/30 text-pink-300 hover:bg-pink-900/50 active:scale-95 transition-all shadow-sm">
+                            <i class="fa-solid fa-dumbbell text-flamingo group-hover:rotate-12 transition-transform"></i>
+                            <span class="text-xs font-black tracking-wide">+ Workout</span>
+                        </button>
+                        <!-- Raid Boss Quick Strike -->
+                        <button type="button" onclick="loadBattle()" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-purple-950/40 border border-purple-500/30 text-purple-300 hover:bg-purple-900/50 active:scale-95 transition-all shadow-sm">
+                            <i class="fa-solid fa-dragon text-purple-400 group-hover:scale-110 transition-transform"></i>
+                            <span class="text-xs font-black tracking-wide">Raid Boss</span>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Row: Endurance (Left) -->
-                <div class="relative z-10 w-full flex justify-start pl-8">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-endurance" onclick="loadEndurance()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-endurance" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-blue, #3b82f6);" />
-                            </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-blue-500 border-b-[6px] border-blue-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-bicycle drop-shadow-md"></i>
+                <!-- 3. Daily Fitness Disciplines Grid -->
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Fitness Disciplines</span>
+                        <span class="text-[10px] font-bold text-slate-500">Tap card to manage</span>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <!-- Strength Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-strength" onclick="loadStrength()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-pink-500/20 border border-pink-500/40 text-flamingo flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
+                                    <i class="fa-solid fa-dumbbell"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">Strength</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 border border-pink-500/30" id="node-lvl-strength">Lv 1</span>
+                                            <span class="text-emerald-400 text-xs hidden" id="node-check-strength"><i class="fa-solid fa-circle-check"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full h-2 rounded-full bg-slate-700/70 overflow-hidden border border-slate-600/50">
+                                        <div class="h-full rounded-full bg-gradient-to-r from-pink-500 to-rose-400 transition-all duration-500" id="modality-bar-strength" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                                        <span class="text-slate-400 font-semibold" id="modality-pct-strength">0% to next Lv</span>
+                                        <span class="text-pink-300 font-bold" id="modality-today-xp-strength">+0 XP today</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
                             </div>
-                            <span class="node-badge-level" id="node-lvl-endurance">Lv 1</span>
-                            <span class="node-badge-complete hidden" id="node-check-endurance"><i class="fa-solid fa-check"></i></span>
                         </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Endurance</span>
-                    </button>
+
+                        <!-- Endurance Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-endurance" onclick="loadEndurance()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-500/40 text-blue-400 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
+                                    <i class="fa-solid fa-bicycle"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">Endurance</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30" id="node-lvl-endurance">Lv 1</span>
+                                            <span class="text-emerald-400 text-xs hidden" id="node-check-endurance"><i class="fa-solid fa-circle-check"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full h-2 rounded-full bg-slate-700/70 overflow-hidden border border-slate-600/50">
+                                        <div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500" id="modality-bar-endurance" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                                        <span class="text-slate-400 font-semibold" id="modality-pct-endurance">0% to next Lv</span>
+                                        <span class="text-blue-300 font-bold" id="modality-today-xp-endurance">+0 XP today</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
+                            </div>
+                        </div>
+
+                        <!-- Nutrition Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-nutrition" onclick="loadNutrition()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
+                                    <i class="fa-solid fa-apple-whole"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">Nutrition</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30" id="node-lvl-nutrition">Lv 1</span>
+                                            <span class="text-emerald-400 text-xs hidden" id="node-check-nutrition"><i class="fa-solid fa-circle-check"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full h-2 rounded-full bg-slate-700/70 overflow-hidden border border-slate-600/50">
+                                        <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all duration-500" id="modality-bar-nutrition" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                                        <span class="text-slate-400 font-semibold" id="modality-pct-nutrition">0% to next Lv</span>
+                                        <span class="text-emerald-300 font-bold" id="modality-today-xp-nutrition">+0 XP today</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
+                            </div>
+                        </div>
+
+                        <!-- Hydration Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-hydration" onclick="loadHydration()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
+                                    <i class="fa-solid fa-glass-water"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">Hydration</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" id="node-lvl-hydration">Lv 1</span>
+                                            <span class="text-emerald-400 text-xs hidden" id="node-check-hydration"><i class="fa-solid fa-circle-check"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full h-2 rounded-full bg-slate-700/70 overflow-hidden border border-slate-600/50">
+                                        <div class="h-full rounded-full bg-gradient-to-r from-cyan-500 to-teal-400 transition-all duration-500" id="modality-bar-hydration" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                                        <span class="text-slate-400 font-semibold" id="modality-pct-hydration">0% to next Lv</span>
+                                        <span class="text-cyan-300 font-bold" id="modality-today-xp-hydration">+0 XP today</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
+                            </div>
+                        </div>
+
+                        <!-- Recovery Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-recovery" onclick="loadRecovery()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-400 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0">
+                                    <i class="fa-solid fa-bed"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">Recovery</span>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30" id="node-lvl-recovery">Lv 1</span>
+                                            <span class="text-emerald-400 text-xs hidden" id="node-check-recovery"><i class="fa-solid fa-circle-check"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2 w-full h-2 rounded-full bg-slate-700/70 overflow-hidden border border-slate-600/50">
+                                        <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-indigo-400 transition-all duration-500" id="modality-bar-recovery" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-1 text-[11px]">
+                                        <span class="text-slate-400 font-semibold" id="modality-pct-recovery">0% to next Lv</span>
+                                        <span class="text-purple-300 font-bold" id="modality-today-xp-recovery">+0 XP today</span>
+                                    </div>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
+                            </div>
+                        </div>
+
+                        <!-- PR Boss Card -->
+                        <div class="modality-cyber-card cursor-pointer group" id="node-boss" onclick="loadBoss()" role="button" tabindex="0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-lg shadow-inner group-hover:scale-105 transition-transform flex-shrink-0 relative">
+                                    <i class="fa-solid fa-crown text-yellow-300 absolute -top-1 -right-1 text-xs rotate-12 drop-shadow"></i>
+                                    <i class="fa-solid fa-skull"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-black text-white text-sm tracking-wide">PR Boss</span>
+                                        <span class="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30" id="node-lvl-boss">Boss</span>
+                                    </div>
+                                    <p class="text-xs text-slate-400 font-semibold mt-1">Conquer personal records & earn glory</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right text-slate-600 group-hover:text-slate-300 transition-colors text-xs ml-1"></i>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Row: Strength (Center) -->
-                <div class="relative z-10 w-full flex justify-center">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-strength" onclick="loadStrength()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-strength" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-pink, #FF5E9A);" />
-                            </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-flamingo border-b-[6px] border-flamingo-dark text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-dumbbell drop-shadow-lg"></i>
-                            </div>
-                            <span class="node-badge-level" id="node-lvl-strength">Lv 1</span>
-                            <span class="node-badge-complete hidden" id="node-check-strength"><i class="fa-solid fa-check"></i></span>
-                        </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Strength</span>
-                    </button>
-                </div>
-
-                <!-- Row: Recovery (Right) -->
-                <div class="relative z-10 w-full flex justify-end pr-8">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-recovery" onclick="loadRecovery()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-recovery" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-green, #10b981);" />
-                            </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-emerald-500 border-b-[6px] border-emerald-700 text-white flex items-center justify-center text-3xl shadow-lg hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-bed drop-shadow-md"></i>
-                            </div>
-                            <span class="node-badge-level" id="node-lvl-recovery">Lv 1</span>
-                            <span class="node-badge-complete hidden" id="node-check-recovery"><i class="fa-solid fa-check"></i></span>
-                        </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">Recovery</span>
-                    </button>
-                </div>
-
-                <!-- Row: Boss (Center) -->
-                <div class="relative z-10 w-full flex justify-center">
-                    <button class="group flex flex-col items-center bg-transparent border-0 p-0" id="node-boss" onclick="loadBoss()">
-                        <div class="node-wrapper relative inline-flex items-center justify-center">
-                            <svg class="node-ring-svg w-[92px] h-[92px] -rotate-90 pointer-events-none absolute" viewBox="0 0 100 100">
-                                <circle class="node-ring-bg" cx="50" cy="50" r="44" />
-                                <circle class="node-ring-fg" id="node-ring-boss" cx="50" cy="50" r="44" stroke-dasharray="276.46" stroke-dashoffset="276.46" style="stroke: var(--primary-purple, #9333ea);" />
-                            </svg>
-                            <div class="node-circle w-20 h-20 rounded-full bg-purple-600 border-b-[6px] border-purple-800 text-white flex items-center justify-center text-3xl shadow-lg relative hover:brightness-110 active:border-b-0 active:translate-y-1 transition-all">
-                                <i class="fa-solid fa-crown text-yellow-300 absolute -top-4 -right-2 text-2xl rotate-12 drop-shadow-lg"></i>
-                                <i class="fa-solid fa-skull drop-shadow-md"></i>
-                            </div>
-                            <span class="node-badge-level" id="node-lvl-boss">Boss</span>
-                            <span class="node-badge-complete hidden" id="node-check-boss"><i class="fa-solid fa-trophy"></i></span>
-                        </div>
-                        <span class="mt-2 text-sm font-black text-slate-200 tracking-wide drop-shadow-sm">PR Boss</span>
-                    </button>
-                </div>
-                <!-- Active campaign / what to focus on to beat the boss (dashboard.js) -->
-                <div class="relative z-10 w-full mt-6" id="path-campaign-focus"></div>
+                <!-- 4. Active Boss Raid & Campaign Spotlight -->
+                <div class="w-full mt-1" id="path-campaign-focus"></div>
             </section>
 
             <!-- Panel views are lazy-loaded on demand from /panel/<name>/ (docs/19 #12) -->
         </main>
 
-        <!-- Bottom Tab Nav (Duolingo styled, tactile & space optimized) -->
+        <!-- Streamlined 5-Tab Bottom Navigation -->
         <nav class="bottom-nav w-full">
             <div class="bottom-nav-container relative">
-                <!-- Path -->
+                <!-- Command / Home -->
                 <a href="#/" class="nav-item active" id="nav-path" onclick="showPath(); return false;">
-                    <div class="nav-icon-wrap"><i class="fa-solid fa-map-location-dot"></i></div>
-                    <span class="nav-label">Path</span>
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-gauge-high"></i></div>
+                    <span class="nav-label">Command</span>
+                </a>
+                <!-- Arena / Battles -->
+                <a href="#/battle" class="nav-item" id="nav-battle" onclick="loadBattle(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-dragon"></i></div>
+                    <span class="nav-label">Arena</span>
+                </a>
+                <!-- Shop & Gear -->
+                <a href="#/shop" class="nav-item" id="nav-shop" onclick="loadShop(); return false;">
+                    <div class="nav-icon-wrap"><i class="fa-solid fa-store"></i></div>
+                    <span class="nav-label">Shop</span>
                 </a>
                 <!-- Leagues -->
                 <a href="#/leagues" class="nav-item" id="nav-leagues" onclick="loadLeagues(); return false;">
@@ -320,78 +450,6 @@
                     <div class="nav-icon-wrap"><i class="fa-solid fa-medal"></i></div>
                     <span class="nav-label">Badges</span>
                 </a>
-                <!-- Game Hub Button -->
-                <div class="flex items-center justify-center" id="game-btn-wrap">
-                    <button class="nav-game-fab-btn" id="nav-game" onclick="toggleGameMenu(event); return false;" aria-haspopup="true" aria-expanded="false" aria-label="Game menu">
-                        <div class="nav-icon-wrap game-fab"><i class="fa-solid fa-dice-d6"></i></div>
-                        <span class="nav-label">Game</span>
-                    </button>
-                </div>
-
-                <!-- Centered Duolingo-style 4-Row Game Hub Card -->
-                <div id="game-menu" class="duo-game-menu hidden" role="menu" aria-label="Game menu">
-                    <div class="duo-menu-header flex items-center justify-between pb-2 mb-2 border-b border-slate-700/60">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Game Modes</span>
-                        <span class="text-[11px] font-bold text-flamingo flex items-center gap-1"><i class="fa-solid fa-sparkles text-xs"></i> Select Mode</span>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <!-- Shop -->
-                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadShop'); return false;">
-                            <div class="duo-row-icon bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                                <i class="fa-solid fa-basket-shopping"></i>
-                            </div>
-                            <div class="flex-1 text-left">
-                                <div class="duo-row-title text-white">Shop</div>
-                                <div class="duo-row-sub text-slate-400">Gacha packs &amp; gear catalog</div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
-                        </button>
-                        <!-- Gear / Inventory -->
-                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadLoadout'); return false;">
-                            <div class="duo-row-icon bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-                                <i class="fa-solid fa-shirt"></i>
-                            </div>
-                            <div class="flex-1 text-left">
-                                <div class="duo-row-title text-white">Inventory</div>
-                                <div class="duo-row-sub text-slate-400">Equip gear &amp; manage loadout</div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
-                        </button>
-                        <!-- Battle / Boss -->
-                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadBattle'); return false;">
-                            <div class="duo-row-icon bg-purple-500/20 text-purple-400 border border-purple-500/30">
-                                <i class="fa-solid fa-dragon"></i>
-                            </div>
-                            <div class="flex-1 text-left">
-                                <div class="duo-row-title text-white">Boss Raids</div>
-                                <div class="duo-row-sub text-slate-400">Campaign co-op battles</div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
-                        </button>
-                        <!-- Gym Battles (Async Combat) -->
-                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadPvP'); return false;">
-                            <div class="duo-row-icon bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                                <i class="fa-solid fa-dumbbell"></i>
-                            </div>
-                            <div class="flex-1 text-left">
-                                <div class="duo-row-title text-white">Gym Battles</div>
-                                <div class="duo-row-sub text-slate-400">Territory conquest &amp; defense</div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
-                        </button>
-                        <!-- Bounty Board & 1v1 Duels (Roadmap N8) -->
-                        <button class="duo-row-item" role="menuitem" onclick="gotoGame('loadBounties'); return false;">
-                            <div class="duo-row-icon bg-pink-500/20 text-pink-400 border border-pink-500/30">
-                                <i class="fa-solid fa-crosshairs"></i>
-                            </div>
-                            <div class="flex-1 text-left">
-                                <div class="duo-row-title text-white">Bounty Board</div>
-                                <div class="duo-row-sub text-slate-400">1v1 Fitness Duels &amp; Wagers</div>
-                            </div>
-                            <i class="fa-solid fa-chevron-right text-slate-500 text-xs mr-1"></i>
-                        </button>
-                    </div>
-                </div>
             </div>
         </nav>
     </div>

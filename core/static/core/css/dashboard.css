@@ -286,10 +286,10 @@ body {
     max-width: 480px;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     align-items: center;
-    padding: 6px 12px;
-    gap: 8px;
+    padding: 6px 6px;
+    gap: 4px;
 }
 .nav-item, .nav-game-fab-btn {
     display: flex;
@@ -3372,5 +3372,70 @@ html.light .duo-row-sub {
     border: 1px solid rgba(168, 85, 247, 0.4);
 }
 
+/* ============================================================
+   Cyber-Fitness Command Center (Concept 2 Redesign)
+   High glanceability, dark glassmorphism, flat neon accents
+   ============================================================ */
 
+.command-center-wrap {
+    animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+/* 1. Hero Readiness & Modality Summary Card */
+.command-hero-card {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgba(255, 94, 154, 0.15) !important;
+    backdrop-filter: blur(16px);
+}
+
+/* 2. Modality Cyber Cards */
+.modality-cyber-card {
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.25rem;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.modality-cyber-card:hover {
+    background: rgba(40, 53, 75, 0.85);
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.modality-cyber-card:active {
+    transform: scale(0.985);
+}
+
+.modality-cyber-card.active-completed {
+    border-color: rgba(52, 211, 153, 0.3);
+}
+
+.modality-cyber-card.needs-focus {
+    border-color: rgba(255, 94, 154, 0.5);
+    box-shadow: 0 0 20px rgba(255, 94, 154, 0.2);
+}
+
+/* Light theme overrides for Command Center */
+html.light .command-hero-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.9) 100%) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08) !important;
+}
+
+html.light .modality-cyber-card {
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+html.light .modality-cyber-card:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.15);
+}

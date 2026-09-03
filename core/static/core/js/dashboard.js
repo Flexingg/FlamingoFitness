@@ -45,10 +45,10 @@
         'nutrition-view': 'nav-path', 'hydration-view': 'nav-path',
         'endurance-view': 'nav-path', 'strength-view': 'nav-path',
         'boss-view': 'nav-path', 'recovery-view': 'nav-path',
-        'shop-view': 'nav-shop', 'loadout-view': 'nav-loadout',
-        'battle-view': 'nav-battle', 'pvp-view': 'nav-pvp',
+        'shop-view': 'nav-shop', 'loadout-view': 'nav-shop',
+        'battle-view': 'nav-battle', 'pvp-view': 'nav-battle',
         'badges-view': 'nav-badges', 'leagues-view': 'nav-leagues',
-        'bounties-view': 'nav-pvp'
+        'bounties-view': 'nav-battle'
     };
 
     /**
@@ -68,24 +68,21 @@
 
     /**
      * Synchronizes active tab highlights on the bottom navigation bar.
-     * Remaps combat/RPG tabs (Shop, Loadout, Battle, PvP) to the central Game FAB.
+     * Maps views to Command, Arena, Shop, Leagues, or Badges.
      * @param {string} id - Target navigation tab element ID (e.g. 'nav-path', 'nav-shop')
      */
     window.setActiveNav = function (id) {
         var remap = {
-            'nav-shop': 'nav-game', 'nav-loadout': 'nav-game',
-            'nav-battle': 'nav-game', 'nav-pvp': 'nav-game'
+            'nav-loadout': 'nav-shop',
+            'nav-pvp': 'nav-battle',
+            'nav-bounties': 'nav-battle',
+            'nav-game': 'nav-battle'
         };
         var target = remap[id] || id;
         var items = document.querySelectorAll('.bottom-nav .nav-item');
         for (var i = 0; i < items.length; i++) {
             items[i].classList.toggle('active', items[i].id === target);
         }
-        var gameBtn = document.getElementById('nav-game');
-        if (gameBtn) gameBtn.classList.toggle('active', target === 'nav-game');
-        var menu = document.getElementById('game-menu');
-        if (menu) menu.classList.add('hidden');
-        if (gameBtn) gameBtn.classList.remove('open');
     };
 
     function closeGameMenu() {
@@ -271,98 +268,139 @@
             window.FlamingoNative.setAvatar(avSrc);
         }
 
-        // Skill tree nodes with progress rings & badges
+        // 1. Hero Readiness Gauge & Status Ring
+        if (data.readiness) {
+            var score = Math.round(Number(data.readiness.score) || 70);
+            var scoreEl = document.getElementById('readiness-score-num');
+            if (scoreEl) scoreEl.textContent = score;
+
+            var gaugeRing = document.getElementById('readiness-gauge-ring');
+            if (gaugeRing) {
+                var circumference = 251.32; // 2 * PI * 40
+                var offset = circumference * (1 - Math.min(100, Math.max(0, score)) / 100);
+                gaugeRing.style.strokeDashoffset = offset;
+                if (score >= 80) {
+                    gaugeRing.style.stroke = '#22c55e'; // Emerald
+                } else if (score >= 60) {
+                    gaugeRing.style.stroke = '#FF5E9A'; // Flamingo
+                } else {
+                    gaugeRing.style.stroke = '#f59e0b'; // Amber
+                }
+            }
+
+            var statusBadge = document.getElementById('readiness-status-text');
+            var tierBadge = document.getElementById('readiness-tier-badge');
+            if (statusBadge) {
+                if (score >= 80) {
+                    statusBadge.textContent = 'Prime Status';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wide';
+                } else if (score >= 60) {
+                    statusBadge.textContent = 'Active Recovery';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-flamingo/20 text-flamingo border border-flamingo/30 uppercase tracking-wide';
+                } else {
+                    statusBadge.textContent = 'Rest Mandate';
+                    if (tierBadge) tierBadge.className = 'inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wide';
+                }
+            }
+
+            var headingEl = document.getElementById('readiness-heading');
+            if (headingEl) {
+                headingEl.textContent = (score >= 80) ? 'High Readiness Primed' : ((score >= 60) ? 'Command Center Ready' : 'Rest Day Protocol');
+            }
+
+            var msgEl = document.getElementById('readiness-message');
+            if (msgEl && data.readiness.message) {
+                msgEl.textContent = data.readiness.message;
+            }
+        }
+
+        // 2. Modality Cyber Cards & Status Bars
         var bossUnlocked = false;
         for (var key in MODALITY_META) {
             if (!MODALITY_META.hasOwnProperty(key)) continue;
             var meta = MODALITY_META[key];
-            var btn = document.getElementById(meta.node);
-            if (!btn) continue;
+            var card = document.getElementById(meta.node);
+            if (!card) continue;
             var tree = (data.skill_trees && data.skill_trees[key]) || null;
 
-            btn.classList.add(meta.cls);
-            btn.classList.remove('node-locked', 'opacity-70');
-            var lockIcon = btn.querySelector('.fa-lock');
-            if (lockIcon) lockIcon.remove();
-
-            var ring = document.getElementById('node-ring-' + key);
             var lvlEl = document.getElementById('node-lvl-' + key);
+            var barEl = document.getElementById('modality-bar-' + key);
+            var pctEl = document.getElementById('modality-pct-' + key);
+            var todayXpEl = document.getElementById('modality-today-xp-' + key);
             var checkEl = document.getElementById('node-check-' + key);
+            var dotEl = document.getElementById('dot-' + key);
 
             if (tree) {
                 var pct = Math.min(100, Math.max(0, tree.progress_pct || 0));
-                if (ring) {
-                    var circumference = 276.46;
-                    var offset = circumference * (1 - pct / 100);
-                    ring.style.strokeDashoffset = offset;
-                }
+                var todayXp = tree.today_xp || 0;
+                var isCompletedToday = todayXp > 0 || pct >= 100;
+
                 if (lvlEl && tree.level !== undefined) {
                     lvlEl.textContent = 'Lv ' + tree.level;
-                    lvlEl.classList.remove('hidden');
                 }
-                if (checkEl) {
-                    if (pct >= 100 || (tree.today_xp && tree.today_xp > 0)) {
-                        checkEl.classList.remove('hidden');
-                    } else {
-                        checkEl.classList.add('hidden');
+                if (barEl) {
+                    barEl.style.width = pct + '%';
+                }
+                if (pctEl) {
+                    pctEl.textContent = Math.round(pct) + '% to next Lv';
+                }
+                if (todayXpEl) {
+                    todayXpEl.textContent = '+' + todayXp + ' XP today';
+                    if (todayXp > 0) {
+                        todayXpEl.classList.add('text-emerald-300');
                     }
                 }
+                if (checkEl) {
+                    checkEl.classList.toggle('hidden', !isCompletedToday);
+                }
+                if (dotEl) {
+                    if (isCompletedToday) {
+                        dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)] transition-all';
+                    } else {
+                        dotEl.className = 'w-2.5 h-2.5 rounded-full bg-slate-700 transition-all';
+                    }
+                }
+                card.classList.toggle('active-completed', isCompletedToday);
             }
             if (tree && tree.progress_pct >= 100 && key === 'strength') {
                 bossUnlocked = true;
             }
         }
+
+        // PR Boss card state
         var boss = document.getElementById('node-boss');
-        if (boss) {
-            // The PR Boss is always visible/clickable too (no lock).
-            boss.classList.remove('node-locked', 'opacity-70');
-            var bossLock = boss.querySelector('.fa-lock');
-            if (bossLock) bossLock.remove();
-            if (bossUnlocked) {
-                boss.classList.add('node-strength');
-            }
+        if (boss && bossUnlocked) {
+            boss.classList.add('border-amber-400/50');
         }
 
-        // Determine which node is worst today (lowest XP today).
-        // Tiebreaker priority: Recovery 1st, Strength 2nd, Endurance 3rd, Hydration 4th, Nutrition 5th, PR Boss last.
-        var PRIORITY = ['recovery', 'strength', 'endurance', 'hydration', 'nutrition', 'boss'];
+        // 3. Determine which node needs focus today (lowest XP today)
+        var PRIORITY = ['recovery', 'strength', 'endurance', 'hydration', 'nutrition'];
         var lowestKey = 'recovery';
         var lowestXP = Infinity;
 
         for (var p = 0; p < PRIORITY.length; p++) {
             var currKey = PRIORITY[p];
-            var xpToday = 0;
-            if (currKey === 'boss') {
-                xpToday = (data.skill_trees && data.skill_trees['boss']) ? (data.skill_trees['boss'].today_xp || 0) : 0;
-            } else {
-                xpToday = (data.skill_trees && data.skill_trees[currKey]) ? (data.skill_trees[currKey].today_xp || 0) : 0;
-            }
+            var xpToday = (data.skill_trees && data.skill_trees[currKey]) ? (data.skill_trees[currKey].today_xp || 0) : 0;
             if (xpToday < lowestXP) {
                 lowestXP = xpToday;
                 lowestKey = currKey;
             }
         }
 
-        // Reset pulse/bounce classes from all nodes
         PRIORITY.forEach(function (k) {
             var b = document.getElementById('node-' + k);
-            if (b) {
-                b.classList.remove('animate-bounce-slight');
-                var circle = b.querySelector('.node-circle') || b.querySelector('div');
-                if (circle) {
-                    circle.classList.remove('ring-4', 'ring-flamingo/30', 'shadow-[0_0_25px_rgba(255,94,154,0.5)]');
-                }
-            }
+            if (b) b.classList.remove('needs-focus');
         });
 
-        // Apply pulse to the lowest XP node
-        var targetNode = document.getElementById('node-' + lowestKey);
-        if (targetNode) {
-            targetNode.classList.add('animate-bounce-slight');
-            var targetCircle = targetNode.querySelector('.node-circle') || targetNode.querySelector('div');
-            if (targetCircle) {
-                targetCircle.classList.add('ring-4', 'ring-flamingo/30', 'shadow-[0_0_25px_rgba(255,94,154,0.5)]');
-            }
+        // Highlight focus node with subtle glow
+        var targetCard = document.getElementById('node-' + lowestKey);
+        if (targetCard && lowestXP === 0) {
+            targetCard.classList.add('needs-focus');
+        }
+
+        // Refresh campaign spotlight
+        if (window.refreshCampaignFocus) {
+            window.refreshCampaignFocus();
         }
 
         var loadingHint = document.getElementById('loading-hint');
@@ -375,17 +413,74 @@
         if (!anyOtherPanelVisible) {
             var tree = document.getElementById('skill-tree');
             if (tree) tree.classList.remove('hidden');
-            setTimeout(window.updateSkillTreePath, 40);
         }
 
-        // First-flight onboarding (docs/17 #91): show the walkthrough for any
-        // account that has not completed it yet. Demo users are pre-marked
-        // onboarded in create_demo_accounts so they never see it.
+        // First-flight onboarding
         if (data.onboarded === false && window.startOnboarding) {
             window.startOnboarding();
         }
-
     }
+
+    // ------------------------------------------------------------------
+    // Fast 1-Tap Quick Logging Dock & Milestone Toast
+    // ------------------------------------------------------------------
+    window.quickLogWater = function (amountOz) {
+        amountOz = amountOz || 24;
+        var btn = document.getElementById('btn-quick-water');
+        var origHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-cyan-400"></i><span class="text-xs font-black">Logging...</span>';
+        }
+        var csrf = window.csrfToken ? window.csrfToken() : '';
+        if (!csrf) {
+            var m = document.querySelector('meta[name="csrf-token"]');
+            if (m && m.content && m.content !== 'NOTPROVIDED') csrf = m.content;
+        }
+        fetch('/api/v1/hydration/water/add', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrf
+            },
+            body: JSON.stringify({ amount_oz: amountOz })
+        })
+        .then(function (res) {
+            if (!res.ok) throw new Error(res.status);
+            return res.json();
+        })
+        .then(function () {
+            if (window.showMilestoneToast) {
+                window.showMilestoneToast('+' + amountOz + ' oz Logged! \uD83D\uDCA7');
+            }
+            if (window.haptic) window.haptic(30);
+            if (window.refreshDashboardState) window.refreshDashboardState();
+        })
+        .catch(function (err) {
+            window.ffWarn && window.ffWarn('[quickLogWater] failed:', err);
+            if (window.showMilestoneToast) {
+                window.showMilestoneToast('Could not log water');
+            }
+        })
+        .finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        });
+    };
+
+    window.showMilestoneToast = function (msg) {
+        var toast = document.getElementById('milestone-toast');
+        if (!toast) return;
+        toast.textContent = msg;
+        toast.classList.add('show');
+        clearTimeout(toast._timer);
+        toast._timer = setTimeout(function () {
+            toast.classList.remove('show');
+        }, 2200);
+    };
 
     // ---- Simple modal helpers ----
     function addModal(title, desc, actionText) {

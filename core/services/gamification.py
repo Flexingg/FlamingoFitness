@@ -24,6 +24,7 @@ from django.utils import timezone
 
 from ..models import (
     Modality,
+    Provider,
     RawActivityLog,
     SkillTree,
     XPLedger,
