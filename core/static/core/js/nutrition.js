@@ -1054,17 +1054,23 @@
         var html = '<div style="text-align: left;">';
         html += '<p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Aim your camera at the barcode on any packaged food or drink to look up verified macros.</p>';
 
-        html += '<div id="barcode-viewport-wrap" style="position: relative; width: 100%; height: 220px; background: #0f172a; border-radius: 16px; overflow: hidden; border: 2px solid rgba(168, 85, 247, 0.4); margin-bottom: 12px; display: flex; align-items: center; justify-content: center;">';
+        html += '<div id="barcode-viewport-wrap" style="position: relative; width: 100%; height: 220px; background: #0f172a; border-radius: 16px; overflow: hidden; border: 2px solid rgba(168, 85, 247, 0.4); margin-bottom: 10px; display: flex; align-items: center; justify-content: center;">';
         html += '<video id="barcode-video" playsinline autoplay muted style="width: 100%; height: 100%; object-fit: cover;"></video>';
-        html += '<div style="position: absolute; width: 70%; height: 120px; border: 2px dashed #a855f7; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4); pointer-events: none; display: flex; align-items: center; justify-content: center;">';
-        html += '<div style="width: 90%; height: 2px; background: #00F0FF; box-shadow: 0 0 8px #00F0FF;"></div>';
+        html += '<div style="position: absolute; width: 75%; height: 130px; border: 2px dashed #a855f7; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); pointer-events: none; display: flex; align-items: center; justify-content: center;">';
+        html += '<div style="width: 90%; height: 2px; background: #00F0FF; box-shadow: 0 0 10px #00F0FF;"></div>';
         html += '</div>';
-        html += '<div id="barcode-cam-status" style="position: absolute; bottom: 8px; font-size: 0.75rem; color: #94a3b8; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 6px;">Initializing camera...</div>';
+        html += '<div id="barcode-cam-status" style="position: absolute; bottom: 8px; font-size: 0.75rem; color: #e2e8f0; background: rgba(15, 23, 42, 0.85); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); max-width: 90%; text-align: center;">Initializing camera...</div>';
         html += '</div>';
+
+        html += '<div style="display: flex; gap: 8px; margin-bottom: 12px;">';
+        html += '<button type="button" id="btn-snap-barcode-photo" style="flex: 1; padding: 10px; background: rgba(168, 85, 247, 0.18); border: 1px dashed rgba(168, 85, 247, 0.6); border-radius: 12px; color: #e9d5ff; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;"><i class="fa-solid fa-camera"></i> Snap Barcode Photo</button>';
+        html += '<button type="button" id="btn-restart-cam" style="padding: 10px 14px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #cbd5e1; font-weight: 700; font-size: 0.85rem; cursor: pointer;" title="Restart Camera"><i class="fa-solid fa-arrows-rotate"></i></button>';
+        html += '</div>';
+        html += '<input type="file" id="barcode-file-input" accept="image/*" capture="environment" style="display: none;" />';
 
         html += '<div style="margin-bottom: 14px;">';
         html += '<div style="display: flex; gap: 8px;">';
-        html += '<input type="text" id="manual-barcode-input" placeholder="Or enter barcode (e.g. 3017620422003)" style="flex: 1; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.85rem;" />';
+        html += '<input type="text" id="manual-barcode-input" placeholder="Or enter barcode numbers (e.g. 012345678905)" style="flex: 1; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.85rem;" />';
         html += '<button type="button" id="btn-manual-barcode-lookup" style="padding: 10px 14px; background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.85rem; cursor: pointer;">Lookup</button>';
         html += '</div>';
         html += '</div>';
@@ -1141,6 +1147,7 @@
                         if (btnRescan) {
                             btnRescan.onclick = function () {
                                 resultCard.style.display = 'none';
+                                scanning = true;
                                 startCamera();
                             };
                         }
@@ -1159,51 +1166,150 @@
                 });
         }
 
-        function startCamera() {
-            scanning = true;
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-                    .then(function (stream) {
-                        activeStream = stream;
-                        if (video) {
-                            video.srcObject = stream;
-                            video.play();
-                        }
-                        if (camStatus) camStatus.textContent = 'Point camera at barcode';
-
-                        if ('BarcodeDetector' in window) {
-                            var detector = new window.BarcodeDetector({
-                                formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code']
-                            });
-
-                            function detectLoop() {
-                                if (!scanning || !video) return;
-                                detector.detect(video)
-                                    .then(function (barcodes) {
-                                        if (barcodes && barcodes.length > 0) {
-                                            handleBarcodeFound(barcodes[0].rawValue);
-                                        } else if (scanning) {
-                                            requestAnimationFrame(detectLoop);
-                                        }
-                                    })
-                                    .catch(function () {
-                                        if (scanning) requestAnimationFrame(detectLoop);
-                                    });
-                            }
-                            detectLoop();
+        function decodeImageElement(imgElement) {
+            if (camStatus) camStatus.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Reading barcode from photo...';
+            if ('BarcodeDetector' in window) {
+                var detector = new window.BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code', 'code_39', 'itf']
+                });
+                detector.detect(imgElement)
+                    .then(function (barcodes) {
+                        if (barcodes && barcodes.length > 0) {
+                            handleBarcodeFound(barcodes[0].rawValue);
                         } else {
-                            if (camStatus) camStatus.textContent = 'Camera active (enter barcode below if detector unsupported)';
+                            if (camStatus) camStatus.textContent = 'No barcode detected in photo. Try another angle or manual entry below.';
                         }
                     })
                     .catch(function () {
-                        if (camStatus) camStatus.textContent = 'Camera unavailable (enter barcode below)';
+                        if (camStatus) camStatus.textContent = 'Could not process photo barcode. Enter digits below.';
                     });
             } else {
-                if (camStatus) camStatus.textContent = 'Camera unsupported (enter barcode below)';
+                if (camStatus) camStatus.textContent = 'Barcode detector unavailable. Please enter digits below.';
+            }
+        }
+
+        function setupDetector() {
+            if ('BarcodeDetector' in window) {
+                var detector = new window.BarcodeDetector({
+                    formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code', 'code_39', 'itf']
+                });
+
+                function detectLoop() {
+                    if (!scanning || !video) return;
+                    detector.detect(video)
+                        .then(function (barcodes) {
+                            if (barcodes && barcodes.length > 0) {
+                                handleBarcodeFound(barcodes[0].rawValue);
+                            } else if (scanning) {
+                                requestAnimationFrame(detectLoop);
+                            }
+                        })
+                        .catch(function () {
+                            if (scanning) requestAnimationFrame(detectLoop);
+                        });
+                }
+                detectLoop();
+            } else {
+                if (camStatus) camStatus.textContent = 'Camera active (tap Snap Photo or enter code below)';
+            }
+        }
+
+        function tryGetUserMedia(attempt) {
+            attempt = attempt || 1;
+            var constraints;
+            if (attempt === 1) {
+                constraints = { video: { facingMode: { ideal: 'environment' } } };
+            } else if (attempt === 2) {
+                constraints = { video: { facingMode: 'environment' } };
+            } else {
+                constraints = { video: true };
+            }
+
+            if (camStatus) camStatus.textContent = 'Requesting camera...';
+
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function (stream) {
+                    activeStream = stream;
+                    if (video) {
+                        video.srcObject = stream;
+                        video.setAttribute('playsinline', 'true');
+                        video.play().catch(function () {});
+                    }
+                    if (camStatus) camStatus.textContent = 'Point camera at barcode';
+                    setupDetector();
+                })
+                .catch(function (err) {
+                    if (attempt < 3) {
+                        tryGetUserMedia(attempt + 1);
+                    } else {
+                        var errName = err && err.name ? err.name : 'Unavailable';
+                        if (camStatus) camStatus.textContent = 'Camera ' + errName + '. Tap "Snap Barcode Photo" or enter below.';
+                    }
+                });
+        }
+
+        function startCamera() {
+            scanning = true;
+
+            // Prompt native permission if in Flutter shell
+            if (window.FlamingoNative && window.FlamingoNative.requestCameraPermission) {
+                window.FlamingoNative.requestCameraPermission();
+            }
+
+            window.onCameraPermissionResult = function (granted) {
+                if (granted && !activeStream) {
+                    tryGetUserMedia(1);
+                }
+            };
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                tryGetUserMedia(1);
+            } else {
+                if (camStatus) camStatus.textContent = 'Live stream unsupported. Tap "Snap Barcode Photo" or enter code.';
             }
         }
 
         startCamera();
+
+        var btnSnap = document.getElementById('btn-snap-barcode-photo');
+        var fileInp = document.getElementById('barcode-file-input');
+        if (btnSnap) {
+            btnSnap.onclick = function () {
+                if (window.FlamingoNative && window.FlamingoNative.snapFoodPhoto) {
+                    window.onFoodPhotoCaptured = function (dataUrl) {
+                        var img = new Image();
+                        img.onload = function () { decodeImageElement(img); };
+                        img.src = dataUrl;
+                    };
+                    window.FlamingoNative.snapFoodPhoto('camera');
+                } else if (fileInp) {
+                    fileInp.click();
+                }
+            };
+        }
+
+        if (fileInp) {
+            fileInp.onchange = function (e) {
+                var file = e.target.files && e.target.files[0];
+                if (file) {
+                    var reader = new FileReader();
+                    reader.onload = function (evt) {
+                        var img = new Image();
+                        img.onload = function () { decodeImageElement(img); };
+                        img.src = evt.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+
+        var btnRestart = document.getElementById('btn-restart-cam');
+        if (btnRestart) {
+            btnRestart.onclick = function () {
+                stopCamera();
+                startCamera();
+            };
+        }
 
         var btnManual = document.getElementById('btn-manual-barcode-lookup');
         var manualInput = document.getElementById('manual-barcode-input');

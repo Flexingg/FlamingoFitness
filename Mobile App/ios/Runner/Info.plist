@@ -49,5 +49,9 @@
 	<string>Flamingo Fitness reads steps, active workouts, sleep, hydration, and bodyweight to award XP, track streaks, and calculate daily readiness.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Flamingo Fitness syncs your activity metrics to keep your fitness progress up to date.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Flamingo Fitness uses the camera to scan food barcodes and snap meal photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Flamingo Fitness allows selecting meal photos from your library.</string>
 </dict>
 </plist>

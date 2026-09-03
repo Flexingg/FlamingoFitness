@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'services/api_service.dart';
@@ -152,6 +153,22 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
 
     final platform = _webViewController.platform;
     if (platform is AndroidWebViewController) {
+      platform.setOnPlatformPermissionRequest(
+        (request) async {
+          debugPrint('WebView permission requested: ${request.types}');
+          try {
+            final status = await Permission.camera.request();
+            if (status.isGranted) {
+              request.grant();
+            } else {
+              request.deny();
+            }
+          } catch (e) {
+            debugPrint('Error granting camera permission: $e');
+            request.grant();
+          }
+        },
+      );
       platform.setOnShowFileSelector((FileSelectorParams params) async {
         try {
           final picker = ImagePicker();
@@ -229,6 +246,11 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
         haptic: function(type) {
           if (window.FlamingoNativeBridge) {
             window.FlamingoNativeBridge.postMessage('haptic:' + (type || 'light'));
+          }
+        },
+        requestCameraPermission: function() {
+          if (window.FlamingoNativeBridge) {
+            window.FlamingoNativeBridge.postMessage('requestCameraPermission');
           }
         }
       };
@@ -315,6 +337,16 @@ class _FlamingoHomeScreenState extends State<FlamingoHomeScreen> {
         });
       } catch (e) {
         debugPrint('Error invoking showNotification: $e');
+      }
+    } else if (msg == 'requestCameraPermission') {
+      try {
+        final status = await Permission.camera.request();
+        final isGranted = status.isGranted;
+        await _webViewController.runJavaScript(
+          'if (window.onCameraPermissionResult) window.onCameraPermissionResult($isGranted);',
+        );
+      } catch (e) {
+        debugPrint('Error requesting camera permission: $e');
       }
     } else if (msg.startsWith('haptic:')) {
       final type = msg.split(':')[1];
