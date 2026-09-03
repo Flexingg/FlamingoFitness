@@ -387,21 +387,57 @@ def nutrition_state(request):
         history.append(_item)
 
     today_str = timezone.localdate().isoformat()
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+    api_key = (sparky.credentials or {}).get("api_key") if has_key else ""
+
+    sparky_cal_goal = None
+    sparky_pro_goal = None
+    if api_key:
+        from .services.sparky_client import SparkyFitnessClient
+        client = SparkyFitnessClient()
+        s_goals = client.get_goals_by_date(api_key, today_str)
+        if s_goals:
+            sparky_cal_goal = s_goals.get("calories")
+            sparky_pro_goal = s_goals.get("protein")
+
     today = next((h for h in history if h["date"] == today_str), None)
-    if today is None and history:
-        # Fall back to the most recent entry if nothing logged for today yet.
-        today = history[0]
+    if today:
+        if sparky_cal_goal is not None:
+            today["calorie_goal"] = float(sparky_cal_goal)
+            today["calorie_pct"] = int(round((today["calories"] / float(sparky_cal_goal)) * 100)) if float(sparky_cal_goal) else 0
+        if sparky_pro_goal is not None:
+            today["protein_goal"] = float(sparky_pro_goal)
+            today["protein_pct"] = int(round((today["protein"] / float(sparky_pro_goal)) * 100)) if float(sparky_pro_goal) else 0
+    else:
+        # Construct fresh today state with Sparky goals
+        c_goal = float(sparky_cal_goal) if sparky_cal_goal is not None else 2000.0
+        p_goal = float(sparky_pro_goal) if sparky_pro_goal is not None else 150.0
+        today = {
+            "date": today_str,
+            "calories": 0.0,
+            "protein": 0.0,
+            "carbs": 0.0,
+            "fat": 0.0,
+            "calorie_goal": c_goal,
+            "protein_goal": p_goal,
+            "calorie_pct": 0,
+            "protein_pct": 0,
+            "perfect": False,
+            "status": "needs_work",
+            "status_label": "Needs work",
+            "xp": 0,
+            "tokens": 0,
+            "food_entries": [],
+        }
 
     st, _ = SkillTree.objects.get_or_create(
         user=request.user,
         modality=Modality.NUTRITION,
         defaults={"level": 1, "xp": 0, "total_xp": 0},
     )
-
-    sparky = UserIntegration.objects.filter(
-        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
-    ).first()
-    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
 
     pending_snaps_count = FoodSnapDraft.objects.filter(
         user=request.user,
@@ -450,20 +486,43 @@ def hydration_state(request):
     history = build_hydration_history(logs, include_raw=_raw_requested(request))
 
     today_str = timezone.localdate().isoformat()
+    sparky = UserIntegration.objects.filter(
+        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
+    ).first()
+    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
+    api_key = (sparky.credentials or {}).get("api_key") if has_key else ""
+
+    sparky_water_goal_oz = None
+    if api_key:
+        from .services.sparky_client import SparkyFitnessClient
+        client = SparkyFitnessClient()
+        s_goals = client.get_goals_by_date(api_key, today_str)
+        if s_goals and s_goals.get("water_goal_ml"):
+            sparky_water_goal_oz = round(float(s_goals["water_goal_ml"]) / 29.5735, 1)
+
     today = next((h for h in history if h["date"] == today_str), None)
-    if today is None and history:
-        today = history[0]
+    if today:
+        if sparky_water_goal_oz:
+            today["water_goal"] = sparky_water_goal_oz
+            today["water_pct"] = int(round((today["water"] / sparky_water_goal_oz) * 100)) if sparky_water_goal_oz else 0
+    else:
+        w_goal = sparky_water_goal_oz or 120.0
+        today = {
+            "date": today_str,
+            "water": 0.0,
+            "water_goal": w_goal,
+            "water_pct": 0,
+            "perfect": False,
+            "status": "needs_work",
+            "status_label": "Needs work",
+            "entries": [],
+        }
 
     st, _ = SkillTree.objects.get_or_create(
         user=request.user,
         modality=Modality.HYDRATION,
         defaults={"level": 1, "xp": 0, "total_xp": 0},
     )
-
-    sparky = UserIntegration.objects.filter(
-        user=request.user, provider=Provider.SPARKYFITNESS, is_active=True
-    ).first()
-    has_key = bool((sparky.credentials or {}).get("api_key")) if sparky else False
 
     profile = PlayerProfile.objects.get_or_create(user=request.user)[0]
     bottles = ensure_default_bottles(request.user)
@@ -2400,12 +2459,27 @@ def nutrition_quick_log(request):
     if not food_name:
         return _json_error("Missing food_name", 400)
 
-    calories = float(data.get("calories") or 0.0)
-    protein = float(data.get("protein") or 0.0)
-    carbs = float(data.get("carbs") or 0.0)
-    fat = float(data.get("fat") or 0.0)
+    quantity = max(float(data.get("quantity") or 1.0), 0.01)
+    if "base_calories" in data:
+        serving_cal = float(data.get("base_calories") or 0.0)
+        serving_pro = float(data.get("base_protein") or 0.0)
+        serving_carb = float(data.get("base_carbs") or 0.0)
+        serving_fat = float(data.get("base_fat") or 0.0)
+        calories = round(serving_cal * quantity, 1)
+        protein = round(serving_pro * quantity, 1)
+        carbs = round(serving_carb * quantity, 1)
+        fat = round(serving_fat * quantity, 1)
+    else:
+        calories = float(data.get("calories") or 0.0)
+        protein = float(data.get("protein") or 0.0)
+        carbs = float(data.get("carbs") or 0.0)
+        fat = float(data.get("fat") or 0.0)
+        serving_cal = round(calories / quantity, 1)
+        serving_pro = round(protein / quantity, 1)
+        serving_carb = round(carbs / quantity, 1)
+        serving_fat = round(fat / quantity, 1)
+
     meal_type = data.get("meal_type") or "Lunch"
-    quantity = float(data.get("quantity") or 1.0)
     unit = str(data.get("unit") or "serving")
     food_id = data.get("food_id")
     variant_id = data.get("variant_id")
@@ -2421,20 +2495,24 @@ def nutrition_quick_log(request):
 
     client = SparkyFitnessClient()
 
-    if api_key and (data.get("create_custom") or data.get("source") == "sparky_ai"):
+    # Always ensure food is created in Sparky DB if missing food_id or created via AI
+    if api_key and (not food_id or data.get("create_custom") or data.get("source") in ("sparky_ai", "sparky_ai_created")):
         try:
             created = client.create_custom_food(
                 api_key=api_key,
                 name=food_name,
-                calories=calories / max(quantity, 1.0),
-                protein=protein / max(quantity, 1.0),
-                carbs=carbs / max(quantity, 1.0),
-                fat=fat / max(quantity, 1.0),
+                calories=serving_cal,
+                protein=serving_pro,
+                carbs=serving_carb,
+                fat=serving_fat,
                 serving=unit,
                 brand=brand_name or "Custom",
             )
             if isinstance(created, dict) and created.get("id"):
                 food_id = created["id"]
+                default_var = created.get("default_variant") or {}
+                if default_var.get("id"):
+                    variant_id = default_var["id"]
         except Exception:
             pass
 
@@ -2485,6 +2563,11 @@ def nutrition_quick_log(request):
     tot_carb = sum(float(e.get("carbs", 0)) for e in current_entries)
     tot_fat = sum(float(e.get("fat", 0)) for e in current_entries)
 
+    # Ensure Sparky goals are pulled and attached to day_log
+    sparky_goals = client.get_goals_by_date(api_key, entry_date) if api_key else {}
+    cal_goal = sparky_goals.get("calories") or (day_log.payload.get("calorie_goal") if day_log and day_log.payload else 2000.0)
+    pro_goal = sparky_goals.get("protein") or (day_log.payload.get("protein_goal") if day_log and day_log.payload else 150.0)
+
     payload = {
         "date": entry_date,
         "entry_date": entry_date,
@@ -2493,11 +2576,10 @@ def nutrition_quick_log(request):
         "carbs": tot_carb,
         "fat": tot_fat,
         "food_entries": current_entries,
+        "calorie_goal": float(cal_goal),
+        "protein_goal": float(pro_goal),
+        "goals": {"calories": float(cal_goal), "protein": float(pro_goal)},
     }
-    if day_log and "calorie_goal" in day_log.payload:
-        payload["calorie_goal"] = day_log.payload["calorie_goal"]
-    if day_log and "protein_goal" in day_log.payload:
-        payload["protein_goal"] = day_log.payload["protein_goal"]
 
     if not day_log:
         day_log = RawActivityLog(
@@ -2626,20 +2708,25 @@ def nutrition_snap_commit(request, draft_id):
     client = SparkyFitnessClient()
     for item in items:
         f_id = item.get("food_id")
-        if not f_id and api_key and item.get("match_source") in ("sparky_ai", "sparky_ai_created"):
+        v_id = item.get("variant_id")
+        if not f_id and api_key:
             try:
+                qty = max(float(item.get("quantity") or 1.0), 0.01)
                 created = client.create_custom_food(
                     api_key=api_key,
                     name=item.get("name") or "Logged Food",
-                    calories=float(item.get("calories") or 0) / max(float(item.get("quantity") or 1), 1.0),
-                    protein=float(item.get("protein") or 0) / max(float(item.get("quantity") or 1), 1.0),
-                    carbs=float(item.get("carbs") or 0) / max(float(item.get("quantity") or 1), 1.0),
-                    fat=float(item.get("fat") or 0) / max(float(item.get("quantity") or 1), 1.0),
+                    calories=round(float(item.get("calories") or 0) / qty, 1),
+                    protein=round(float(item.get("protein") or 0) / qty, 1),
+                    carbs=round(float(item.get("carbs") or 0) / qty, 1),
+                    fat=round(float(item.get("fat") or 0) / qty, 1),
                     serving=str(item.get("unit") or "serving"),
                     brand=item.get("brand") or "Sparky AI",
                 )
                 if isinstance(created, dict) and created.get("id"):
                     f_id = created["id"]
+                    default_var = created.get("default_variant") or {}
+                    if default_var.get("id"):
+                        v_id = default_var["id"]
             except Exception:
                 pass
 
@@ -2655,7 +2742,7 @@ def nutrition_snap_commit(request, draft_id):
             quantity=float(item.get("quantity") or 1),
             unit=str(item.get("unit") or "serving"),
             food_id=f_id,
-            variant_id=item.get("variant_id"),
+            variant_id=v_id,
             brand_name=item.get("brand") or "",
         )
 
@@ -2689,6 +2776,11 @@ def nutrition_snap_commit(request, draft_id):
     tot_carb = sum(float(e.get("carbs", 0)) for e in current_entries)
     tot_fat = sum(float(e.get("fat", 0)) for e in current_entries)
 
+    # Ensure Sparky goals are pulled and attached to day_log
+    sparky_goals = client.get_goals_by_date(api_key, entry_date) if api_key else {}
+    cal_goal = sparky_goals.get("calories") or (day_log.payload.get("calorie_goal") if day_log and day_log.payload else 2000.0)
+    pro_goal = sparky_goals.get("protein") or (day_log.payload.get("protein_goal") if day_log and day_log.payload else 150.0)
+
     payload = {
         "date": entry_date,
         "entry_date": entry_date,
@@ -2697,11 +2789,10 @@ def nutrition_snap_commit(request, draft_id):
         "carbs": tot_carb,
         "fat": tot_fat,
         "food_entries": current_entries,
+        "calorie_goal": float(cal_goal),
+        "protein_goal": float(pro_goal),
+        "goals": {"calories": float(cal_goal), "protein": float(pro_goal)},
     }
-    if day_log and "calorie_goal" in day_log.payload:
-        payload["calorie_goal"] = day_log.payload["calorie_goal"]
-    if day_log and "protein_goal" in day_log.payload:
-        payload["protein_goal"] = day_log.payload["protein_goal"]
 
     if not day_log:
         day_log = RawActivityLog(

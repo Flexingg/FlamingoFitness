@@ -77,19 +77,32 @@
 
     // 1-Tap Quick Log food helper
     window.quickLogFood = function (food, qtyMultiplier) {
-        var mult = qtyMultiplier || 1.0;
+        var mult = (qtyMultiplier !== undefined && qtyMultiplier !== null) ? Number(qtyMultiplier) : (Number(food.quantity) || 1.0);
+        if (isNaN(mult) || mult <= 0) mult = 1.0;
+
+        var baseCal = food.base_calories !== undefined ? Number(food.base_calories) : Number(food.calories || 0);
+        var basePro = food.base_protein !== undefined ? Number(food.base_protein) : Number(food.protein || 0);
+        var baseCarb = food.base_carbs !== undefined ? Number(food.base_carbs) : Number(food.carbs || 0);
+        var baseFat = food.base_fat !== undefined ? Number(food.base_fat) : Number(food.fat || 0);
+
         var payload = {
-            food_name: food.name,
+            food_name: food.food_name || food.name,
             food_id: food.food_id || food.id,
             variant_id: food.variant_id,
-            brand_name: food.brand || '',
-            calories: Math.round((food.calories || 0) * mult),
-            protein: Math.round((food.protein || 0) * mult * 10) / 10,
-            carbs: Math.round((food.carbs || 0) * mult * 10) / 10,
-            fat: Math.round((food.fat || 0) * mult * 10) / 10,
+            brand_name: food.brand || food.brand_name || '',
+            base_calories: baseCal,
+            base_protein: basePro,
+            base_carbs: baseCarb,
+            base_fat: baseFat,
+            calories: Math.round(baseCal * mult * 10) / 10,
+            protein: Math.round(basePro * mult * 10) / 10,
+            carbs: Math.round(baseCarb * mult * 10) / 10,
+            fat: Math.round(baseFat * mult * 10) / 10,
             quantity: mult,
-            unit: food.serving || 'serving',
+            unit: food.serving || food.unit || 'serving',
             meal_type: food.meal_type || 'Lunch',
+            create_custom: Boolean(food.create_custom),
+            source: food.source || (food.create_custom ? 'sparky_ai' : undefined),
         };
 
         fetch('/api/v1/nutrition/quick-log/', {
@@ -115,6 +128,142 @@
             console.error('Quick log error:', err);
             alert('Error logging food to Sparky.');
         });
+    };
+
+    // Open Portion Adjustment Modal before logging any food
+    window.openPortionLogModal = function (food) {
+        if (window.closeModal) window.closeModal();
+
+        var modalTitle = document.getElementById('modal-title');
+        var modalDesc = document.getElementById('modal-desc');
+        var modalAction = document.getElementById('modal-action');
+        var modalIcon = document.querySelector('.modal-icon i');
+
+        if (modalTitle) modalTitle.textContent = 'Log Food to Sparky';
+        if (modalIcon) modalIcon.className = 'fa-solid fa-utensils';
+        if (modalAction) modalAction.style.display = 'none';
+
+        var baseCal = food.base_calories !== undefined ? Number(food.base_calories) : Number(food.calories || 0);
+        var basePro = food.base_protein !== undefined ? Number(food.base_protein) : Number(food.protein || 0);
+        var baseCarb = food.base_carbs !== undefined ? Number(food.base_carbs) : Number(food.carbs || 0);
+        var baseFat = food.base_fat !== undefined ? Number(food.base_fat) : Number(food.fat || 0);
+
+        var html = '<div style="text-align: left;">';
+        html += '<div style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 14px; padding: 12px; margin-bottom: 14px;">';
+        html += '<div style="font-weight: 800; font-size: 1rem; color: #fff; margin-bottom: 2px;">' + (food.name || 'Food') + '</div>';
+        html += '<div style="font-size: 0.78rem; color: #94a3b8;">1 Serving (' + (food.serving || '1 serving') + '): <span style="color: #4ade80; font-weight: 700;">' + Math.round(baseCal) + ' cal</span> • <span style="color: #c084fc; font-weight: 700;">' + Math.round(basePro) + 'g Protein</span></div>';
+        html += '</div>';
+
+        html += '<div style="margin-bottom: 12px;">';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 6px;">How many servings did you eat?</label>';
+        html += '<div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px;">';
+        html += '<button type="button" id="portion-btn-minus" style="width: 44px; height: 44px; border-radius: 12px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">-</button>';
+        html += '<input type="number" id="portion-qty-input" value="1.0" step="0.25" min="0.1" style="width: 90px; height: 44px; text-align: center; font-size: 1.25rem; font-weight: 900; color: #00F0FF; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 12px;" />';
+        html += '<button type="button" id="portion-btn-plus" style="width: 44px; height: 44px; border-radius: 12px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">+</button>';
+        html += '</div>';
+
+        html += '<div style="display: flex; gap: 6px; justify-content: center; margin-bottom: 14px;">';
+        [0.5, 1.0, 1.5, 2.0, 3.0].forEach(function (preset) {
+            html += '<button type="button" class="portion-preset-pill" data-val="' + preset + '" style="padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(30, 41, 59, 0.6); color: #cbd5e1; font-weight: 700; font-size: 0.78rem; cursor: pointer;">' + preset + 'x</button>';
+        });
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div style="margin-bottom: 14px;">';
+        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Meal Slot</label>';
+        html += '<select id="portion-meal-type" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700;">';
+        html += '<option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option>';
+        html += '</select>';
+        html += '</div>';
+
+        html += '<div id="portion-total-card" style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 16px;">';
+        html += '<div style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Total Being Logged Today:</div>';
+        html += '<div id="portion-total-summary" style="font-size: 1.15rem; font-weight: 900; color: #fff;">';
+        html += '<span style="color: #4ade80;">' + Math.round(baseCal) + ' cal</span> • <span style="color: #c084fc;">' + Math.round(basePro) + 'g P</span> • <span style="color: #38bdf8;">' + Math.round(baseCarb) + 'g C</span> • <span style="color: #fbbf24;">' + Math.round(baseFat) + 'g F</span>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<button type="button" id="btn-portion-confirm" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; border-radius: 12px; color: #fff; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);"><i class="fa-solid fa-cloud-arrow-up"></i> Log to Sparky (+XP)</button>';
+        html += '</div>';
+
+        if (modalDesc) modalDesc.innerHTML = html;
+        if (window.openModal) window.openModal();
+
+        var qtyInput = document.getElementById('portion-qty-input');
+        var totalSummary = document.getElementById('portion-total-summary');
+        var btnConfirm = document.getElementById('btn-portion-confirm');
+        var btnMinus = document.getElementById('portion-btn-minus');
+        var btnPlus = document.getElementById('portion-btn-plus');
+        var mealSelect = document.getElementById('portion-meal-type');
+
+        function updatePortionDisplay() {
+            var q = parseFloat(qtyInput.value) || 1.0;
+            if (q < 0.1) q = 0.1;
+            var c = Math.round(baseCal * q);
+            var p = Math.round(basePro * q * 10) / 10;
+            var carb = Math.round(baseCarb * q * 10) / 10;
+            var f = Math.round(baseFat * q * 10) / 10;
+
+            if (totalSummary) {
+                totalSummary.innerHTML = '<span style="color: #4ade80;">' + c + ' cal</span> • <span style="color: #c084fc;">' + p + 'g P</span> • <span style="color: #38bdf8;">' + carb + 'g C</span> • <span style="color: #fbbf24;">' + f + 'g F</span>';
+            }
+            if (btnConfirm) {
+                btnConfirm.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Log ' + q + ' Servings (' + c + ' cal / +XP)';
+            }
+        }
+
+        if (btnMinus) {
+            btnMinus.onclick = function () {
+                var q = (parseFloat(qtyInput.value) || 1.0) - 0.5;
+                if (q < 0.5) q = 0.25;
+                qtyInput.value = q;
+                updatePortionDisplay();
+            };
+        }
+        if (btnPlus) {
+            btnPlus.onclick = function () {
+                var q = (parseFloat(qtyInput.value) || 1.0) + 0.5;
+                qtyInput.value = q;
+                updatePortionDisplay();
+            };
+        }
+        if (qtyInput) {
+            qtyInput.oninput = updatePortionDisplay;
+        }
+
+        document.querySelectorAll('.portion-preset-pill').forEach(function (pill) {
+            pill.onclick = function () {
+                qtyInput.value = pill.getAttribute('data-val');
+                updatePortionDisplay();
+            };
+        });
+
+        if (btnConfirm) {
+            btnConfirm.onclick = function () {
+                var q = parseFloat(qtyInput.value) || 1.0;
+                var meal = mealSelect ? mealSelect.value : 'Lunch';
+                btnConfirm.disabled = true;
+                btnConfirm.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Logging to Sparky...';
+
+                var logPayload = Object.assign({}, food, {
+                    base_calories: baseCal,
+                    base_protein: basePro,
+                    base_carbs: baseCarb,
+                    base_fat: baseFat,
+                    calories: Math.round(baseCal * q * 10) / 10,
+                    protein: Math.round(basePro * q * 10) / 10,
+                    carbs: Math.round(baseCarb * q * 10) / 10,
+                    fat: Math.round(baseFat * q * 10) / 10,
+                    quantity: q,
+                    meal_type: meal
+                });
+
+                if (window.closeModal) window.closeModal();
+                window.quickLogFood(logPayload, q);
+            };
+        }
+
+        updatePortionDisplay();
     };
 
     // Open Snap & Note Modal
@@ -561,7 +710,7 @@
 
                             card.onclick = function () {
                                 if (window.closeModal) window.closeModal();
-                                window.quickLogFood(f, 1.0);
+                                window.openPortionLogModal(f);
                             };
                             resultsList.appendChild(card);
                         });
@@ -629,24 +778,48 @@
         html += '</div>';
         html += '</div>';
 
-        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">';
+        html += '<div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 10px; margin-bottom: 12px;">';
+        html += '<div style="font-size: 0.72rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px;"><i class="fa-solid fa-calculator"></i> Base Profile (Per 1 Serving)</div>';
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">';
         html += '<div>';
-        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Serving Size</label>';
-        html += '<input type="text" id="ai-food-serving" value="1 serving" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-size: 0.9rem;" />';
+        html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;">Serving Description</label>';
+        html += '<input type="text" id="ai-food-serving" value="1 serving" placeholder="e.g. 1 bar, 100g" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-size: 0.85rem;" />';
         html += '</div>';
         html += '<div>';
-        html += '<label style="display: block; font-size: 0.75rem; font-weight: 800; color: #cbd5e1; text-transform: uppercase; margin-bottom: 4px;">Meal Slot</label>';
-        html += '<select id="ai-food-meal-type" style="width: 100%; padding: 10px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 12px; color: #fff; font-weight: 700;">';
+        html += '<label style="display: block; font-size: 0.7rem; font-weight: 700; color: #cbd5e1; margin-bottom: 2px;">Meal Slot</label>';
+        html += '<select id="ai-food-meal-type" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; color: #fff; font-weight: 700; font-size: 0.85rem;">';
         html += '<option value="Breakfast">Breakfast</option><option value="Lunch" selected>Lunch</option><option value="Dinner">Dinner</option><option value="Snack">Snack</option>';
         html += '</select>';
         html += '</div>';
         html += '</div>';
 
-        html += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 16px;">';
-        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 2px;">Calories</label><input type="number" id="ai-food-cal" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fff; font-weight: 800; text-align: center;" /></div>';
-        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #c084fc; margin-bottom: 2px;">Protein (g)</label><input type="number" id="ai-food-pro" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #c084fc; font-weight: 800; text-align: center;" /></div>';
-        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">Carbs (g)</label><input type="number" id="ai-food-carb" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #38bdf8; font-weight: 800; text-align: center;" /></div>';
-        html += '<div><label style="display: block; font-size: 0.7rem; font-weight: 800; color: #fbbf24; margin-bottom: 2px;">Fat (g)</label><input type="number" id="ai-food-fat" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fbbf24; font-weight: 800; text-align: center;" /></div>';
+        html += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px;">';
+        html += '<div><label style="display: block; font-size: 0.68rem; font-weight: 800; color: #94a3b8; margin-bottom: 2px;">Calories</label><input type="number" id="ai-food-cal" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fff; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.68rem; font-weight: 800; color: #c084fc; margin-bottom: 2px;">Protein (g)</label><input type="number" id="ai-food-pro" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #c084fc; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.68rem; font-weight: 800; color: #38bdf8; margin-bottom: 2px;">Carbs (g)</label><input type="number" id="ai-food-carb" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #38bdf8; font-weight: 800; text-align: center;" /></div>';
+        html += '<div><label style="display: block; font-size: 0.68rem; font-weight: 800; color: #fbbf24; margin-bottom: 2px;">Fat (g)</label><input type="number" id="ai-food-fat" value="0" style="width: 100%; padding: 8px; background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #fbbf24; font-weight: 800; text-align: center;" /></div>';
+        html += '</div>';
+        html += '</div>';
+
+        // Servings Consumed section
+        html += '<div style="background: rgba(168, 85, 247, 0.12); border: 1px solid rgba(168, 85, 247, 0.35); border-radius: 12px; padding: 12px; margin-bottom: 14px;">';
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">';
+        html += '<label style="font-size: 0.78rem; font-weight: 800; color: #e9d5ff; text-transform: uppercase;"><i class="fa-solid fa-utensils"></i> Servings Consumed</label>';
+        html += '<span style="font-size: 0.7rem; color: #94a3b8;">(1 serving in DB = base macros)</span>';
+        html += '</div>';
+        html += '<div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">';
+        html += '<button type="button" id="ai-qty-minus" style="width: 40px; height: 40px; border-radius: 10px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">-</button>';
+        html += '<input type="number" id="ai-food-qty" value="1.0" step="0.25" min="0.1" style="width: 85px; height: 40px; text-align: center; font-size: 1.2rem; font-weight: 900; color: #00F0FF; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 10px;" />';
+        html += '<button type="button" id="ai-qty-plus" style="width: 40px; height: 40px; border-radius: 10px; background: rgba(30, 41, 59, 0.9); border: 1px solid rgba(255, 255, 255, 0.2); color: #fff; font-size: 1.2rem; font-weight: 900; cursor: pointer;">+</button>';
+        html += '</div>';
+        html += '<div style="display: flex; gap: 6px; justify-content: center; margin-bottom: 10px;">';
+        [0.5, 1.0, 1.5, 2.0, 3.0].forEach(function (preset) {
+            html += '<button type="button" class="ai-qty-pill" data-val="' + preset + '" style="padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(30, 41, 59, 0.6); color: #cbd5e1; font-weight: 700; font-size: 0.75rem; cursor: pointer;">' + preset + 'x</button>';
+        });
+        html += '</div>';
+        html += '<div id="ai-total-preview" style="text-align: center; font-size: 0.88rem; font-weight: 800; color: #fff; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.1);">';
+        html += 'Logging <span id="ai-tot-lbl" style="color: #00F0FF;">1.0</span> serving(s): <span id="ai-tot-cal" style="color: #4ade80;">0 cal</span> • <span id="ai-tot-pro" style="color: #c084fc;">0g Protein</span> • <span id="ai-tot-carb" style="color: #38bdf8;">0g Carbs</span> • <span id="ai-tot-fat" style="color: #fbbf24;">0g Fat</span>';
+        html += '</div>';
         html += '</div>';
 
         html += '<div style="display: flex; gap: 8px;">';
@@ -658,6 +831,75 @@
 
         if (modalDesc) modalDesc.innerHTML = html;
         if (window.openModal) window.openModal();
+
+        var qtyInput = document.getElementById('ai-food-qty');
+        var btnMinus = document.getElementById('ai-qty-minus');
+        var btnPlus = document.getElementById('ai-qty-plus');
+        var btnSaveLog = document.getElementById('btn-save-and-log');
+        var btnSaveOnly = document.getElementById('btn-save-only');
+
+        function updateAiPreview() {
+            var q = parseFloat(qtyInput ? qtyInput.value : 1.0) || 1.0;
+            if (q < 0.1) q = 0.1;
+            var cal = parseFloat(document.getElementById('ai-food-cal').value) || 0;
+            var pro = parseFloat(document.getElementById('ai-food-pro').value) || 0;
+            var carb = parseFloat(document.getElementById('ai-food-carb').value) || 0;
+            var fat = parseFloat(document.getElementById('ai-food-fat').value) || 0;
+
+            var totCal = Math.round(cal * q);
+            var totPro = Math.round(pro * q * 10) / 10;
+            var totCarb = Math.round(carb * q * 10) / 10;
+            var totFat = Math.round(fat * q * 10) / 10;
+
+            var lbl = document.getElementById('ai-tot-lbl');
+            var cEl = document.getElementById('ai-tot-cal');
+            var pEl = document.getElementById('ai-tot-pro');
+            var cbEl = document.getElementById('ai-tot-carb');
+            var fEl = document.getElementById('ai-tot-fat');
+
+            if (lbl) lbl.textContent = q;
+            if (cEl) cEl.textContent = totCal + ' cal';
+            if (pEl) pEl.textContent = totPro + 'g Protein';
+            if (cbEl) cbEl.textContent = totCarb + 'g Carbs';
+            if (fEl) fEl.textContent = totFat + 'g Fat';
+
+            if (btnSaveLog) {
+                btnSaveLog.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Save & Log ' + q + ' Serving' + (q === 1 ? '' : 's') + ' (' + totCal + ' cal / +XP)';
+            }
+        }
+
+        if (btnMinus) {
+            btnMinus.onclick = function () {
+                var q = (parseFloat(qtyInput.value) || 1.0) - 0.5;
+                if (q < 0.5) q = 0.25;
+                qtyInput.value = q;
+                updateAiPreview();
+            };
+        }
+        if (btnPlus) {
+            btnPlus.onclick = function () {
+                var q = (parseFloat(qtyInput.value) || 1.0) + 0.5;
+                qtyInput.value = q;
+                updateAiPreview();
+            };
+        }
+        if (qtyInput) {
+            qtyInput.oninput = updateAiPreview;
+        }
+
+        ['ai-food-cal', 'ai-food-pro', 'ai-food-carb', 'ai-food-fat'].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.oninput = updateAiPreview;
+        });
+
+        document.querySelectorAll('.ai-qty-pill').forEach(function (pill) {
+            pill.onclick = function () {
+                if (qtyInput) {
+                    qtyInput.value = pill.getAttribute('data-val');
+                    updateAiPreview();
+                }
+            };
+        });
 
         function triggerAiGeneration() {
             var nameVal = document.getElementById('ai-food-name').value.trim();
@@ -689,6 +931,7 @@
                     document.getElementById('ai-food-carb').value = Math.round(f.carbs || 0);
                     document.getElementById('ai-food-fat').value = Math.round(f.fat || 0);
                     if (f.serving) document.getElementById('ai-food-serving').value = f.serving;
+                    updateAiPreview();
                     if (window.showToast) window.showToast('✨ Sparky AI estimated nutritional profile!');
                 }
             })
@@ -706,7 +949,6 @@
             triggerAiGeneration();
         }
 
-        var btnSaveLog = document.getElementById('btn-save-and-log');
         if (btnSaveLog) {
             btnSaveLog.onclick = function () {
                 var nameVal = document.getElementById('ai-food-name').value.trim();
@@ -716,6 +958,7 @@
                 var proVal = parseFloat(document.getElementById('ai-food-pro').value) || 0;
                 var carbVal = parseFloat(document.getElementById('ai-food-carb').value) || 0;
                 var fatVal = parseFloat(document.getElementById('ai-food-fat').value) || 0;
+                var qVal = parseFloat(qtyInput ? qtyInput.value : 1.0) || 1.0;
 
                 if (!nameVal) {
                     alert('Food name is required.');
@@ -728,22 +971,25 @@
                 window.quickLogFood({
                     name: nameVal,
                     food_name: nameVal,
-                    calories: calVal,
-                    protein: proVal,
-                    carbs: carbVal,
-                    fat: fatVal,
+                    base_calories: calVal,
+                    base_protein: proVal,
+                    base_carbs: carbVal,
+                    base_fat: fatVal,
+                    calories: Math.round(calVal * qVal * 10) / 10,
+                    protein: Math.round(proVal * qVal * 10) / 10,
+                    carbs: Math.round(carbVal * qVal * 10) / 10,
+                    fat: Math.round(fatVal * qVal * 10) / 10,
                     serving: servingVal,
                     unit: servingVal,
                     brand: 'Sparky AI',
                     create_custom: true,
                     meal_type: mealVal
-                }, 1.0);
+                }, qVal);
 
                 if (window.closeModal) window.closeModal();
             };
         }
 
-        var btnSaveOnly = document.getElementById('btn-save-only');
         if (btnSaveOnly) {
             btnSaveOnly.onclick = function () {
                 var nameVal = document.getElementById('ai-food-name').value.trim();
@@ -763,12 +1009,12 @@
                         'X-CSRFToken': getCookie('csrftoken') || ''
                     },
                     body: JSON.stringify({
-                        name: nameVal,
+                        food_name: nameVal,
                         calories: calVal,
                         protein: proVal,
                         carbs: carbVal,
                         fat: fatVal,
-                        serving: servingVal,
+                        unit: servingVal,
                         brand: 'Sparky AI'
                     })
                 })
@@ -787,7 +1033,6 @@
                     alert('Error saving custom food.');
                     btnSaveOnly.disabled = false;
                     btnSaveOnly.innerHTML = 'Save to DB Only';
-                });
             };
         }
     };
@@ -887,7 +1132,7 @@
                         if (btnLog) {
                             btnLog.onclick = function () {
                                 if (window.closeModal) window.closeModal();
-                                window.quickLogFood(f, 1.0);
+                                window.openPortionLogModal(f);
                             };
                         }
 
@@ -1184,7 +1429,7 @@
                         '</div>';
 
                     card.onclick = function () {
-                        window.quickLogFood(f, 1.0);
+                        window.openPortionLogModal(f);
                     };
                     grid.appendChild(card);
                 });

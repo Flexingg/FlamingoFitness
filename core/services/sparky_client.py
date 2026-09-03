@@ -13,6 +13,7 @@ returns no data so the UI surfaces the real-data "Link SparkyFitness" CTA.
 """
 
 import json
+import re
 from datetime import date, timedelta
 from datetime import time as dt_time
 
@@ -156,10 +157,12 @@ class SparkyFitnessClient(MockAPIClient):
         query_str = (query or "").strip()
         formatted = []
         if api_key and query_str:
-            # 1. Try dedicated search endpoint
-            res = self._get(api_key, "/foods/search", params={"search": query_str, "checkCustom": True})
+            # 1. Query Sparky /foods endpoint (database and custom foods)
+            res = self._get(api_key, "/foods", params={"name": query_str, "broadMatch": "true", "limit": 20})
             items = []
-            if isinstance(res, list) and res:
+            if isinstance(res, dict) and "searchResults" in res:
+                items = res["searchResults"]
+            elif isinstance(res, list):
                 items = res
             elif isinstance(res, dict) and "foods" in res:
                 items = res["foods"]
@@ -176,11 +179,13 @@ class SparkyFitnessClient(MockAPIClient):
                 for item in items:
                     variant = item.get("default_variant") or {}
                     variant_data = variant.get("data") or {}
-                    cal = item.get("calories") or variant_data.get("calories") or 0.0
-                    pro = item.get("protein") or variant_data.get("protein") or 0.0
-                    carb = item.get("carbs") or variant_data.get("carbs") or 0.0
-                    fat = item.get("fat") or variant_data.get("fat") or 0.0
-                    serving = variant.get("serving_size") or item.get("serving_size") or "1 serving"
+                    cal = variant.get("calories") or item.get("calories") or variant_data.get("calories") or 0.0
+                    pro = variant.get("protein") or item.get("protein") or variant_data.get("protein") or 0.0
+                    carb = variant.get("carbs") or item.get("carbs") or variant_data.get("carbs") or 0.0
+                    fat = variant.get("fat") or item.get("fat") or variant_data.get("fat") or 0.0
+                    serving_sz = variant.get("serving_size") or item.get("serving_size") or "1"
+                    serving_un = variant.get("serving_unit") or item.get("serving_unit") or "serving"
+                    serving = f"{serving_sz} {serving_un}".strip()
                     formatted.append({
                         "id": str(item.get("id") or ""),
                         "food_id": str(item.get("id") or ""),
@@ -466,26 +471,46 @@ class SparkyFitnessClient(MockAPIClient):
                 }
         return None
 
+    def get_goals_by_date(self, api_key, date_str=None):
+        """Fetch UserGoal for date from Sparky /goals/by-date/{date}."""
+        if not api_key:
+            return {}
+        if not date_str:
+            date_str = timezone.localdate().isoformat()
+        res = self._get(api_key, f"/goals/by-date/{date_str}")
+        if isinstance(res, dict):
+            return res
+        return {}
+
     def create_custom_food(self, api_key, name, calories, protein, carbs=0.0, fat=0.0, serving="1 serving", brand="Custom"):
         """Create a new custom food item in SparkyFitness backend."""
         if not api_key or not name:
             return None
+
+        serving_str = str(serving or "1 serving").strip()
+        num_match = re.search(r"^([0-9\.]+)\s*(.*)$", serving_str)
+        if num_match:
+            try:
+                serving_size = float(num_match.group(1))
+                serving_unit = num_match.group(2).strip() or "serving"
+            except ValueError:
+                serving_size = 1.0
+                serving_unit = serving_str
+        else:
+            serving_size = 1.0
+            serving_unit = serving_str
 
         payload = {
             "name": str(name).strip(),
             "brand": str(brand or "Custom").strip(),
             "is_custom": True,
             "is_public": False,
-            "default_variant": {
-                "serving_size": str(serving or "1 serving"),
-                "serving_weight": 100.0,
-                "data": {
-                    "calories": float(calories or 0.0),
-                    "protein": float(protein or 0.0),
-                    "carbs": float(carbs or 0.0),
-                    "fat": float(fat or 0.0),
-                }
-            }
+            "serving_size": serving_size,
+            "serving_unit": serving_unit,
+            "calories": float(calories or 0.0),
+            "protein": float(protein or 0.0),
+            "carbs": float(carbs or 0.0),
+            "fat": float(fat or 0.0),
         }
         res = self._post(api_key, "/foods", json_data=payload)
         return res
