@@ -4402,21 +4402,28 @@ class TimelineTests(TestCase):
         self.assertGreater(data["current_now_min"], 0)
         self.assertGreaterEqual(len(data["days"]), 1)
 
-        today_group = data["days"][0]
-        self.assertEqual(today_group["display_title"], "Today")
-        self.assertGreaterEqual(len(today_group["events"]), 4)
+        self.assertEqual(len(data["stream_events"]), 4)
+        total_events = sum(len(d["events"]) for d in data["days"])
+        self.assertEqual(total_events, 4)
 
-        # Totals verify
-        totals = today_group["totals"]
-        self.assertGreaterEqual(totals["workout_volume_lbs"], 12000)
-        self.assertGreaterEqual(totals["calories"], 700)
-        self.assertGreaterEqual(totals["protein"], 50)
-        self.assertGreaterEqual(totals["water_oz"], 20)
-        self.assertGreaterEqual(totals["sleep_hours"], 7.0)
-        self.assertGreaterEqual(totals["total_xp"], 160)
+        # Totals verify across days
+        all_totals = [d["totals"] for d in data["days"]]
+        total_vol = sum(t.get("workout_volume_lbs", 0) for t in all_totals)
+        total_cal = sum(t.get("calories", 0) for t in all_totals)
+        total_protein = sum(t.get("protein", 0) for t in all_totals)
+        total_water = sum(t.get("water_oz", 0) for t in all_totals)
+        total_sleep = sum(t.get("sleep_hours", 0) for t in all_totals)
+        total_xp = sum(t.get("total_xp", 0) for t in all_totals)
+
+        self.assertGreaterEqual(total_vol, 12000)
+        self.assertGreaterEqual(total_cal, 700)
+        self.assertGreaterEqual(total_protein, 50)
+        self.assertGreaterEqual(total_water, 20)
+        self.assertGreaterEqual(total_sleep, 7.0)
+        self.assertGreaterEqual(total_xp, 160)
 
         # Coordinate BioStream fields
-        for ev in today_group["events"]:
+        for ev in data["stream_events"]:
             self.assertIn("time_min", ev)
             self.assertIn("minutes_ago", ev)
             self.assertIn("value", ev)

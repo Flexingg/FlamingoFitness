@@ -62,6 +62,24 @@
         }
     };
 
+    function formatTime(minutes) {
+        var totalMin = Math.round(Number(minutes) || 0);
+        var h = Math.floor(totalMin / 60) % 24;
+        if (h < 0) h += 24;
+        var m = Math.floor(totalMin % 60);
+        if (m < 0) m += 60;
+        var ampm = h >= 12 ? 'PM' : 'AM';
+        var displayH = h % 12 === 0 ? 12 : h % 12;
+        var displayM = m < 10 ? '0' + m : String(m);
+        return {
+            hours: displayH,
+            minutes: displayM,
+            ampm: ampm,
+            full12: displayH + ':' + displayM + ' ' + ampm,
+            full24: (h < 10 ? '0' + h : String(h)) + ':' + displayM
+        };
+    }
+
     window._timelineState = {
         filter: 'all',
         days: 1,
@@ -144,6 +162,12 @@
 
         if (loadingEl) loadingEl.classList.add('hidden');
         window._timelineState.eventsById = {};
+
+        if (data && data.is_fallback && data.days_count) {
+            window._timelineState.days = data.days_count;
+            var daysSelect = document.getElementById('timeline-days-select');
+            if (daysSelect) daysSelect.value = String(data.days_count);
+        }
 
         var days = (data && data.days) || [];
         if (days.length === 0) {

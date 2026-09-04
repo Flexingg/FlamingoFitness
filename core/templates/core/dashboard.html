@@ -183,94 +183,6 @@
             <!-- Command Center (Concept 2: Cyber-Fitness Command Center) -->
             <section class="command-center-wrap p-4 flex flex-col gap-3 pb-6 hidden" id="skill-tree">
 
-                <!-- 0. Iron Directive / Daily Based Ticker -->
-                <div class="based-directive-bar cursor-pointer group p-2.5 px-3 rounded-2xl bg-gradient-to-r from-slate-800/90 via-purple-950/30 to-slate-800/90 border border-slate-700/60 hover:border-amber-400/50 active:scale-[0.99] transition-all shadow-sm" onclick="window.nextBasedDirective && window.nextBasedDirective()" title="Tap to cycle Iron Directives">
-                    <div class="flex items-center gap-2.5">
-                        <span class="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]">
-                            <i class="fa-solid fa-fire-flame-curved text-amber-400 animate-pulse"></i> Directive
-                        </span>
-                        <p class="text-xs font-bold text-slate-200 truncate group-hover:text-white transition-colors flex-1" id="based-directive-text">
-                            "We're all gonna make it, brah. Reject weakness, cultivate mass." — Zyzz
-                        </p>
-                        <i class="fa-solid fa-arrows-rotate text-slate-500 group-hover:text-amber-400 text-[10px] ml-auto transition-colors flex-shrink-0"></i>
-                    </div>
-                </div>
-
-                <!-- 1. Hero Readiness & Modality Status Card -->
-                <div class="command-hero-card relative overflow-hidden rounded-[1.75rem] p-4.5 bg-gradient-to-br from-slate-800/90 to-slate-900/90 border border-slate-700/80 shadow-2xl backdrop-blur-xl">
-                    <!-- Subtle ambient lighting -->
-                    <div class="absolute -top-10 -right-10 w-36 h-36 bg-flamingo/15 rounded-full blur-3xl pointer-events-none"></div>
-                    <div class="absolute -bottom-10 -left-10 w-36 h-36 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                    <div class="relative z-10 flex items-center justify-between gap-4">
-                        <!-- Left: Circular Readiness Gauge -->
-                        <div class="relative flex items-center justify-center flex-shrink-0">
-                            <svg class="w-22 h-22 -rotate-90 pointer-events-none" viewBox="0 0 100 100" style="width: 88px; height: 88px;">
-                                <circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" class="text-slate-700/50 fill-none" />
-                                <circle id="readiness-gauge-ring" cx="50" cy="50" r="40" stroke="currentColor" stroke-width="8" stroke-linecap="round"
-                                        stroke-dasharray="251.32" stroke-dashoffset="60"
-                                        class="text-flamingo fill-none transition-all duration-1000 ease-out" />
-                            </svg>
-                            <div class="absolute flex flex-col items-center justify-center text-center">
-                                <span class="text-2xl font-black text-white tracking-tight" id="readiness-score-num">--</span>
-                                <span class="text-[8px] font-black uppercase tracking-wider text-slate-400">Ready</span>
-                            </div>
-                        </div>
-
-                        <!-- Right: Status, Advice & Modality Dots -->
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-flamingo/20 text-flamingo border border-flamingo/30 uppercase tracking-wide" id="readiness-tier-badge">
-                                    <i class="fa-solid fa-bolt text-[9px]"></i> <span id="readiness-status-text">Synchronizing</span>
-                                </span>
-                                <button type="button" class="help-trigger text-slate-400 hover:text-slate-200 transition-colors ml-auto text-xs" data-help="Your Readiness Score aggregates sleep recovery, fatigue, and habit consistency. High readiness primes your attack power in raids!" aria-label="About Readiness">
-                                    <i class="fa-solid fa-circle-info"></i>
-                                </button>
-                            </div>
-                            <h3 class="text-sm font-black text-white tracking-tight leading-snug truncate" id="readiness-heading">
-                                Command Center
-                            </h3>
-                            <p class="text-xs text-slate-300 font-medium leading-relaxed line-clamp-2 mt-0.5" id="readiness-message">
-                                Analyzing biometrics and daily activity logs...
-                            </p>
-                            <!-- 5 Modalities Mini-Status Dots -->
-                            <div class="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-700/60" id="readiness-discipline-dots">
-                                <span class="text-[9px] font-black uppercase tracking-wider text-slate-400 mr-0.5">Today:</span>
-                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-strength" title="Strength"></span>
-                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-endurance" title="Endurance"></span>
-                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-nutrition" title="Nutrition"></span>
-                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-hydration" title="Hydration"></span>
-                                <span class="w-2.5 h-2.5 rounded-full bg-slate-700 transition-all" id="dot-recovery" title="Recovery"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 2. Quick Action Dock (1-Tap Fast Logging) -->
-                <div class="flex flex-col gap-1.5">
-                    <div class="flex items-center justify-between px-1">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-slate-400">Quick Actions</span>
-                        <span class="text-[10px] font-bold text-slate-500">Fast 1-Tap Log</span>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <!-- Quick Water Button -->
-                        <button type="button" id="btn-quick-water" onclick="quickLogWater(24)" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-900/50 active:scale-95 transition-all shadow-sm">
-                            <i class="fa-solid fa-droplet text-cyan-400 group-hover:scale-125 transition-transform"></i>
-                            <span class="text-xs font-black tracking-wide">+24 oz</span>
-                        </button>
-                        <!-- Quick Workout Modal / Strength -->
-                        <button type="button" onclick="loadStrength()" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-pink-950/40 border border-pink-500/30 text-pink-300 hover:bg-pink-900/50 active:scale-95 transition-all shadow-sm">
-                            <i class="fa-solid fa-dumbbell text-flamingo group-hover:rotate-12 transition-transform"></i>
-                            <span class="text-xs font-black tracking-wide">+ Workout</span>
-                        </button>
-                        <!-- Raid Boss Quick Strike -->
-                        <button type="button" onclick="loadBattle()" class="group flex items-center justify-center gap-2 py-3 px-2 rounded-2xl bg-purple-950/40 border border-purple-500/30 text-purple-300 hover:bg-purple-900/50 active:scale-95 transition-all shadow-sm">
-                            <i class="fa-solid fa-dragon text-purple-400 group-hover:scale-110 transition-transform"></i>
-                            <span class="text-xs font-black tracking-wide">Raid Boss</span>
-                        </button>
-                    </div>
-                </div>
-
                 <!-- Activity Timeline Quick Launcher -->
                 <div onclick="loadTimeline()" class="cursor-pointer group flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-800/90 via-slate-800/80 to-cyan-950/40 border border-slate-700/70 hover:border-cyan-500/50 active:scale-[0.99] transition-all shadow-sm">
                     <div class="flex items-center gap-3">
@@ -574,6 +486,7 @@
     <script defer src="{% static 'core/js/strength.js' %}"></script>
     <script defer src="{% static 'core/js/boss.js' %}"></script>
     <script defer src="{% static 'core/js/recovery.js' %}"></script>
+    <script defer src="{% static 'core/js/timeline.js' %}"></script>
     {% endcompress %}
 
     <!-- Lazy-loaded feature controllers are fetched on-demand via window.loadScript() -->

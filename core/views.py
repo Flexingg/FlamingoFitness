@@ -634,6 +634,34 @@ def timeline_state(request):
     if category_filter in category_to_types:
         qs = qs.filter(event_type__in=category_to_types[category_filter])
 
+    is_fallback = False
+    # If 24-hour default is requested but no logs exist in the past 24h,
+    # auto-fallback to the past 7 days (or 30 days) so the user is never shown a blank feed!
+    if days_param <= 1 and not qs.exists():
+        fallback_qs = RawActivityLog.objects.filter(
+            user=request.user,
+            occurred_at__gte=now - timedelta(days=7),
+            occurred_at__lte=now + timedelta(minutes=15),
+        ).prefetch_related("xp_entries").order_by("-occurred_at")
+        if category_filter in category_to_types:
+            fallback_qs = fallback_qs.filter(event_type__in=category_to_types[category_filter])
+        if fallback_qs.exists():
+            qs = fallback_qs
+            days_param = 7
+            is_fallback = True
+        else:
+            fallback_qs_30 = RawActivityLog.objects.filter(
+                user=request.user,
+                occurred_at__gte=now - timedelta(days=30),
+                occurred_at__lte=now + timedelta(minutes=15),
+            ).prefetch_related("xp_entries").order_by("-occurred_at")
+            if category_filter in category_to_types:
+                fallback_qs_30 = fallback_qs_30.filter(event_type__in=category_to_types[category_filter])
+            if fallback_qs_30.exists():
+                qs = fallback_qs_30
+                days_param = 30
+                is_fallback = True
+
     grouped_days = {}
     stream_events = []
 
@@ -915,6 +943,7 @@ def timeline_state(request):
         "stream_events": stream_events,
         "active_filter": category_filter,
         "days_count": days_param,
+        "is_fallback": is_fallback,
         "current_now_min": current_now_min,
         "current_now_label": now_dt.strftime("%I:%M %p").lstrip("0"),
     })
